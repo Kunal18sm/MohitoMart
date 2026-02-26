@@ -1,0 +1,470 @@
+import Product from '../models/Product.js';
+import Shop from '../models/Shop.js';
+import ProductView from '../models/ProductView.js';
+import User from '../models/User.js';
+import { SHOP_CATEGORIES, normalizeCategory } from '../constants/shopCategories.js';
+import { destroyCloudinaryImages } from '../utils/cloudinaryCleanup.js';
+
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const normalizeImages = (images) => {
+    if (!Array.isArray(images)) {
+        return [];
+    }
+
+    return images.map((image) => String(image).trim()).filter(Boolean);
+};
+
+const enforceImageRange = (images) => {
+    if (images.length < 3 || images.length > 5) {
+        throw new Error('Product images must be between 3 and 5');
+    }
+};
+
+const getFollowedShopIdsForUser = async (userId) => {
+    if (!userId) {
+        return new Set();
+    }
+
+    const user = await User.findById(userId).select('followedShops');
+    return new Set(user?.followedShops?.map((shopId) => shopId.toString()) || []);
+};
+
+const mapProductWithFollowState = (product, followedShopIds = new Set()) => {
+    const rawProduct = typeof product?.toObject === 'function' ? product.toObject() : product;
+
+    if (!rawProduct?.shop || typeof rawProduct.shop !== 'object') {
+        return rawProduct;
+    }
+
+    const shopId = rawProduct.shop._id?.toString?.();
+
+    return {
+        ...rawProduct,
+        shop: {
+            ...rawProduct.shop,
+            isFollowed: shopId ? followedShopIds.has(shopId) : false,
+        },
+    };
+};
+
+const mapProductsWithFollowState = (products, followedShopIds = new Set()) =>
+    products.map((product) => mapProductWithFollowState(product, followedShopIds));
+
+// @desc    Fetch all products with pagination and filters
+// @route   GET /api/products
+// @access  Public
+export const getProducts = async (req, res, next) => {
+    try {
+        const page = Number(req.query.page || 1);
+        const limit = Math.min(Number(req.query.limit || 12), 50);
+        const skip = (page - 1) * limit;
+
+        const filters = {};
+
+        if (req.query.category) {
+            const normalizedCategory = normalizeCategory(req.query.category);
+            if (!normalizedCategory) {
+                res.status(400);
+                throw new Error('Invalid product category');
+            }
+            filters.category = normalizedCategory;
+        }
+
+        if (req.query.keyword) {
+            filters.name = { $regex: escapeRegex(req.query.keyword), $options: 'i' };
+        }
+
+        if (req.query.shopId) {
+            filters.shop = req.query.shopId;
+        }
+
+        if (req.query.city || req.query.area) {
+            const shopFilters = {};
+            if (req.query.city) {
+                shopFilters['location.city'] = {
+                    $regex: `^${escapeRegex(req.query.city)}$`,
+                    $options: 'i',
+                };
+            }
+            if (req.query.area) {
+                shopFilters['location.area'] = {
+                    $regex: `^${escapeRegex(req.query.area)}$`,
+                    $options: 'i',
+                };
+            }
+
+            const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            filters.shop = { $in: nearbyShopIds };
+        }
+
+        const [count, products, followedShopIds] = await Promise.all([
+            Product.countDocuments(filters),
+            Product.find(filters)
+                .populate('shop', 'name category location rating numRatings')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+            getFollowedShopIdsForUser(req.user?._id),
+        ]);
+
+        res.status(200).json({
+            products: mapProductsWithFollowState(products, followedShopIds),
+            page,
+            pages: Math.ceil(count / limit),
+            total: count,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Fetch a single product
+// @route   GET /api/products/:id
+// @access  Public
+export const getProductById = async (req, res, next) => {
+    try {
+        const product = await Product.findById(req.params.id).populate(
+            'shop',
+            'name category location rating numRatings mapUrl images mobile description'
+        );
+
+        if (!product) {
+            res.status(404);
+            throw new Error('Product not found');
+        }
+
+        if (req.user?._id) {
+            const existingView = await ProductView.findOne({
+                product: product._id,
+                user: req.user._id,
+            });
+
+            if (!existingView) {
+                await ProductView.create({ product: product._id, user: req.user._id });
+                product.viewsCount += 1;
+                await product.save();
+            }
+        }
+
+        const followedShopIds = await getFollowedShopIdsForUser(req.user?._id);
+        res.status(200).json(mapProductWithFollowState(product, followedShopIds));
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Create a product
+// @route   POST /api/products
+// @access  Private (shop owner/admin)
+export const createProduct = async (req, res, next) => {
+    try {
+        const { name, price, images, description, shopId } = req.body;
+
+        if (!name || price === undefined || !shopId) {
+            res.status(400);
+            throw new Error('name, price and shopId are required');
+        }
+
+        const numericPrice = Number(price);
+        if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+            res.status(400);
+            throw new Error('price must be a valid number');
+        }
+
+        const shop = await Shop.findById(shopId);
+        if (!shop) {
+            res.status(404);
+            throw new Error('Shop not found');
+        }
+
+        const isOwner = shop.owner.toString() === req.user._id.toString();
+        if (!isOwner && req.user.role !== 'admin') {
+            res.status(403);
+            throw new Error('Not authorized to add products to this shop');
+        }
+
+        const normalizedImages = normalizeImages(images);
+        enforceImageRange(normalizedImages);
+
+        const normalizedCategory = normalizeCategory(shop.category);
+        if (!normalizedCategory) {
+            res.status(400);
+            throw new Error(`category must be one of: ${SHOP_CATEGORIES.join(', ')}`);
+        }
+
+        const product = await Product.create({
+            productId: `prd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name,
+            price: numericPrice,
+            images: normalizedImages,
+            description: description || '',
+            shop: shop._id,
+            category: normalizedCategory,
+        });
+
+        res.status(201).json(product);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Update a product
+// @route   PUT /api/products/:id
+// @access  Private (owner/admin)
+export const updateProduct = async (req, res, next) => {
+    try {
+        const product = await Product.findById(req.params.id);
+
+        if (!product) {
+            res.status(404);
+            throw new Error('Product not found');
+        }
+
+        const shop = await Shop.findById(product.shop);
+        const isOwner = shop && shop.owner.toString() === req.user._id.toString();
+
+        if (!isOwner && req.user.role !== 'admin') {
+            res.status(403);
+            throw new Error('Not authorized to update this product');
+        }
+
+        const previousImages = [...product.images];
+        let nextImages = previousImages;
+
+        if (req.body.images) {
+            const normalizedImages = normalizeImages(req.body.images);
+            enforceImageRange(normalizedImages);
+            product.images = normalizedImages;
+            nextImages = normalizedImages;
+        }
+
+        if (req.body.category) {
+            const normalizedCategory = normalizeCategory(req.body.category);
+            if (!normalizedCategory) {
+                res.status(400);
+                throw new Error('Invalid product category');
+            }
+            product.category = normalizedCategory;
+        }
+
+        product.name = req.body.name || product.name;
+        if (req.body.price !== undefined) {
+            const numericPrice = Number(req.body.price);
+            if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+                res.status(400);
+                throw new Error('price must be a valid number');
+            }
+            product.price = numericPrice;
+        }
+
+        product.description =
+            req.body.description !== undefined ? req.body.description : product.description;
+
+        const updatedProduct = await product.save();
+
+        if (req.body.images) {
+            const removedImages = previousImages.filter((image) => !nextImages.includes(image));
+            await destroyCloudinaryImages(removedImages);
+        }
+
+        res.status(200).json(updatedProduct);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Delete a product
+// @route   DELETE /api/products/:id
+// @access  Private (owner/admin)
+export const deleteProduct = async (req, res, next) => {
+    try {
+        const product = await Product.findById(req.params.id);
+
+        if (!product) {
+            res.status(404);
+            throw new Error('Product not found');
+        }
+
+        const shop = await Shop.findById(product.shop);
+        const isOwner = shop && shop.owner.toString() === req.user._id.toString();
+
+        if (!isOwner && req.user.role !== 'admin') {
+            res.status(403);
+            throw new Error('Not authorized to delete this product');
+        }
+
+        const productImages = [...product.images];
+
+        await Promise.all([
+            ProductView.deleteMany({ product: product._id }),
+            Product.deleteOne({ _id: product._id }),
+        ]);
+
+        await destroyCloudinaryImages(productImages);
+
+        res.status(200).json({ message: 'Product removed' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get products for current shop owner
+// @route   GET /api/products/me/list
+// @access  Private
+export const getMyProducts = async (req, res, next) => {
+    try {
+        if (!['shop_owner', 'admin'].includes(req.user.role)) {
+            res.status(403);
+            throw new Error('Only shop owners can access this endpoint');
+        }
+
+        const ownedShopIds = await Shop.find({ owner: req.user._id }).distinct('_id');
+
+        if (!ownedShopIds.length) {
+            return res.status(200).json({ products: [] });
+        }
+
+        const filters = { shop: { $in: ownedShopIds } };
+
+        if (req.query.shopId) {
+            const requestedShopId = req.query.shopId;
+            const isOwned = ownedShopIds.some((shopId) => shopId.toString() === requestedShopId);
+            if (!isOwned && req.user.role !== 'admin') {
+                res.status(403);
+                throw new Error('Not authorized to access this shop products');
+            }
+            filters.shop = requestedShopId;
+        }
+
+        const statsOnly = ['1', 'true'].includes(
+            String(req.query.statsOnly || '').trim().toLowerCase()
+        );
+
+        if (statsOnly) {
+            const viewRows = await Product.find(filters).select('viewsCount').lean();
+            const totalProducts = viewRows.length;
+            const totalViews = viewRows.reduce(
+                (sum, row) => sum + Number(row.viewsCount || 0),
+                0
+            );
+
+            return res.status(200).json({
+                products: [],
+                summary: {
+                    totalProducts,
+                    totalViews,
+                },
+            });
+        }
+
+        const products = await Product.find(filters)
+            .populate('shop', 'name category location images')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        const totalViews = products.reduce(
+            (sum, row) => sum + Number(row.viewsCount || 0),
+            0
+        );
+
+        res.status(200).json({
+            products,
+            summary: {
+                totalProducts: products.length,
+                totalViews,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get random products for discovery
+// @route   GET /api/products/random
+// @access  Public
+export const getRandomProducts = async (req, res, next) => {
+    try {
+        const limit = Math.min(Math.max(Number(req.query.limit || 12), 1), 40);
+        const match = {};
+
+        if (req.query.category) {
+            const normalizedCategory = normalizeCategory(req.query.category);
+            if (!normalizedCategory) {
+                res.status(400);
+                throw new Error('Invalid product category');
+            }
+            match.category = normalizedCategory;
+        }
+
+        if (req.query.city || req.query.area) {
+            const shopFilters = {};
+
+            if (req.query.city) {
+                shopFilters['location.city'] = {
+                    $regex: `^${escapeRegex(req.query.city)}$`,
+                    $options: 'i',
+                };
+            }
+
+            if (req.query.area) {
+                shopFilters['location.area'] = {
+                    $regex: `^${escapeRegex(req.query.area)}$`,
+                    $options: 'i',
+                };
+            }
+
+            const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            if (!nearbyShopIds.length) {
+                return res.status(200).json({ products: [] });
+            }
+
+            match.shop = { $in: nearbyShopIds };
+        }
+
+        const onePerShop = await Product.aggregate([
+            { $match: match },
+            { $addFields: { _rand: { $rand: {} } } },
+            { $sort: { shop: 1, _rand: 1 } },
+            { $group: { _id: '$shop', product: { $first: '$$ROOT' } } },
+            { $replaceRoot: { newRoot: '$product' } },
+        ]);
+
+        let products = onePerShop;
+
+        if (products.length > limit) {
+            products = products.sort(() => 0.5 - Math.random()).slice(0, limit);
+        }
+
+        if (products.length < limit) {
+            const existingIds = products.map((product) => product._id);
+            const extraProducts = await Product.aggregate([
+                {
+                    $match: {
+                        ...match,
+                        _id: { $nin: existingIds },
+                    },
+                },
+                { $sample: { size: limit - products.length } },
+            ]);
+            products = [...products, ...extraProducts];
+        }
+
+        products = await Product.populate(products, {
+            path: 'shop',
+            select: 'name category location rating numRatings images',
+        });
+
+        const followedShopIds = await getFollowedShopIdsForUser(req.user?._id);
+        res.status(200).json({ products: mapProductsWithFollowState(products, followedShopIds) });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get categories available for products
+// @route   GET /api/products/categories
+// @access  Public
+export const getProductCategories = async (req, res) => {
+    res.status(200).json({ categories: SHOP_CATEGORIES });
+};

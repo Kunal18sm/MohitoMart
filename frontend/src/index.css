@@ -1,0 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-display: 'Sora', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --color-primary: #0f766e;
+  --color-primary-dark: #115e59;
+  --color-secondary: #f97316;
+  --color-dark: #0f172a;
+  --color-light: #f6faf9;
+}
+
+@layer utilities {
+  .hover-elevate {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-xl;
+  }
+}
+
+:root {
+  --app-bg: #f6faf9;
+  --app-text: #0f172a;
+  --app-muted: #64748b;
+  --app-atmosphere:
+    radial-gradient(58% 56% at 50% 42%, rgba(20, 184, 166, 0.26) 0%, rgba(20, 184, 166, 0.12) 44%, rgba(20, 184, 166, 0.03) 72%, rgba(20, 184, 166, 0) 100%),
+    radial-gradient(38% 34% at 16% 14%, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0) 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  background:
+    radial-gradient(62% 46% at 8% -8%, rgba(20, 184, 166, 0.13), transparent 72%),
+    radial-gradient(58% 42% at 92% -10%, rgba(249, 115, 22, 0.11), transparent 74%),
+    var(--app-bg);
+  color: var(--app-text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.app-atmosphere {
+  background: var(--app-atmosphere);
+  filter: blur(110px);
+  opacity: 0.82;
+  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 1) 52%, rgba(0, 0, 0, 0) 100%);
+  will-change: transform, opacity;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
