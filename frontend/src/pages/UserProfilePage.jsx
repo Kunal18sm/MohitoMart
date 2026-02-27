@@ -34,11 +34,6 @@ const UserProfilePage = () => {
                 return;
             }
 
-            if (data.role === 'shop_owner') {
-                navigate('/owner/shop', { replace: true });
-                return;
-            }
-
             setProfile(data);
             setProfileForm({
                 name: data.name || '',

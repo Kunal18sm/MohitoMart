@@ -269,18 +269,18 @@ const ShopProfilePage = () => {
                     <h1 className="text-3xl font-black text-dark sm:text-4xl">Shop Dashboard</h1>
                     <p className="text-sm text-gray-500">Simple sections to manage profile, images and product views.</p>
                 </div>
-                <div className="flex gap-3">
-                    <Link
-                        to="/owner/shop"
-                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                        Dashboard Home
-                    </Link>
+                <div className="flex flex-wrap gap-3">
                     <Link
                         to="/owner/products"
                         className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
                     >
-                        Add Items
+                        Manage Products
+                    </Link>
+                    <Link
+                        to="/profile"
+                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                        My Profile
                     </Link>
                 </div>
             </div>

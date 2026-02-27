@@ -1,9 +1,24 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 
+const getStoredUserRole = () => {
+    try {
+        const storedProfile = localStorage.getItem('userProfile');
+        if (!storedProfile) {
+            return 'user';
+        }
+
+        const parsedProfile = JSON.parse(storedProfile);
+        return parsedProfile?.role || 'user';
+    } catch (error) {
+        return 'user';
+    }
+};
+
 const Navbar = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isLoggedIn, setIsLoggedIn] = useState(Boolean(localStorage.getItem('authToken')));
+    const [userRole, setUserRole] = useState(getStoredUserRole);
     const [locationLabel, setLocationLabel] = useState('Set location');
 
     useEffect(() => {
@@ -12,6 +27,7 @@ const Navbar = () => {
 
         const handleStorage = () => {
             setIsLoggedIn(Boolean(localStorage.getItem('authToken')));
+            setUserRole(getStoredUserRole());
             const location = JSON.parse(localStorage.getItem('selectedLocation') || '{}');
             setLocationLabel(
                 location.city && location.area ? `${location.area}, ${location.city}` : 'Set location'
@@ -23,7 +39,37 @@ const Navbar = () => {
         return () => window.removeEventListener('storage', handleStorage);
     }, []);
 
-    const authLabel = useMemo(() => (isLoggedIn ? 'Profile' : 'Login / Signup'), [isLoggedIn]);
+    const profilePath = useMemo(() => {
+        if (!isLoggedIn) {
+            return '/auth';
+        }
+
+        if (userRole === 'admin') {
+            return '/admin';
+        }
+
+        if (userRole === 'shop_owner') {
+            return '/owner/shop';
+        }
+
+        return '/profile';
+    }, [isLoggedIn, userRole]);
+
+    const authLabel = useMemo(() => {
+        if (!isLoggedIn) {
+            return 'Login / Signup';
+        }
+
+        if (userRole === 'admin') {
+            return 'Admin Panel';
+        }
+
+        if (userRole === 'shop_owner') {
+            return 'Shop Profile';
+        }
+
+        return 'Profile';
+    }, [isLoggedIn, userRole]);
 
     return (
         <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/70 bg-white/90 backdrop-blur-xl">
@@ -43,7 +89,7 @@ const Navbar = () => {
                             Discover
                         </Link>
                         <Link
-                            to={isLoggedIn ? '/profile' : '/auth'}
+                            to={profilePath}
                             className="transition-colors hover:text-primary"
                         >
                             {authLabel}
@@ -55,7 +101,7 @@ const Navbar = () => {
                             {locationLabel}
                         </span>
                         <Link
-                            to={isLoggedIn ? '/profile' : '/auth'}
+                            to={profilePath}
                             className="rounded-full bg-dark px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
                         >
                             {authLabel}
@@ -84,14 +130,14 @@ const Navbar = () => {
                             Discover
                         </Link>
                         <Link
-                            to={isLoggedIn ? '/profile' : '/auth'}
+                            to={profilePath}
                             onClick={() => setIsMenuOpen(false)}
                             className="block rounded-lg px-2 py-2 text-sm font-medium text-gray-700 hover:bg-light"
                         >
                             {authLabel}
                         </Link>
                         <Link
-                            to={isLoggedIn ? '/profile' : '/auth'}
+                            to={profilePath}
                             onClick={() => setIsMenuOpen(false)}
                             className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-dark px-3 py-2 text-sm font-semibold text-white hover:bg-primary"
                         >

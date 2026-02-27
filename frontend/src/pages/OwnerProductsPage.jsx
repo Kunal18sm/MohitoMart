@@ -118,7 +118,7 @@ const OwnerProductsPage = () => {
                     <h1 className="text-3xl font-black text-dark sm:text-4xl">Products Manager</h1>
                     <p className="text-sm text-gray-500">Apne products ko clean list se manage karein.</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                     {shops.length > 0 && (
                         <Link
                             to="/owner/products/new"
@@ -134,10 +134,10 @@ const OwnerProductsPage = () => {
                         Shop Dashboard
                     </Link>
                     <Link
-                        to="/owner/shop"
-                        className="rounded-lg bg-dark px-4 py-2 text-sm font-semibold text-white hover:bg-primary"
+                        to="/profile"
+                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                     >
-                        Shop Profile
+                        My Profile
                     </Link>
                 </div>
             </div>
