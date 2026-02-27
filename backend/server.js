@@ -27,11 +27,18 @@ app.use(express.json({ limit: '20mb' })); // Body parser
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(cookieParser()); // Cookie parser
 
-const allowedOrigins = [
-    process.env.FRONTEND_URL,
+const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, '');
+
+const configuredFrontendOrigins = (process.env.FRONTEND_URL || '')
+    .split(',')
+    .map(normalizeOrigin)
+    .filter(Boolean);
+
+const allowedOrigins = new Set([
+    ...configuredFrontendOrigins,
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-];
+]);
 
 const localhostPattern = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/;
 
@@ -42,7 +49,8 @@ app.use(
                 return callback(null, true);
             }
 
-            if (allowedOrigins.includes(origin) || localhostPattern.test(origin)) {
+            const normalizedOrigin = normalizeOrigin(origin);
+            if (allowedOrigins.has(normalizedOrigin) || localhostPattern.test(origin)) {
                 return callback(null, true);
             }
 
