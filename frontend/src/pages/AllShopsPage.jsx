@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Chip, FormControl, InputLabel, MenuItem, Select, TextField } from '@mui/material';
+import { Button, Chip, FormControl, InputLabel, MenuItem, Select } from '@mui/material';
 import KeyboardBackspaceRoundedIcon from '@mui/icons-material/KeyboardBackspaceRounded';
 import StoreMallDirectoryRoundedIcon from '@mui/icons-material/StoreMallDirectoryRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
@@ -9,7 +9,7 @@ import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { filterCategoriesWithLocalImages } from '../utils/categoryImage';
-import { useLocationSuggestions } from '../utils/locationSuggestions';
+import { buildAreaQueryParam, formatAreaSummary, getAreaFilterState } from '../utils/areaFilters';
 
 const AllShopsPage = () => {
     const { showError } = useFlash();
@@ -17,26 +17,33 @@ const AllShopsPage = () => {
         () => JSON.parse(localStorage.getItem('selectedLocation') || '{}'),
         []
     );
+    const areaFilterState = useMemo(
+        () => getAreaFilterState(storedLocation),
+        [storedLocation]
+    );
+    const areaSummary = useMemo(
+        () => formatAreaSummary(areaFilterState.areas),
+        [areaFilterState.areas]
+    );
+    const locationBadgeLabel = useMemo(() => {
+        if (!areaFilterState.city || !areaFilterState.areas.length) {
+            return 'All locations';
+        }
 
-    const [city, setCity] = useState(storedLocation.city || '');
-    const [area, setArea] = useState(storedLocation.area || '');
+        return `${areaSummary}, ${areaFilterState.city}`;
+    }, [areaFilterState.areas.length, areaFilterState.city, areaSummary]);
+
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [categories, setCategories] = useState([]);
     const [shops, setShops] = useState([]);
     const [loading, setLoading] = useState(true);
-    const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
-
-    const areaOptions = useMemo(
-        () => getAreaOptionsByCity(city),
-        [city, getAreaOptionsByCity]
-    );
 
     const fetchAllShops = async () => {
         try {
             setLoading(true);
             const params = {
-                city: city || undefined,
-                area: area || undefined,
+                city: areaFilterState.city || undefined,
+                areas: buildAreaQueryParam(areaFilterState.areas),
                 category: selectedCategory !== 'all' ? selectedCategory : undefined,
                 page: 1,
                 limit: 50,
@@ -106,10 +113,8 @@ const AllShopsPage = () => {
                         icon={<StoreMallDirectoryRoundedIcon style={{ fontSize: 15 }} />}
                         label={
                             selectedCategory === 'all'
-                                ? city && area
-                                    ? `${area}, ${city}`
-                                    : 'All locations'
-                                : `${selectedCategory} | ${area && city ? `${area}, ${city}` : 'All locations'}`
+                                ? locationBadgeLabel
+                                : `${selectedCategory} | ${locationBadgeLabel}`
                         }
                         sx={{
                             borderRadius: '999px',
@@ -136,26 +141,8 @@ const AllShopsPage = () => {
 
             <form
                 onSubmit={applyLocation}
-                className="mb-6 grid gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm md:grid-cols-[1fr_1fr_1fr_auto]"
+                className="mb-6 grid gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm md:grid-cols-[1fr_auto]"
             >
-                <TextField
-                    value={city}
-                    size="small"
-                    onChange={(event) => setCity(event.target.value)}
-                    label="City"
-                    inputProps={{
-                        list: 'all-shops-city-suggestions',
-                    }}
-                />
-                <TextField
-                    value={area}
-                    size="small"
-                    onChange={(event) => setArea(event.target.value)}
-                    label="Area"
-                    inputProps={{
-                        list: 'all-shops-area-suggestions',
-                    }}
-                />
                 <FormControl size="small">
                     <InputLabel id="shop-category-filter-label">Category</InputLabel>
                     <Select
@@ -188,18 +175,8 @@ const AllShopsPage = () => {
                     Apply
                 </Button>
             </form>
-            <datalist id="all-shops-city-suggestions">
-                {cityOptions.map((cityOption) => (
-                    <option value={cityOption} key={cityOption} />
-                ))}
-            </datalist>
-            <datalist id="all-shops-area-suggestions">
-                {areaOptions.map((areaOption) => (
-                    <option value={areaOption} key={areaOption} />
-                ))}
-            </datalist>
             <p className="mb-6 text-xs text-gray-500">
-                Yahan location change temporary filter hai. Main location update karne ke liye profile use karein.
+                Area filter Home page ke Area Feed Selection se sync hota hai.
             </p>
 
             {loading && (

@@ -1,7 +1,7 @@
 import User from '../models/User.js';
 import Shop from '../models/Shop.js';
 import Product from '../models/Product.js';
-import { normalizeLocationLabel } from '../utils/locationNormalizer.js';
+import { buildLocationFieldClause, normalizeLocationLabel } from '../utils/locationNormalizer.js';
 
 const mapProductsAsFollowed = (products) =>
     products.map((product) => {
@@ -177,8 +177,37 @@ export const getFollowedFeedRandom = async (req, res, next) => {
             return res.status(200).json({ products: [] });
         }
 
+        let targetShopIds = [...user.followedShops];
+        const locationClauses = [];
+        const cityClause = buildLocationFieldClause('location.city', req.query.city);
+        const areaClause = buildLocationFieldClause('location.area', req.query.areas, req.query.area);
+
+        if (cityClause) {
+            locationClauses.push(cityClause);
+        }
+        if (areaClause) {
+            locationClauses.push(areaClause);
+        }
+
+        if (locationClauses.length) {
+            const shopFilters = {
+                _id: { $in: targetShopIds },
+            };
+
+            if (locationClauses.length === 1) {
+                Object.assign(shopFilters, locationClauses[0]);
+            } else {
+                shopFilters.$and = locationClauses;
+            }
+
+            targetShopIds = await Shop.find(shopFilters).distinct('_id');
+            if (!targetShopIds.length) {
+                return res.status(200).json({ products: [] });
+            }
+        }
+
         let products = await Product.aggregate([
-            { $match: { shop: { $in: user.followedShops } } },
+            { $match: { shop: { $in: targetShopIds } } },
             { $sample: { size: limit } },
         ]);
 

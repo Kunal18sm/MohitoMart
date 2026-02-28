@@ -7,7 +7,7 @@ import User from '../models/User.js';
 import { SHOP_CATEGORIES, normalizeCategory } from '../constants/shopCategories.js';
 import { destroyCloudinaryImages } from '../utils/cloudinaryCleanup.js';
 import {
-    buildLocationFilterRegex,
+    buildLocationFieldClause,
     normalizeLocationKey,
     normalizeLocationLabel,
 } from '../utils/locationNormalizer.js';
@@ -163,25 +163,28 @@ export const getShopLocations = async (req, res, next) => {
 // @access  Public
 export const getShops = async (req, res, next) => {
     try {
-        const { city, area, category, keyword } = req.query;
+        const { city, area, areas, category, keyword } = req.query;
         const page = Math.max(Number(req.query.page || 1), 1);
         const limit = Math.min(Math.max(Number(req.query.limit || 12), 1), 50);
         const skip = (page - 1) * limit;
 
         const filters = {};
+        const locationClauses = [];
 
-        if (city) {
-            const cityFilter = buildLocationFilterRegex(city);
-            if (cityFilter) {
-                filters['location.city'] = cityFilter;
-            }
+        const cityClause = buildLocationFieldClause('location.city', city);
+        if (cityClause) {
+            locationClauses.push(cityClause);
         }
 
-        if (area) {
-            const areaFilter = buildLocationFilterRegex(area);
-            if (areaFilter) {
-                filters['location.area'] = areaFilter;
-            }
+        const areaClause = buildLocationFieldClause('location.area', areas, area);
+        if (areaClause) {
+            locationClauses.push(areaClause);
+        }
+
+        if (locationClauses.length === 1) {
+            Object.assign(filters, locationClauses[0]);
+        } else if (locationClauses.length > 1) {
+            filters.$and = locationClauses;
         }
 
         if (category) {

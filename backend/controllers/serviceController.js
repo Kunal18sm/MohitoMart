@@ -3,7 +3,7 @@ import Service from '../models/Service.js';
 import Shop from '../models/Shop.js';
 import { SHOP_CATEGORIES, normalizeCategory } from '../constants/shopCategories.js';
 import { destroyCloudinaryImages } from '../utils/cloudinaryCleanup.js';
-import { buildLocationFilterRegex } from '../utils/locationNormalizer.js';
+import { buildLocationFieldClause } from '../utils/locationNormalizer.js';
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -144,21 +144,24 @@ export const getServices = async (req, res, next) => {
             filters.shop = req.query.shopId;
         }
 
-        if (req.query.city || req.query.area) {
+        const locationClauses = [];
+        const cityClause = buildLocationFieldClause('location.city', req.query.city);
+        const areaClause = buildLocationFieldClause('location.area', req.query.areas, req.query.area);
+
+        if (cityClause) {
+            locationClauses.push(cityClause);
+        }
+        if (areaClause) {
+            locationClauses.push(areaClause);
+        }
+
+        if (locationClauses.length) {
             const shopFilters = {};
 
-            if (req.query.city) {
-                const cityFilter = buildLocationFilterRegex(req.query.city);
-                if (cityFilter) {
-                    shopFilters['location.city'] = cityFilter;
-                }
-            }
-
-            if (req.query.area) {
-                const areaFilter = buildLocationFilterRegex(req.query.area);
-                if (areaFilter) {
-                    shopFilters['location.area'] = areaFilter;
-                }
+            if (locationClauses.length === 1) {
+                Object.assign(shopFilters, locationClauses[0]);
+            } else {
+                shopFilters.$and = locationClauses;
             }
 
             const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
@@ -211,6 +214,67 @@ export const getServices = async (req, res, next) => {
             pages: Math.ceil(count / limit),
             total: count,
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get random services for discovery
+// @route   GET /api/services/random
+// @access  Public
+export const getRandomServices = async (req, res, next) => {
+    try {
+        const limit = Math.min(Math.max(Number(req.query.limit || 12), 1), 20);
+        const match = {};
+
+        if (req.query.category) {
+            const normalizedCategory = normalizeCategory(req.query.category);
+            if (!normalizedCategory) {
+                res.status(400);
+                throw new Error('Invalid service category');
+            }
+            match.category = normalizedCategory;
+        }
+
+        const locationClauses = [];
+        const cityClause = buildLocationFieldClause('location.city', req.query.city);
+        const areaClause = buildLocationFieldClause('location.area', req.query.areas, req.query.area);
+
+        if (cityClause) {
+            locationClauses.push(cityClause);
+        }
+        if (areaClause) {
+            locationClauses.push(areaClause);
+        }
+
+        if (locationClauses.length) {
+            const shopFilters = {};
+
+            if (locationClauses.length === 1) {
+                Object.assign(shopFilters, locationClauses[0]);
+            } else {
+                shopFilters.$and = locationClauses;
+            }
+
+            const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            if (!nearbyShopIds.length) {
+                return res.status(200).json({ services: [] });
+            }
+
+            match.shop = { $in: nearbyShopIds };
+        }
+
+        let services = await Service.aggregate([
+            { $match: match },
+            { $sample: { size: limit } },
+        ]);
+
+        services = await Service.populate(services, {
+            path: 'shop',
+            select: 'name category location rating numRatings',
+        });
+
+        res.status(200).json({ services });
     } catch (error) {
         next(error);
     }

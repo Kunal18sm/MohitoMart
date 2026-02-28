@@ -28,11 +28,6 @@ const OwnerAddProductPage = () => {
         [profileRole]
     );
 
-    const selectedShop = useMemo(
-        () => shops.find((shop) => shop._id === form.shopId) || null,
-        [shops, form.shopId]
-    );
-
     useEffect(
         () => () => {
             previewUrls.forEach((url) => {
@@ -102,8 +97,8 @@ const OwnerAddProductPage = () => {
             return;
         }
 
-        if (!form.name.trim() || !form.price) {
-            showError('Product name and price are required');
+        if (form.price === '') {
+            showError('Product price is required');
             return;
         }
 
@@ -120,7 +115,7 @@ const OwnerAddProductPage = () => {
             setSaving(true);
             await api.post('/products', {
                 shopId: form.shopId,
-                name: form.name.trim(),
+                name: form.name.trim() || undefined,
                 price: Number(form.price),
                 description: form.description.trim(),
                 images: uploadedImageUrls,
@@ -171,25 +166,14 @@ const OwnerAddProductPage = () => {
     }
 
     return (
-        <div className="container mx-auto max-w-4xl px-4 py-8 md:py-10">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-3xl font-black text-dark sm:text-4xl">Add New Product</h1>
-                    <p className="text-sm text-gray-500">
-                        Selected category: {selectedShop?.category || '-'}
-                    </p>
-                </div>
+        <div className="container mx-auto max-w-4xl px-4 py-6 md:py-8">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h1 className="text-3xl font-black text-dark sm:text-4xl">Add New Product</h1>
                 <Link
                     to="/owner/products"
                     className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                 >
                     Back to Products
-                </Link>
-                <Link
-                    to="/owner/services/new"
-                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                    Add Service Instead
                 </Link>
             </div>
 
@@ -216,7 +200,7 @@ const OwnerAddProductPage = () => {
 
                     <div>
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Product Name
+                            Product Name (Optional)
                         </label>
                         <input
                             type="text"
@@ -225,13 +209,13 @@ const OwnerAddProductPage = () => {
                                 setForm((previous) => ({ ...previous, name: event.target.value }))
                             }
                             className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                            placeholder="e.g. Wireless Headphones"
+                            placeholder="e.g. Wireless Headphones (optional)"
                         />
                     </div>
 
                     <div>
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Price (Rs)
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-green-700">
+                            Price (Rs) 
                         </label>
                         <input
                             type="number"
@@ -240,7 +224,7 @@ const OwnerAddProductPage = () => {
                             onChange={(event) =>
                                 setForm((previous) => ({ ...previous, price: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                            className="w-full rounded-lg border border-green-300 bg-green-50/40 px-4 py-3 outline-none focus:border-green-500"
                             placeholder="e.g. 999"
                         />
                     </div>
@@ -261,7 +245,7 @@ const OwnerAddProductPage = () => {
                     </div>
 
                     <div className="md:col-span-2">
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-green-700">
                             Product Images (3 to 5)
                         </label>
                         <input
@@ -269,7 +253,7 @@ const OwnerAddProductPage = () => {
                             accept="image/*"
                             multiple
                             onChange={handleFileSelection}
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm"
+                            className="w-full rounded-lg border border-green-300 bg-green-50/40 px-4 py-3 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-green-600 file:px-3 file:py-1.5 file:font-semibold file:text-white hover:file:bg-green-700"
                         />
                         {(uploading || saving) && (
                             <p className="mt-2 text-sm text-gray-500">

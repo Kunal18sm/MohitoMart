@@ -218,7 +218,7 @@ const OwnerProductsPage = () => {
                                                 alt={product.name}
                                                 loading="lazy"
                                                 decoding="async"
-                                                className="h-12 w-12 rounded-lg object-cover"
+                                                className="h-16 w-16 rounded-lg object-cover sm:h-20 sm:w-20"
                                             />
                                             <div>
                                                 <p className="font-semibold text-dark">{product.name}</p>

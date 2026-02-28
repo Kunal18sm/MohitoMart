@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Chip, FormControl, InputLabel, MenuItem, Select, TextField } from '@mui/material';
+import { Button, Chip, FormControl, InputLabel, MenuItem, Select } from '@mui/material';
 import KeyboardBackspaceRoundedIcon from '@mui/icons-material/KeyboardBackspaceRounded';
 import MiscellaneousServicesRoundedIcon from '@mui/icons-material/MiscellaneousServicesRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
@@ -10,7 +10,7 @@ import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { formatServicePrice } from '../utils/servicePrice';
-import { useLocationSuggestions } from '../utils/locationSuggestions';
+import { buildAreaQueryParam, formatAreaSummary, getAreaFilterState } from '../utils/areaFilters';
 
 const AllServicesPage = () => {
     const { showError } = useFlash();
@@ -18,27 +18,27 @@ const AllServicesPage = () => {
         () => JSON.parse(localStorage.getItem('selectedLocation') || '{}'),
         []
     );
+    const areaFilterState = useMemo(
+        () => getAreaFilterState(storedLocation),
+        [storedLocation]
+    );
+    const areaSummary = useMemo(
+        () => formatAreaSummary(areaFilterState.areas),
+        [areaFilterState.areas]
+    );
 
-    const [city, setCity] = useState(storedLocation.city || '');
-    const [area, setArea] = useState(storedLocation.area || '');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [categories, setCategories] = useState([]);
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
-    const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
-
-    const areaOptions = useMemo(
-        () => getAreaOptionsByCity(city),
-        [city, getAreaOptionsByCity]
-    );
 
     const fetchAllServices = async () => {
         try {
             setLoading(true);
 
             const params = {
-                city: city.trim() || undefined,
-                area: area.trim() || undefined,
+                city: areaFilterState.city || undefined,
+                areas: buildAreaQueryParam(areaFilterState.areas),
                 category: selectedCategory !== 'all' ? selectedCategory : undefined,
                 page: 1,
                 limit: 50,
@@ -132,26 +132,8 @@ const AllServicesPage = () => {
 
             <form
                 onSubmit={applyFilters}
-                className="mb-6 grid gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm md:grid-cols-2 lg:grid-cols-4"
+                className="mb-6 grid gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm md:grid-cols-[1fr_auto]"
             >
-                <TextField
-                    size="small"
-                    label="City"
-                    value={city}
-                    onChange={(event) => setCity(event.target.value)}
-                    inputProps={{
-                        list: 'all-services-city-suggestions',
-                    }}
-                />
-                <TextField
-                    size="small"
-                    label="Area"
-                    value={area}
-                    onChange={(event) => setArea(event.target.value)}
-                    inputProps={{
-                        list: 'all-services-area-suggestions',
-                    }}
-                />
                 <FormControl size="small">
                     <InputLabel id="service-category-filter-label">Category</InputLabel>
                     <Select
@@ -168,36 +150,26 @@ const AllServicesPage = () => {
                         ))}
                     </Select>
                 </FormControl>
-                <div className="md:col-span-2 lg:col-span-1">
-                    <Button
-                        type="submit"
-                        variant="contained"
-                        startIcon={<TuneRoundedIcon />}
-                        sx={{
-                            borderRadius: '10px',
-                            px: 2.8,
-                            textTransform: 'none',
-                            fontWeight: 700,
-                            minHeight: 40,
-                            backgroundColor: 'var(--color-dark)',
-                        }}
-                    >
-                        Apply Filters
-                    </Button>
-                </div>
+                <Button
+                    type="submit"
+                    variant="contained"
+                    startIcon={<TuneRoundedIcon />}
+                    sx={{
+                        borderRadius: '10px',
+                        px: 2.8,
+                        textTransform: 'none',
+                        fontWeight: 700,
+                        minHeight: 40,
+                        backgroundColor: 'var(--color-dark)',
+                    }}
+                >
+                    Apply Filters
+                </Button>
             </form>
-            <datalist id="all-services-city-suggestions">
-                {cityOptions.map((cityOption) => (
-                    <option value={cityOption} key={cityOption} />
-                ))}
-            </datalist>
-            <datalist id="all-services-area-suggestions">
-                {areaOptions.map((areaOption) => (
-                    <option value={areaOption} key={areaOption} />
-                ))}
-            </datalist>
             <p className="mb-6 text-xs text-gray-500">
-                Yahan location change temporary filter hai. Main location update karne ke liye profile use karein.
+                {areaFilterState.city && areaFilterState.areas.length
+                    ? `Area filter Home page se sync hai: ${areaSummary}, ${areaFilterState.city}.`
+                    : 'Area filter Home page ke Area Feed Selection se sync hota hai.'}
             </p>
 
             {loading && (

@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import connectDB from './config/db.js';
 import { configureCloudinary } from './config/cloudinary.js';
 import authRoutes from './routes/authRoutes.js';
@@ -24,6 +25,7 @@ configureCloudinary();
 const app = express();
 
 // Middleware
+app.use(compression());
 app.use(express.json({ limit: '20mb' })); // Body parser
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(cookieParser()); // Cookie parser

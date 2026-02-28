@@ -1,8 +1,12 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
 
-const ProductCard = ({ product, compact = false }) => {
+const ProductCard = ({ product, compact = false, desktopTall = false }) => {
     const imageUrl = product.images?.[0] || 'https://via.placeholder.com/400x300?text=No+Image';
+    const compactImageClass = desktopTall ? 'h-28 sm:h-32 lg:h-36' : 'h-28 sm:h-32';
+    const regularImageClass = desktopTall
+        ? 'h-[120px] sm:h-36 md:h-40 lg:h-48'
+        : 'h-[120px] sm:h-36 md:h-40';
 
     return (
         <Link
@@ -16,7 +20,7 @@ const ProductCard = ({ product, compact = false }) => {
                     loading="lazy"
                     decoding="async"
                     className={`w-full object-cover transition-transform duration-300 group-hover:scale-105 ${
-                        compact ? 'h-28 sm:h-32' : 'h-[120px] sm:h-36 md:h-40'
+                        compact ? compactImageClass : regularImageClass
                     }`}
                 />
             </div>

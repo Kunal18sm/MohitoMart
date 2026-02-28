@@ -5,7 +5,7 @@ import ProductView from '../models/ProductView.js';
 import User from '../models/User.js';
 import { SHOP_CATEGORIES, normalizeCategory } from '../constants/shopCategories.js';
 import { destroyCloudinaryImages } from '../utils/cloudinaryCleanup.js';
-import { buildLocationFilterRegex } from '../utils/locationNormalizer.js';
+import { buildLocationFieldClause } from '../utils/locationNormalizer.js';
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -22,6 +22,7 @@ const enforceImageRange = (images) => {
         throw new Error('Product images must be between 3 and 5');
     }
 };
+const MAX_PRODUCTS_PER_SHOP = 50;
 
 const getFollowedShopIdsForUser = async (userId) => {
     if (!userId) {
@@ -89,19 +90,24 @@ export const getProducts = async (req, res, next) => {
             filters.shop = req.query.shopId;
         }
 
-        if (req.query.city || req.query.area) {
+        const locationClauses = [];
+        const cityClause = buildLocationFieldClause('location.city', req.query.city);
+        const areaClause = buildLocationFieldClause('location.area', req.query.areas, req.query.area);
+
+        if (cityClause) {
+            locationClauses.push(cityClause);
+        }
+        if (areaClause) {
+            locationClauses.push(areaClause);
+        }
+
+        if (locationClauses.length) {
             const shopFilters = {};
-            if (req.query.city) {
-                const cityFilter = buildLocationFilterRegex(req.query.city);
-                if (cityFilter) {
-                    shopFilters['location.city'] = cityFilter;
-                }
-            }
-            if (req.query.area) {
-                const areaFilter = buildLocationFilterRegex(req.query.area);
-                if (areaFilter) {
-                    shopFilters['location.area'] = areaFilter;
-                }
+
+            if (locationClauses.length === 1) {
+                Object.assign(shopFilters, locationClauses[0]);
+            } else {
+                shopFilters.$and = locationClauses;
             }
 
             const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
@@ -193,10 +199,11 @@ export const getProductById = async (req, res, next) => {
 export const createProduct = async (req, res, next) => {
     try {
         const { name, price, images, description, shopId } = req.body;
+        const normalizedName = String(name || '').trim();
 
-        if (!name || price === undefined || !shopId) {
+        if (price === undefined || !shopId) {
             res.status(400);
-            throw new Error('name, price and shopId are required');
+            throw new Error('price and shopId are required');
         }
 
         const numericPrice = Number(price);
@@ -209,6 +216,12 @@ export const createProduct = async (req, res, next) => {
         if (!shop) {
             res.status(404);
             throw new Error('Shop not found');
+        }
+
+        const existingProductsCount = await Product.countDocuments({ shop: shop._id });
+        if (existingProductsCount >= MAX_PRODUCTS_PER_SHOP) {
+            res.status(400);
+            throw new Error(`A shop can list up to ${MAX_PRODUCTS_PER_SHOP} products only`);
         }
 
         const isOwner = shop.owner.toString() === String(req.user._id);
@@ -228,7 +241,7 @@ export const createProduct = async (req, res, next) => {
 
         const product = await Product.create({
             productId: `prd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            name,
+            name: normalizedName || 'Untitled Product',
             price: numericPrice,
             images: normalizedImages,
             description: description || '',
@@ -446,21 +459,24 @@ export const getRandomProducts = async (req, res, next) => {
             match.category = normalizedCategory;
         }
 
-        if (req.query.city || req.query.area) {
+        const locationClauses = [];
+        const cityClause = buildLocationFieldClause('location.city', req.query.city);
+        const areaClause = buildLocationFieldClause('location.area', req.query.areas, req.query.area);
+
+        if (cityClause) {
+            locationClauses.push(cityClause);
+        }
+        if (areaClause) {
+            locationClauses.push(areaClause);
+        }
+
+        if (locationClauses.length) {
             const shopFilters = {};
 
-            if (req.query.city) {
-                const cityFilter = buildLocationFilterRegex(req.query.city);
-                if (cityFilter) {
-                    shopFilters['location.city'] = cityFilter;
-                }
-            }
-
-            if (req.query.area) {
-                const areaFilter = buildLocationFilterRegex(req.query.area);
-                if (areaFilter) {
-                    shopFilters['location.area'] = areaFilter;
-                }
+            if (locationClauses.length === 1) {
+                Object.assign(shopFilters, locationClauses[0]);
+            } else {
+                shopFilters.$and = locationClauses;
             }
 
             const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');

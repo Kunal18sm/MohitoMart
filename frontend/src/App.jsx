@@ -1,34 +1,29 @@
-import { Suspense, lazy } from 'react';
+import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import FlashBanner from './components/FlashBanner';
 import Footer from './components/Footer';
 import GlobalSavingOverlay from './components/GlobalSavingOverlay';
 
-const HomePage = lazy(() => import('./pages/HomePage'));
-const CategoryPage = lazy(() => import('./pages/CategoryPage'));
-const ProductDetailsPage = lazy(() => import('./pages/ProductDetailsPage'));
-const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
-const ShopDetailsPage = lazy(() => import('./pages/ShopDetailsPage'));
-const AuthPage = lazy(() => import('./pages/AuthPage'));
-const ShopProfilePage = lazy(() => import('./pages/ShopProfilePage'));
-const OwnerProductsPage = lazy(() => import('./pages/OwnerProductsPage'));
-const OwnerAddProductPage = lazy(() => import('./pages/OwnerAddProductPage'));
-const OwnerEditProductPage = lazy(() => import('./pages/OwnerEditProductPage'));
-const OwnerServicesPage = lazy(() => import('./pages/OwnerServicesPage'));
-const OwnerAddServicePage = lazy(() => import('./pages/OwnerAddServicePage'));
-const OwnerEditServicePage = lazy(() => import('./pages/OwnerEditServicePage'));
-const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'));
-const AdminProductEditPage = lazy(() => import('./pages/AdminProductEditPage'));
-const AllCategoriesPage = lazy(() => import('./pages/AllCategoriesPage'));
-const AllShopsPage = lazy(() => import('./pages/AllShopsPage'));
-const AllServicesPage = lazy(() => import('./pages/AllServicesPage'));
-
-const RouteFallback = () => (
-    <div className="container mx-auto px-4 py-10">
-        <div className="h-56 animate-pulse rounded-2xl border border-gray-200 bg-white/70" />
-    </div>
-);
+import HomePage from './pages/HomePage';
+import CategoryPage from './pages/CategoryPage';
+import ProductDetailsPage from './pages/ProductDetailsPage';
+import ServiceDetailsPage from './pages/ServiceDetailsPage';
+import UserProfilePage from './pages/UserProfilePage';
+import ShopDetailsPage from './pages/ShopDetailsPage';
+import AuthPage from './pages/AuthPage';
+import ShopProfilePage from './pages/ShopProfilePage';
+import OwnerProductsPage from './pages/OwnerProductsPage';
+import OwnerAddProductPage from './pages/OwnerAddProductPage';
+import OwnerEditProductPage from './pages/OwnerEditProductPage';
+import OwnerServicesPage from './pages/OwnerServicesPage';
+import OwnerAddServicePage from './pages/OwnerAddServicePage';
+import OwnerEditServicePage from './pages/OwnerEditServicePage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminProductEditPage from './pages/AdminProductEditPage';
+import AllCategoriesPage from './pages/AllCategoriesPage';
+import AllShopsPage from './pages/AllShopsPage';
+import AllServicesPage from './pages/AllServicesPage';
 
 function App() {
     return (
@@ -42,12 +37,12 @@ function App() {
             <GlobalSavingOverlay />
 
             <main className="relative z-10 flex-grow">
-                <Suspense fallback={<RouteFallback />}>
                     <Routes>
                         <Route path="/" element={<HomePage />} />
                         <Route path="/category/:id" element={<CategoryPage />} />
                         <Route path="/shop/:id" element={<ShopDetailsPage />} />
                         <Route path="/product/:id" element={<ProductDetailsPage />} />
+                        <Route path="/service/:id" element={<ServiceDetailsPage />} />
                         <Route path="/auth" element={<AuthPage />} />
                         <Route path="/profile" element={<UserProfilePage />} />
                         <Route path="/owner/shop" element={<ShopProfilePage />} />
@@ -63,7 +58,6 @@ function App() {
                         <Route path="/shops/all" element={<AllShopsPage />} />
                         <Route path="/services/all" element={<AllServicesPage />} />
                     </Routes>
-                </Suspense>
             </main>
 
             <Footer />

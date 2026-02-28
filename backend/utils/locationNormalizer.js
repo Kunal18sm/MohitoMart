@@ -25,3 +25,51 @@ export const buildLocationFilterRegex = (value) => {
         $options: 'i',
     };
 };
+
+const splitQueryValues = (value) => {
+    if (Array.isArray(value)) {
+        return value.flatMap((entry) => splitQueryValues(entry));
+    }
+
+    const normalized = collapseSpaces(value);
+    if (!normalized) {
+        return [];
+    }
+
+    return normalized
+        .split(',')
+        .map((entry) => collapseSpaces(entry))
+        .filter(Boolean);
+};
+
+export const parseLocationQueryValues = (...values) => {
+    const deduped = new Map();
+
+    values.forEach((value) => {
+        splitQueryValues(value).forEach((entry) => {
+            const key = entry.toLowerCase();
+            if (!deduped.has(key)) {
+                deduped.set(key, entry);
+            }
+        });
+    });
+
+    return [...deduped.values()];
+};
+
+export const buildLocationFieldClause = (field, ...values) => {
+    const filters = parseLocationQueryValues(...values)
+        .map((entry) => buildLocationFilterRegex(entry))
+        .filter(Boolean)
+        .map((regexFilter) => ({ [field]: regexFilter }));
+
+    if (!filters.length) {
+        return null;
+    }
+
+    if (filters.length === 1) {
+        return filters[0];
+    }
+
+    return { $or: filters };
+};
