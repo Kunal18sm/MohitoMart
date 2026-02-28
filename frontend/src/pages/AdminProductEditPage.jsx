@@ -19,6 +19,7 @@ const AdminProductEditPage = () => {
     const [form, setForm] = useState({
         name: '',
         price: '',
+        hideOriginalPrice: false,
         description: '',
     });
 
@@ -53,6 +54,7 @@ const AdminProductEditPage = () => {
             setForm({
                 name: data.name || '',
                 price: String(data.price ?? ''),
+                hideOriginalPrice: Boolean(data.hideOriginalPrice),
                 description: data.description || '',
             });
             setPreviewUrls(data.images || []);
@@ -70,7 +72,7 @@ const AdminProductEditPage = () => {
 
     const handleFileSelection = (event) => {
         try {
-            const files = validateImageFiles(event.target.files, { min: 3, max: 5, maxSizeMB: 5 });
+            const files = validateImageFiles(event.target.files, { min: 1, max: 5, maxSizeMB: 5 });
 
             previewUrls.forEach((url) => {
                 if (url.startsWith('blob:')) {
@@ -99,6 +101,7 @@ const AdminProductEditPage = () => {
             const payload = {
                 name: form.name.trim(),
                 price: Number(form.price),
+                hideOriginalPrice: Boolean(form.hideOriginalPrice),
                 description: form.description.trim(),
             };
 
@@ -178,6 +181,32 @@ const AdminProductEditPage = () => {
 
                     <div className="md:col-span-2">
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            Price Visibility
+                        </label>
+                        <label className="inline-flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                            <span className="text-sm font-semibold text-gray-700">
+                                Hide original price from customers
+                            </span>
+                            <input
+                                type="checkbox"
+                                checked={form.hideOriginalPrice}
+                                onChange={(event) =>
+                                    setForm((previous) => ({
+                                        ...previous,
+                                        hideOriginalPrice: event.target.checked,
+                                    }))
+                                }
+                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                        </label>
+                        <p className="mt-1 text-xs text-gray-500">
+                            ON par customer ko exact price nahi dikhega, sirf range jaise &lt;500 ya &lt;1000
+                            dikhega.
+                        </p>
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
                             Description
                         </label>
                         <textarea
@@ -192,7 +221,7 @@ const AdminProductEditPage = () => {
 
                     <div className="md:col-span-2">
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Replace Images (optional, 3 to 5)
+                            Replace Images (optional, 1 to 5)
                         </label>
                         <input
                             type="file"
@@ -237,4 +266,3 @@ const AdminProductEditPage = () => {
 };
 
 export default AdminProductEditPage;
-

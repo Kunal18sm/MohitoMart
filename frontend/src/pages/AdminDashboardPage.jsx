@@ -5,6 +5,7 @@ import { useFlash } from '../context/FlashContext';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { uploadImages, validateImageFiles } from '../utils/uploadUtils';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
+import { formatProductPrice } from '../utils/productPrice';
 
 const AdminDashboardPage = () => {
     const navigate = useNavigate();
@@ -480,41 +481,43 @@ const AdminDashboardPage = () => {
                         {visibleProducts.map((product) => (
                             <div
                                 key={product._id}
-                                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3"
+                                className="overflow-hidden rounded-xl border border-gray-200 bg-white"
                             >
-                                <div className="flex items-center gap-3">
-                                    <img
-                                        src={product.images?.[0] || 'https://via.placeholder.com/300x200?text=Product'}
-                                        alt={product.name}
-                                        loading="lazy"
-                                        decoding="async"
-                                        className="h-12 w-12 rounded-lg object-cover"
-                                    />
-                                    <div>
-                                        <p className="font-semibold text-dark">{product.name}</p>
-                                        <p className="text-xs text-gray-500">
-                                            Shop: {product.shop?.name || '-'} | {product.category}
-                                        </p>
-                                        <p className="text-xs text-gray-500">
-                                            Rs {Number(product.price || 0).toFixed(0)} | {product.viewsCount || 0} views
-                                        </p>
+                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3">
+                                    <div className="flex items-center gap-3">
+                                        <img
+                                            src={product.images?.[0] || 'https://via.placeholder.com/300x200?text=Product'}
+                                            alt={product.name}
+                                            loading="lazy"
+                                            decoding="async"
+                                            className="h-12 w-12 rounded-lg object-cover"
+                                        />
+                                        <div>
+                                            <p className="font-semibold text-dark">{product.name}</p>
+                                            <p className="text-xs text-gray-500">
+                                                Shop: {product.shop?.name || '-'} | {product.category}
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                                {formatProductPrice(product)} | {product.viewsCount || 0} views
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Link
-                                        to={`/admin/products/${product._id}/edit`}
-                                        className="rounded-lg border border-primary/30 px-3 py-1 text-sm font-semibold text-primary hover:bg-primary/10"
-                                    >
-                                        Edit
-                                    </Link>
-                                    <button
-                                        type="button"
-                                        onClick={() => setDeleteTarget(product)}
-                                        disabled={deletingProductId === product._id}
-                                        className="rounded-lg border border-red-200 px-3 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
-                                    >
-                                        {deletingProductId === product._id ? 'Deleting...' : 'Delete'}
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <Link
+                                            to={`/admin/products/${product._id}/edit`}
+                                            className="rounded-lg border border-primary/30 px-3 py-1 text-sm font-semibold text-primary hover:bg-primary/10"
+                                        >
+                                            Edit
+                                        </Link>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDeleteTarget(product)}
+                                            disabled={deletingProductId === product._id}
+                                            className="rounded-lg border border-red-200 px-3 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
+                                        >
+                                            {deletingProductId === product._id ? 'Deleting...' : 'Delete'}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))}

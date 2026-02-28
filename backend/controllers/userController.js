@@ -9,9 +9,12 @@ const mapProductsAsFollowed = (products) =>
         if (!rawProduct?.shop || typeof rawProduct.shop !== 'object') {
             return rawProduct;
         }
+        const hidePriceAccessEnabled =
+            rawProduct.shop.allowPriceHide === undefined ? true : Boolean(rawProduct.shop.allowPriceHide);
 
         return {
             ...rawProduct,
+            hideOriginalPrice: Boolean(rawProduct.hideOriginalPrice && hidePriceAccessEnabled),
             shop: {
                 ...rawProduct.shop,
                 isFollowed: true,
@@ -153,8 +156,8 @@ export const getFollowedFeed = async (req, res, next) => {
         }
 
         const products = await Product.find({ shop: { $in: user.followedShops } })
-            .select('shop name images category description price viewsCount createdAt')
-            .populate('shop', 'name category location images rating numRatings')
+            .select('shop name images category description price hideOriginalPrice viewsCount createdAt')
+            .populate('shop', 'name category location images rating numRatings allowPriceHide')
             .sort({ createdAt: -1 })
             .limit(30)
             .lean();
@@ -213,7 +216,7 @@ export const getFollowedFeedRandom = async (req, res, next) => {
 
         products = await Product.populate(products, {
             path: 'shop',
-            select: 'name category location images rating numRatings',
+            select: 'name category location images rating numRatings allowPriceHide',
         });
 
         res.status(200).json({ products: mapProductsAsFollowed(products) });

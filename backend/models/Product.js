@@ -2,8 +2,8 @@ import mongoose from 'mongoose';
 import { SHOP_CATEGORIES } from '../constants/shopCategories.js';
 
 const imageValidation = {
-    validator: (images) => Array.isArray(images) && images.length >= 3 && images.length <= 5,
-    message: 'Product must have between 3 and 5 images',
+    validator: (images) => Array.isArray(images) && images.length >= 1 && images.length <= 5,
+    message: 'Product must have between 1 and 5 images',
 };
 
 const productSchema = new mongoose.Schema(
@@ -44,6 +44,10 @@ const productSchema = new mongoose.Schema(
             required: true,
             default: 0,
             min: 0,
+        },
+        hideOriginalPrice: {
+            type: Boolean,
+            default: false,
         },
         viewsCount: {
             type: Number,

@@ -22,9 +22,36 @@ const normalizeImages = (images) => {
     return images.map((image) => String(image).trim()).filter(Boolean);
 };
 
+const normalizeBoolean = (value, defaultValue = false) => {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        if (value === 1) {
+            return true;
+        }
+        if (value === 0) {
+            return false;
+        }
+    }
+
+    if (typeof value === 'string') {
+        const normalizedValue = value.trim().toLowerCase();
+        if (['1', 'true', 'yes', 'on'].includes(normalizedValue)) {
+            return true;
+        }
+        if (['0', 'false', 'no', 'off'].includes(normalizedValue)) {
+            return false;
+        }
+    }
+
+    return defaultValue;
+};
+
 const enforceImageRange = (images, entity) => {
-    if (images.length < 3 || images.length > 5) {
-        throw new Error(`${entity} images must be between 3 and 5`);
+    if (images.length < 1 || images.length > 5) {
+        throw new Error(`${entity} images must be between 1 and 5`);
     }
 };
 
@@ -203,7 +230,9 @@ export const getShops = async (req, res, next) => {
         const [count, shops] = await Promise.all([
             Shop.countDocuments(filters),
             Shop.find(filters)
-                .select('owner name category location images mobile mapUrl description rating numRatings createdAt')
+                .select(
+                    'owner name category location images mobile mapUrl description allowPriceHide rating numRatings createdAt'
+                )
                 .populate('owner', 'name')
                 .sort({ createdAt: -1 })
                 .skip(skip)
@@ -230,7 +259,9 @@ export const getShops = async (req, res, next) => {
 export const getShopById = async (req, res, next) => {
     try {
         const shop = await Shop.findById(req.params.id)
-            .select('owner name category location images mobile mapUrl description rating numRatings createdAt')
+            .select(
+                'owner name category location images mobile mapUrl description allowPriceHide rating numRatings createdAt'
+            )
             .populate('owner', 'name')
             .lean();
         if (!shop) {
@@ -240,7 +271,7 @@ export const getShopById = async (req, res, next) => {
 
         const [products, services, ratings] = await Promise.all([
             Product.find({ shop: shop._id })
-                .select('shop name images category description price viewsCount createdAt')
+                .select('shop name images category description price hideOriginalPrice viewsCount createdAt')
                 .sort({ createdAt: -1 })
                 .lean(),
             Service.find({ shop: shop._id })
@@ -351,6 +382,11 @@ export const updateShop = async (req, res, next) => {
             throw new Error('Not authorized to update this shop');
         }
 
+        if (req.body.allowPriceHide !== undefined && req.user.role !== 'admin') {
+            res.status(403);
+            throw new Error('Only admin can change hidden price access');
+        }
+
         if (req.body.category) {
             const normalizedCategory = normalizeCategory(req.body.category);
             if (!normalizedCategory) {
@@ -387,8 +423,20 @@ export const updateShop = async (req, res, next) => {
         shop.mapUrl = req.body.mapUrl || shop.mapUrl;
         shop.description =
             req.body.description !== undefined ? req.body.description : shop.description;
+        const previousAllowPriceHide = Boolean(shop.allowPriceHide);
+
+        if (req.body.allowPriceHide !== undefined && req.user.role === 'admin') {
+            shop.allowPriceHide = normalizeBoolean(req.body.allowPriceHide, shop.allowPriceHide);
+        }
 
         const updatedShop = await shop.save();
+
+        if (previousAllowPriceHide && !updatedShop.allowPriceHide) {
+            await Product.updateMany(
+                { shop: updatedShop._id },
+                { $set: { hideOriginalPrice: false } }
+            );
+        }
 
         if (req.body.images) {
             const removedImages = previousImages.filter((image) => !nextImages.includes(image));

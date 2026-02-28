@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
+import { formatProductPrice } from '../utils/productPrice';
 
 const ProductCard = ({ product, compact = false, desktopTall = false }) => {
     const imageUrl = product.images?.[0] || 'https://via.placeholder.com/400x300?text=No+Image';
@@ -33,8 +34,8 @@ const ProductCard = ({ product, compact = false, desktopTall = false }) => {
                 )}
 
                 <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-black text-dark sm:text-base">
-                        Rs {Number(product.price).toFixed(0)}
+                    <p className="text-xs font-black text-dark sm:text-sm">
+                        {formatProductPrice(product)}
                     </p>
                     <p className="text-[11px] font-medium text-gray-500 sm:text-xs">
                         {product.viewsCount || 0} views

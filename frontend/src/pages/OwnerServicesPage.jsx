@@ -124,14 +124,6 @@ const OwnerServicesPage = () => {
                     <p className="text-sm text-gray-500">Apni services ki pricing aur details yahan manage karein.</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                    {shops.length > 0 && (
-                        <Link
-                            to="/owner/services/new"
-                            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
-                        >
-                            Add Service
-                        </Link>
-                    )}
                     <Link
                         to="/owner/products"
                         className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"

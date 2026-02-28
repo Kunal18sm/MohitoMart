@@ -56,3 +56,17 @@ h3 {
   font-family: var(--font-display);
   letter-spacing: -0.02em;
 }
+
+/* Hide scrollbar line for horizontal scroll containers */
+.overflow-x-auto,
+.overflow-x-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.overflow-x-auto::-webkit-scrollbar,
+.overflow-x-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}

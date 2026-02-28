@@ -17,9 +17,9 @@ const OwnerAddProductPage = () => {
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [previewUrls, setPreviewUrls] = useState([]);
     const [form, setForm] = useState({
-        shopId: '',
         name: '',
         price: '',
+        hideOriginalPrice: false,
         description: '',
     });
 
@@ -27,6 +27,8 @@ const OwnerAddProductPage = () => {
         () => ['shop_owner', 'admin'].includes(profileRole),
         [profileRole]
     );
+    const primaryShop = useMemo(() => shops?.[0] || null, [shops]);
+    const canUseHiddenPrice = Boolean(primaryShop?.allowPriceHide);
 
     useEffect(
         () => () => {
@@ -55,10 +57,6 @@ const OwnerAddProductPage = () => {
             setProfileRole(profileRes.data.role);
             const ownedShops = shopsRes.data.shops || [];
             setShops(ownedShops);
-            setForm((previous) => ({
-                ...previous,
-                shopId: ownedShops?.[0]?._id || '',
-            }));
         } catch (error) {
             showError(extractErrorMessage(error, 'Unable to open add product page'));
             navigate('/owner/products');
@@ -73,7 +71,7 @@ const OwnerAddProductPage = () => {
 
     const handleFileSelection = (event) => {
         try {
-            const files = validateImageFiles(event.target.files, { min: 3, max: 5, maxSizeMB: 5 });
+            const files = validateImageFiles(event.target.files, { min: 1, max: 5, maxSizeMB: 5 });
 
             previewUrls.forEach((url) => {
                 if (url.startsWith('blob:')) {
@@ -92,8 +90,8 @@ const OwnerAddProductPage = () => {
     const addProduct = async (event) => {
         event.preventDefault();
 
-        if (!form.shopId) {
-            showError('Please select a shop');
+        if (!primaryShop?._id) {
+            showError('No shop found for this account');
             return;
         }
 
@@ -102,8 +100,8 @@ const OwnerAddProductPage = () => {
             return;
         }
 
-        if (selectedFiles.length < 3 || selectedFiles.length > 5) {
-            showError('Please select 3 to 5 product images');
+        if (selectedFiles.length < 1 || selectedFiles.length > 5) {
+            showError('Please select 1 to 5 product images');
             return;
         }
 
@@ -114,9 +112,10 @@ const OwnerAddProductPage = () => {
 
             setSaving(true);
             await api.post('/products', {
-                shopId: form.shopId,
+                shopId: primaryShop._id,
                 name: form.name.trim() || undefined,
                 price: Number(form.price),
+                hideOriginalPrice: canUseHiddenPrice ? Boolean(form.hideOriginalPrice) : false,
                 description: form.description.trim(),
                 images: uploadedImageUrls,
             });
@@ -179,23 +178,13 @@ const OwnerAddProductPage = () => {
 
             <div className="rounded-3xl border border-gray-100 bg-white p-5 sm:p-6">
                 <form onSubmit={addProduct} className="grid gap-4 md:grid-cols-2">
-                    <div>
+                    <div className="md:col-span-2">
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
                             Shop
                         </label>
-                        <select
-                            value={form.shopId}
-                            onChange={(event) =>
-                                setForm((previous) => ({ ...previous, shopId: event.target.value }))
-                            }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                        >
-                            {shops.map((shop) => (
-                                <option value={shop._id} key={shop._id}>
-                                    {shop.name} ({shop.category})
-                                </option>
-                            ))}
-                        </select>
+                        <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700">
+                            {shops?.[0]?.name || 'Your Shop'} ({shops?.[0]?.category || 'General'})
+                        </p>
                     </div>
 
                     <div>
@@ -229,6 +218,33 @@ const OwnerAddProductPage = () => {
                         />
                     </div>
 
+                    {canUseHiddenPrice && (
+                        <div className="md:col-span-2">
+                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                Price Visibility
+                            </label>
+                            <label className="inline-flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                                <span className="text-xs font-semibold text-gray-700">
+                                    Hide original price from customers and competitors
+                                </span>
+                                <input
+                                    type="checkbox"
+                                    checked={form.hideOriginalPrice}
+                                    onChange={(event) =>
+                                        setForm((previous) => ({
+                                            ...previous,
+                                            hideOriginalPrice: event.target.checked,
+                                        }))
+                                    }
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                />
+                            </label>
+                            <p className="mt-1 text-xs text-gray-500">
+                                show prices in range like: &lt;500.
+                            </p>
+                        </div>
+                    )}
+
                     <div className="md:col-span-2">
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
                             Description
@@ -246,7 +262,7 @@ const OwnerAddProductPage = () => {
 
                     <div className="md:col-span-2">
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-green-700">
-                            Product Images (3 to 5)
+                            Product Images (1 to 5)
                         </label>
                         <input
                             type="file"

@@ -17,17 +17,28 @@ const ShopDetailsPage = () => {
     const [comment, setComment] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [followLoading, setFollowLoading] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [updatingPriceHideAccess, setUpdatingPriceHideAccess] = useState(false);
 
     const fetchShopDetails = async () => {
         try {
             setLoading(true);
             setError('');
-            const { data } = await api.get(`/shops/${id}`);
+            const shopRequest = api.get(`/shops/${id}`);
+            const profileRequest = localStorage.getItem('authToken')
+                ? api.get('/users/profile').catch(() => null)
+                : Promise.resolve(null);
+
+            const [shopResponse, profileResponse] = await Promise.all([shopRequest, profileRequest]);
+            const data = shopResponse.data;
+
+            setIsAdmin(profileResponse?.data?.role === 'admin');
             setShopData(data);
             setActiveImage(data.shop.images?.[0] || '');
         } catch (err) {
             setError(err.response?.data?.message || 'Unable to load shop details');
             setShopData(null);
+            setIsAdmin(false);
         } finally {
             setLoading(false);
         }
@@ -89,6 +100,43 @@ const ShopDetailsPage = () => {
             setError(err.response?.data?.message || 'Unable to submit rating');
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handlePriceHideAccessToggle = async () => {
+        const shopId = shopData?.shop?._id;
+        if (!shopId || !isAdmin) {
+            return;
+        }
+
+        const nextAccessState = !Boolean(shopData.shop.allowPriceHide);
+
+        try {
+            setUpdatingPriceHideAccess(true);
+            await api.put(`/shops/${shopId}`, { allowPriceHide: nextAccessState });
+            setShopData((previous) => {
+                if (!previous?.shop) {
+                    return previous;
+                }
+
+                return {
+                    ...previous,
+                    shop: {
+                        ...previous.shop,
+                        allowPriceHide: nextAccessState,
+                    },
+                    products: nextAccessState
+                        ? previous.products
+                        : (previous.products || []).map((product) => ({
+                              ...product,
+                              hideOriginalPrice: false,
+                          })),
+                };
+            });
+        } catch (err) {
+            setError(err.response?.data?.message || 'Unable to update hidden price access');
+        } finally {
+            setUpdatingPriceHideAccess(false);
         }
     };
 
@@ -194,6 +242,24 @@ const ShopDetailsPage = () => {
                                     ? 'Following (click to unfollow)'
                                     : 'Follow Shop'}
                         </button>
+                        {isAdmin && (
+                            <button
+                                type="button"
+                                onClick={handlePriceHideAccessToggle}
+                                disabled={updatingPriceHideAccess}
+                                className={`rounded-xl px-5 py-3 text-sm font-semibold text-white transition-colors ${
+                                    shop.allowPriceHide
+                                        ? 'bg-green-600 hover:bg-green-700'
+                                        : 'bg-slate-700 hover:bg-slate-800'
+                                } disabled:opacity-60`}
+                            >
+                                {updatingPriceHideAccess
+                                    ? 'Updating...'
+                                    : shop.allowPriceHide
+                                      ? 'Revoke Price Hide Access'
+                                      : 'Give Price Hide Access'}
+                            </button>
+                        )}
                         {shop.mapUrl && (
                             <a
                                 href={shop.mapUrl}

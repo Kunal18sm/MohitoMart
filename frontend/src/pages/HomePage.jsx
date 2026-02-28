@@ -249,74 +249,115 @@ const HomePage = () => {
             </motion.section>
 
             <motion.section {...sectionMotion} className="container mx-auto px-4 pb-2">
-                <div className="flex items-center gap-2 overflow-x-auto rounded-xl border border-gray-200 bg-white/90 p-2 shadow-sm">
-                    <Chip
-                        size="small"
-                        label={`Area feed ${activeAreas.length || 0}/3`}
-                        sx={{
-                            borderRadius: '999px',
-                            fontWeight: 700,
-                            color: 'var(--color-dark)',
-                            bgcolor: 'rgba(255,255,255,0.92)',
-                            border: '1px solid rgba(100,116,139,0.25)',
-                            flexShrink: 0,
-                        }}
-                    />
-                    <TextField
-                        size="small"
-                        value={areaSlots[0] || 'Not set'}
-                        disabled
-                        placeholder="Primary area"
-                        sx={{
-                            minWidth: 145,
-                            '& .MuiInputBase-input': { py: 0.9 },
-                        }}
-                    />
-                    <TextField
-                        size="small"
-                        value={areaSlots[1]}
-                        onChange={(event) => updateAreaSlot(1, event.target.value)}
-                        placeholder="Nearby 1"
-                        inputProps={{
-                            list: 'home-nearby-area-suggestions',
-                            maxLength: 70,
-                        }}
-                        sx={{
-                            minWidth: 135,
-                            '& .MuiInputBase-input': { py: 0.9 },
-                        }}
-                    />
-                    <TextField
-                        size="small"
-                        value={areaSlots[2]}
-                        onChange={(event) => updateAreaSlot(2, event.target.value)}
-                        placeholder="Nearby 2"
-                        inputProps={{
-                            list: 'home-nearby-area-suggestions',
-                            maxLength: 70,
-                        }}
-                        sx={{
-                            minWidth: 135,
-                            '& .MuiInputBase-input': { py: 0.9 },
-                        }}
-                    />
-                    <Button
-                        onClick={applyAreaFilters}
-                        variant="contained"
-                        sx={{
-                            borderRadius: '10px',
-                            px: 1.6,
-                            textTransform: 'none',
-                            fontWeight: 700,
-                            minHeight: 36,
-                            minWidth: 'auto',
-                            whiteSpace: 'nowrap',
-                            backgroundColor: 'var(--color-dark)',
-                            flexShrink: 0,
-                        }}
-                    >
-                        Apply
-                    </Button>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                    Select more areas near you
+                </p>
+                <div className="rounded-xl border border-gray-200 bg-white/90 p-2 shadow-sm">
+                    <div className="flex items-center gap-1.5">
+                        <div className="hidden sm:block">
+                            <Chip
+                                size="small"
+                                label={`Area ${activeAreas.length || 0}/3`}
+                                sx={{
+                                    borderRadius: '999px',
+                                    fontWeight: 700,
+                                    color: 'var(--color-dark)',
+                                    bgcolor: 'rgba(255,255,255,0.92)',
+                                    border: '1px solid rgba(100,116,139,0.25)',
+                                }}
+                            />
+                        </div>
+
+                        <div className="min-w-0 flex-[0.9]">
+                            <TextField
+                                size="small"
+                                value={areaSlots[0] || 'Not set'}
+                                disabled
+                                placeholder="P"
+                                sx={{
+                                    width: '100%',
+                                    '& .MuiInputBase-root': { height: 34 },
+                                    '& .MuiInputBase-input': {
+                                        py: 0.55,
+                                        px: 0.8,
+                                        fontSize: '0.74rem',
+                                        textOverflow: 'ellipsis',
+                                        overflow: 'hidden',
+                                        whiteSpace: 'nowrap',
+                                    },
+                                }}
+                            />
+                        </div>
+
+                        <div className="min-w-0 flex-1 transition-[flex] duration-200 focus-within:flex-[1.5]">
+                            <TextField
+                                size="small"
+                                value={areaSlots[1]}
+                                onChange={(event) => updateAreaSlot(1, event.target.value)}
+                                placeholder="A1"
+                                inputProps={{
+                                    list: 'home-nearby-area-suggestions',
+                                    maxLength: 70,
+                                }}
+                                sx={{
+                                    width: '100%',
+                                    '& .MuiInputBase-root': { height: 34 },
+                                    '& .MuiInputBase-input': {
+                                        py: 0.55,
+                                        px: 0.8,
+                                        fontSize: '0.74rem',
+                                        textOverflow: 'ellipsis',
+                                        overflow: 'hidden',
+                                        whiteSpace: 'nowrap',
+                                    },
+                                }}
+                            />
+                        </div>
+
+                        <div className="min-w-0 flex-1 transition-[flex] duration-200 focus-within:flex-[1.5]">
+                            <TextField
+                                size="small"
+                                value={areaSlots[2]}
+                                onChange={(event) => updateAreaSlot(2, event.target.value)}
+                                placeholder="A2"
+                                inputProps={{
+                                    list: 'home-nearby-area-suggestions',
+                                    maxLength: 70,
+                                }}
+                                sx={{
+                                    width: '100%',
+                                    '& .MuiInputBase-root': { height: 34 },
+                                    '& .MuiInputBase-input': {
+                                        py: 0.55,
+                                        px: 0.8,
+                                        fontSize: '0.74rem',
+                                        textOverflow: 'ellipsis',
+                                        overflow: 'hidden',
+                                        whiteSpace: 'nowrap',
+                                    },
+                                }}
+                            />
+                        </div>
+
+                        <Button
+                            onClick={applyAreaFilters}
+                            variant="contained"
+                            sx={{
+                                borderRadius: '10px',
+                                px: { xs: 1.1, sm: 1.6 },
+                                textTransform: 'none',
+                                fontWeight: 700,
+                                minHeight: 34,
+                                minWidth: 'auto',
+                                whiteSpace: 'nowrap',
+                                backgroundColor: 'var(--color-dark)',
+                                flexShrink: 0,
+                            }}
+                        >
+                            <span className="sm:hidden">Go</span>
+                            <span className="hidden sm:inline">Apply</span>
+                        </Button>
+                    </div>
                     <datalist id="home-nearby-area-suggestions">
                         {nearbyAreaOptions.map((areaOption) => (
                             <option value={areaOption} key={areaOption} />

@@ -194,7 +194,7 @@ const ShopProfilePage = () => {
 
     const handleFileSelection = (event) => {
         try {
-            const files = validateImageFiles(event.target.files, { min: 3, max: 5, maxSizeMB: 5 });
+            const files = validateImageFiles(event.target.files, { min: 1, max: 5, maxSizeMB: 5 });
 
             previewUrls.forEach((url) => {
                 if (url.startsWith('blob:')) {
@@ -241,8 +241,8 @@ const ShopProfilePage = () => {
                 setUploading(false);
             }
 
-            if (imageUrls.length < 3 || imageUrls.length > 5) {
-                showError('Please upload 3 to 5 shop images');
+            if (imageUrls.length < 1 || imageUrls.length > 5) {
+                showError('Please upload 1 to 5 shop images');
                 return;
             }
 
@@ -474,7 +474,7 @@ const ShopProfilePage = () => {
 
                     <div className="md:col-span-2">
                         <label className="mb-1 block text-sm font-semibold text-gray-700">
-                            Select Shop Images (3 to 5)
+                            Select Shop Images (1 to 5)
                         </label>
                         <input
                             type="file"

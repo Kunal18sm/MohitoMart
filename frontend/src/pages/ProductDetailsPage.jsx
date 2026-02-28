@@ -4,6 +4,7 @@ import Skeleton from '../components/Skeleton';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
+import { formatProductPrice } from '../utils/productPrice';
 
 const ProductDetailsPage = () => {
     const { id } = useParams();
@@ -178,7 +179,7 @@ const ProductDetailsPage = () => {
                     </span>
                     <h1 className="mb-3 mt-4 text-3xl font-black text-dark sm:text-4xl">{product.name}</h1>
                     <p className="mb-5 text-2xl font-black text-primary sm:text-3xl">
-                        Rs {Number(product.price).toFixed(0)}
+                        {formatProductPrice(product)}
                     </p>
                     <p className="mb-6 text-gray-600">{product.description || 'No description available.'}</p>
 

@@ -17,9 +17,36 @@ const normalizeImages = (images) => {
     return images.map((image) => String(image).trim()).filter(Boolean);
 };
 
+const normalizeBoolean = (value, defaultValue = false) => {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        if (value === 1) {
+            return true;
+        }
+        if (value === 0) {
+            return false;
+        }
+    }
+
+    if (typeof value === 'string') {
+        const normalizedValue = value.trim().toLowerCase();
+        if (['1', 'true', 'yes', 'on'].includes(normalizedValue)) {
+            return true;
+        }
+        if (['0', 'false', 'no', 'off'].includes(normalizedValue)) {
+            return false;
+        }
+    }
+
+    return defaultValue;
+};
+
 const enforceImageRange = (images) => {
-    if (images.length < 3 || images.length > 5) {
-        throw new Error('Product images must be between 3 and 5');
+    if (images.length < 1 || images.length > 5) {
+        throw new Error('Product images must be between 1 and 5');
     }
 };
 const MAX_PRODUCTS_PER_SHOP = 50;
@@ -41,9 +68,12 @@ const mapProductWithFollowState = (product, followedShopIds = new Set()) => {
     }
 
     const shopId = rawProduct.shop._id?.toString?.();
+    const hidePriceAccessEnabled =
+        rawProduct.shop.allowPriceHide === undefined ? true : Boolean(rawProduct.shop.allowPriceHide);
 
     return {
         ...rawProduct,
+        hideOriginalPrice: Boolean(rawProduct.hideOriginalPrice && hidePriceAccessEnabled),
         shop: {
             ...rawProduct.shop,
             isFollowed: shopId ? followedShopIds.has(shopId) : false,
@@ -125,8 +155,8 @@ export const getProducts = async (req, res, next) => {
         const [count, products, followedShopIds] = await Promise.all([
             Product.countDocuments(filters),
             Product.find(filters)
-                .select('name price images category description viewsCount shop createdAt')
-                .populate('shop', 'name category location rating numRatings')
+                .select('name price hideOriginalPrice images category description viewsCount shop createdAt')
+                .populate('shop', 'name category location rating numRatings allowPriceHide')
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
@@ -151,10 +181,10 @@ export const getProducts = async (req, res, next) => {
 export const getProductById = async (req, res, next) => {
     try {
         const product = await Product.findById(req.params.id)
-            .select('name price images category description viewsCount shop createdAt')
+            .select('name price hideOriginalPrice images category description viewsCount shop createdAt')
             .populate(
             'shop',
-            'name category location rating numRatings mapUrl images mobile description'
+            'name category location rating numRatings mapUrl images mobile description allowPriceHide'
             )
             .lean();
 
@@ -198,7 +228,7 @@ export const getProductById = async (req, res, next) => {
 // @access  Private (shop owner/admin)
 export const createProduct = async (req, res, next) => {
     try {
-        const { name, price, images, description, shopId } = req.body;
+        const { name, price, images, description, shopId, hideOriginalPrice } = req.body;
         const normalizedName = String(name || '').trim();
 
         if (price === undefined || !shopId) {
@@ -212,7 +242,7 @@ export const createProduct = async (req, res, next) => {
             throw new Error('price must be a valid number');
         }
 
-        const shop = await Shop.findById(shopId).select('_id owner category').lean();
+        const shop = await Shop.findById(shopId).select('_id owner category allowPriceHide').lean();
         if (!shop) {
             res.status(404);
             throw new Error('Shop not found');
@@ -239,10 +269,15 @@ export const createProduct = async (req, res, next) => {
             throw new Error(`category must be one of: ${SHOP_CATEGORIES.join(', ')}`);
         }
 
+        const normalizedHideOriginalPrice = shop.allowPriceHide
+            ? normalizeBoolean(hideOriginalPrice, false)
+            : false;
+
         const product = await Product.create({
             productId: `prd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             name: normalizedName || 'Untitled Product',
             price: numericPrice,
+            hideOriginalPrice: normalizedHideOriginalPrice,
             images: normalizedImages,
             description: description || '',
             shop: shop._id,
@@ -267,7 +302,7 @@ export const updateProduct = async (req, res, next) => {
             throw new Error('Product not found');
         }
 
-        const shop = await Shop.findById(product.shop).select('owner').lean();
+        const shop = await Shop.findById(product.shop).select('owner allowPriceHide').lean();
         const isOwner = shop && shop.owner.toString() === String(req.user._id);
 
         if (!isOwner && req.user.role !== 'admin') {
@@ -302,6 +337,14 @@ export const updateProduct = async (req, res, next) => {
                 throw new Error('price must be a valid number');
             }
             product.price = numericPrice;
+        }
+
+        if (req.body.hideOriginalPrice !== undefined) {
+            product.hideOriginalPrice = shop?.allowPriceHide
+                ? normalizeBoolean(req.body.hideOriginalPrice, product.hideOriginalPrice)
+                : false;
+        } else if (!shop?.allowPriceHide && product.hideOriginalPrice) {
+            product.hideOriginalPrice = false;
         }
 
         product.description =
@@ -413,7 +456,7 @@ export const getMyProducts = async (req, res, next) => {
         const aggregateMatch = toAggregateMatch(filters);
         const [products, summary] = await Promise.all([
             Product.find(filters)
-                .populate('shop', 'name category location images')
+                .populate('shop', 'name category location images allowPriceHide')
                 .sort({ createdAt: -1 })
                 .lean(),
             Product.aggregate([
@@ -514,7 +557,7 @@ export const getRandomProducts = async (req, res, next) => {
 
         products = await Product.populate(products, {
             path: 'shop',
-            select: 'name category location rating numRatings images',
+            select: 'name category location rating numRatings images allowPriceHide',
         });
 
         const followedShopIds = await getFollowedShopIdsForUser(req.user?._id);

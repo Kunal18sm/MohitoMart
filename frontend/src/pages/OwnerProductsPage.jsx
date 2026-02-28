@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
+import { formatProductPrice } from '../utils/productPrice';
 
 const OwnerProductsPage = () => {
     const navigate = useNavigate();
@@ -123,14 +124,6 @@ const OwnerProductsPage = () => {
                     <p className="text-sm text-gray-500">Apne products ko clean list se manage karein.</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                    {shops.length > 0 && (
-                        <Link
-                            to="/owner/products/new"
-                            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
-                        >
-                            Add New
-                        </Link>
-                    )}
                     <Link
                         to="/owner/services"
                         className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
@@ -142,12 +135,6 @@ const OwnerProductsPage = () => {
                         className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                     >
                         Shop Dashboard
-                    </Link>
-                    <Link
-                        to="/profile"
-                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                        My Profile
                     </Link>
                 </div>
             </div>
@@ -223,7 +210,7 @@ const OwnerProductsPage = () => {
                                             <div>
                                                 <p className="font-semibold text-dark">{product.name}</p>
                                                 <p className="text-sm text-gray-500">
-                                                    Rs {Number(product.price).toFixed(0)} | {product.category}
+                                                    {formatProductPrice(product)} | {product.category}
                                                 </p>
                                                 <p className="text-xs font-medium text-gray-500">
                                                     {product.viewsCount || 0} views
