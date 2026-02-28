@@ -18,6 +18,7 @@ const ProductDetailsPage = () => {
     const [isAdmin, setIsAdmin] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
+    const [shopGalleryIndex, setShopGalleryIndex] = useState(0);
 
     const fetchProduct = async () => {
         try {
@@ -32,6 +33,7 @@ const ProductDetailsPage = () => {
 
             setProduct(productData);
             setMainImage(productData.images?.[0] || '');
+            setShopGalleryIndex(0);
             setIsFollowed(Boolean(productData.shop?.isFollowed));
             setIsAdmin(profileResponse?.data?.role === 'admin');
         } catch (err) {
@@ -91,6 +93,26 @@ const ProductDetailsPage = () => {
             setDeleteLoading(false);
         }
     };
+
+    const shopImages =
+        product?.shop?.images?.length > 0
+            ? product.shop.images
+            : ['https://via.placeholder.com/900x600?text=Shop+Image'];
+    const hasMultipleShopImages = shopImages.length > 1;
+
+    const showPreviousShopImage = () => {
+        setShopGalleryIndex((previous) => Math.max(previous - 1, 0));
+    };
+
+    const showNextShopImage = () => {
+        setShopGalleryIndex((previous) => Math.min(previous + 1, shopImages.length - 1));
+    };
+
+    useEffect(() => {
+        if (shopGalleryIndex >= shopImages.length) {
+            setShopGalleryIndex(0);
+        }
+    }, [shopGalleryIndex, shopImages.length]);
 
     if (loading) {
         return (
@@ -242,34 +264,84 @@ const ProductDetailsPage = () => {
                         )}
                     </div>
 
-                    <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-                        {(product.shop.images || []).map((image) => (
-                            product.shop?._id ? (
-                                <Link
-                                    key={image}
-                                    to={`/shop/${product.shop._id}`}
-                                    className="block overflow-hidden rounded-xl border border-gray-200 transition hover:border-primary"
+                    <div className="relative mt-4">
+                        <div className="overflow-hidden rounded-2xl border border-gray-200">
+                            <div
+                                className="flex transition-transform duration-500 ease-out"
+                                style={{ transform: `translateX(-${shopGalleryIndex * 100}%)` }}
+                            >
+                                {shopImages.map((image, index) => (
+                                    <div key={`${image}-${index}`} className="min-w-full">
+                                        {product.shop?._id ? (
+                                            <Link to={`/shop/${product.shop._id}`} className="block">
+                                                <img
+                                                    src={image}
+                                                    alt={product.shop.name}
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                    className="h-56 w-full object-cover sm:h-64 md:h-72"
+                                                />
+                                            </Link>
+                                        ) : (
+                                            <img
+                                                src={image}
+                                                alt={product.shop.name}
+                                                loading="lazy"
+                                                decoding="async"
+                                                className="h-56 w-full object-cover sm:h-64 md:h-72"
+                                            />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {hasMultipleShopImages && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={showPreviousShopImage}
+                                    disabled={shopGalleryIndex === 0}
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-sm font-black text-dark shadow disabled:cursor-not-allowed disabled:opacity-40"
+                                    aria-label="Show previous shop image"
+                                >
+                                    {'<'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={showNextShopImage}
+                                    disabled={shopGalleryIndex >= shopImages.length - 1}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-sm font-black text-dark shadow disabled:cursor-not-allowed disabled:opacity-40"
+                                    aria-label="Show next shop image"
+                                >
+                                    {'>'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+
+                    {shopImages.length > 1 && (
+                        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                            {shopImages.map((image, index) => (
+                                <button
+                                    key={`${image}-thumb-${index}`}
+                                    type="button"
+                                    onClick={() => setShopGalleryIndex(index)}
+                                    className={`overflow-hidden rounded-lg border ${
+                                        shopGalleryIndex === index ? 'border-primary' : 'border-gray-200'
+                                    }`}
                                 >
                                     <img
                                         src={image}
-                                        alt={product.shop.name}
+                                        alt={`${product.shop.name}-preview-${index + 1}`}
                                         loading="lazy"
                                         decoding="async"
-                                        className="h-24 w-32 object-cover sm:h-28 sm:w-40"
+                                        className="h-16 w-24 object-cover sm:h-20 sm:w-32"
                                     />
-                                </Link>
-                            ) : (
-                                <img
-                                    key={image}
-                                    src={image}
-                                    alt={product.shop.name}
-                                    loading="lazy"
-                                    decoding="async"
-                                    className="h-24 w-32 rounded-xl border border-gray-200 object-cover sm:h-28 sm:w-40"
-                                />
-                            )
-                        ))}
-                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </section>
             )}
 

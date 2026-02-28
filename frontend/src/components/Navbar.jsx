@@ -55,6 +55,18 @@ const Navbar = () => {
         return '/profile';
     }, [isLoggedIn, userRole]);
 
+    const openProfilePath = useMemo(() => {
+        if (!isLoggedIn) {
+            return '/auth';
+        }
+
+        if (userRole === 'admin') {
+            return '/admin';
+        }
+
+        return '/profile';
+    }, [isLoggedIn, userRole]);
+
     const authLabel = useMemo(() => {
         if (!isLoggedIn) {
             return 'Login / Signup';
@@ -88,11 +100,22 @@ const Navbar = () => {
                         <Link to="/" className="transition-colors hover:text-primary">
                             Discover
                         </Link>
+                        <Link to="/services/all" className="transition-colors hover:text-primary">
+                            Services
+                        </Link>
+                        {isLoggedIn && userRole === 'shop_owner' && (
+                            <Link
+                                to="/owner/shop"
+                                className="transition-colors hover:text-primary"
+                            >
+                                Shop Profile
+                            </Link>
+                        )}
                         <Link
-                            to={profilePath}
+                            to={userRole === 'shop_owner' && isLoggedIn ? '/profile' : profilePath}
                             className="transition-colors hover:text-primary"
                         >
-                            {authLabel}
+                            {userRole === 'shop_owner' && isLoggedIn ? 'Profile' : authLabel}
                         </Link>
                     </div>
 
@@ -100,12 +123,29 @@ const Navbar = () => {
                         <span className="rounded-full bg-light px-4 py-2 text-sm font-medium text-gray-600">
                             {locationLabel}
                         </span>
-                        <Link
-                            to={profilePath}
-                            className="rounded-full bg-dark px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
-                        >
-                            {authLabel}
-                        </Link>
+                        {isLoggedIn && userRole === 'shop_owner' ? (
+                            <>
+                                <Link
+                                    to="/owner/shop"
+                                    className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                                >
+                                    Shop Profile
+                                </Link>
+                                <Link
+                                    to="/profile"
+                                    className="rounded-full bg-dark px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+                                >
+                                    Open Profile
+                                </Link>
+                            </>
+                        ) : (
+                            <Link
+                                to={profilePath}
+                                className="rounded-full bg-dark px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
+                            >
+                                {authLabel}
+                            </Link>
+                        )}
                     </div>
 
                     <button
@@ -130,18 +170,38 @@ const Navbar = () => {
                             Discover
                         </Link>
                         <Link
-                            to={profilePath}
+                            to="/services/all"
                             onClick={() => setIsMenuOpen(false)}
                             className="block rounded-lg px-2 py-2 text-sm font-medium text-gray-700 hover:bg-light"
                         >
-                            {authLabel}
+                            Services
                         </Link>
                         <Link
                             to={profilePath}
                             onClick={() => setIsMenuOpen(false)}
+                            className="block rounded-lg px-2 py-2 text-sm font-medium text-gray-700 hover:bg-light"
+                        >
+                            {isLoggedIn && userRole === 'shop_owner' ? 'Shop Profile' : authLabel}
+                        </Link>
+                        {isLoggedIn && userRole === 'shop_owner' && (
+                            <Link
+                                to="/profile"
+                                onClick={() => setIsMenuOpen(false)}
+                                className="block rounded-lg px-2 py-2 text-sm font-medium text-gray-700 hover:bg-light"
+                            >
+                                Profile
+                            </Link>
+                        )}
+                        <Link
+                            to={openProfilePath}
+                            onClick={() => setIsMenuOpen(false)}
                             className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-dark px-3 py-2 text-sm font-semibold text-white hover:bg-primary"
                         >
-                            {isLoggedIn ? 'Open Profile' : 'Login / Signup'}
+                            {isLoggedIn
+                                ? userRole === 'shop_owner'
+                                    ? 'Open Profile'
+                                    : authLabel
+                                : 'Login / Signup'}
                         </Link>
                     </div>
                 )}

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
+import { formatServicePrice } from '../utils/servicePrice';
 
 const ShopDetailsPage = () => {
     const { id } = useParams();
@@ -15,6 +16,7 @@ const ShopDetailsPage = () => {
     const [rating, setRating] = useState(5);
     const [comment, setComment] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [followLoading, setFollowLoading] = useState(false);
 
     const fetchShopDetails = async () => {
         try {
@@ -42,14 +44,29 @@ const ShopDetailsPage = () => {
         }
 
         try {
+            setFollowLoading(true);
             if (shopData.shop.isFollowed) {
                 await api.delete(`/users/follows/${id}`);
             } else {
                 await api.post(`/users/follows/${id}`);
             }
-            fetchShopDetails();
+            setShopData((previous) => {
+                if (!previous?.shop) {
+                    return previous;
+                }
+
+                return {
+                    ...previous,
+                    shop: {
+                        ...previous.shop,
+                        isFollowed: !previous.shop.isFollowed,
+                    },
+                };
+            });
         } catch (err) {
             setError(err.response?.data?.message || 'Unable to update follow state');
+        } finally {
+            setFollowLoading(false);
         }
     };
 
@@ -67,7 +84,7 @@ const ShopDetailsPage = () => {
                 comment,
             });
             setComment('');
-            fetchShopDetails();
+            await fetchShopDetails();
         } catch (err) {
             setError(err.response?.data?.message || 'Unable to submit rating');
         } finally {
@@ -91,7 +108,7 @@ const ShopDetailsPage = () => {
         );
     }
 
-    const { shop, products, ratings } = shopData;
+    const { shop, products = [], services = [], ratings = [] } = shopData;
 
     return (
         <div className="container mx-auto px-4 py-8 md:py-10">
@@ -166,11 +183,16 @@ const ShopDetailsPage = () => {
                     <div className="mt-6 flex flex-wrap gap-3">
                         <button
                             onClick={handleFollowToggle}
+                            disabled={followLoading}
                             className={`rounded-xl px-5 py-3 text-sm font-semibold text-white transition-colors ${
                                 shop.isFollowed ? 'bg-green-600 hover:bg-green-700' : 'bg-dark hover:bg-primary'
-                            }`}
+                            } disabled:opacity-60`}
                         >
-                            {shop.isFollowed ? 'Following (click to unfollow)' : 'Follow Shop'}
+                            {followLoading
+                                ? 'Updating...'
+                                : shop.isFollowed
+                                    ? 'Following (click to unfollow)'
+                                    : 'Follow Shop'}
                         </button>
                         {shop.mapUrl && (
                             <a
@@ -197,6 +219,50 @@ const ShopDetailsPage = () => {
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                         {products.map((product) => (
                             <ProductCard key={product._id} product={{ ...product, shop }} />
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            <section className="mb-12">
+                <h2 className="mb-4 text-3xl font-black text-dark">Shop Services</h2>
+                {services.length === 0 && (
+                    <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
+                        Is shop ne abhi tak koi service add nahi ki.
+                    </p>
+                )}
+                {services.length > 0 && (
+                    <div className="grid gap-4 md:grid-cols-2">
+                        {services.map((service) => (
+                            <article
+                                key={service._id}
+                                className="rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.08)]"
+                            >
+                                <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
+                                    {(service.images || []).map((image, index) => (
+                                        <img
+                                            key={`${service._id}-${image}-${index}`}
+                                            src={image}
+                                            alt={service.name}
+                                            loading="lazy"
+                                            decoding="async"
+                                            className="h-44 min-w-full snap-start rounded-xl border border-gray-200 object-cover sm:h-52"
+                                        />
+                                    ))}
+                                </div>
+                                <div className="mt-3 flex items-start justify-between gap-3">
+                                    <div>
+                                        <h3 className="text-xl font-black text-dark">{service.name}</h3>
+                                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">
+                                            {service.category}
+                                        </p>
+                                    </div>
+                                    <p className="text-lg font-black text-primary">{formatServicePrice(service)}</p>
+                                </div>
+                                <p className="mt-2 text-sm text-gray-600">
+                                    {service.description || 'Service details not added yet.'}
+                                </p>
+                            </article>
                         ))}
                     </div>
                 )}

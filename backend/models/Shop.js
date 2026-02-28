@@ -81,6 +81,8 @@ const shopSchema = new mongoose.Schema(
 );
 
 shopSchema.index({ 'location.city': 1, 'location.area': 1, category: 1 });
+shopSchema.index({ category: 1, createdAt: -1 });
+shopSchema.index({ owner: 1, createdAt: -1 });
 
 const Shop = mongoose.model('Shop', shopSchema);
 export default Shop;

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Link } from 'react-router-dom';
 
 const ShopCard = ({ shop }) => {
@@ -5,7 +6,13 @@ const ShopCard = ({ shop }) => {
 
     return (
         <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover-elevate">
-            <img src={imageUrl} alt={shop.name} className="h-44 w-full object-cover" />
+            <img
+                src={imageUrl}
+                alt={shop.name}
+                loading="lazy"
+                decoding="async"
+                className="h-44 w-full object-cover"
+            />
             <div className="space-y-3 p-5">
                 <div className="flex items-start justify-between gap-3">
                     <h3 className="line-clamp-1 text-lg font-bold text-dark">{shop.name}</h3>
@@ -40,4 +47,4 @@ const ShopCard = ({ shop }) => {
     );
 };
 
-export default ShopCard;
+export default memo(ShopCard);

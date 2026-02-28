@@ -3,16 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
+import { formatServicePrice } from '../utils/servicePrice';
 
-const OwnerProductsPage = () => {
+const OwnerServicesPage = () => {
     const navigate = useNavigate();
     const { showError, showSuccess } = useFlash();
     const [loading, setLoading] = useState(true);
     const [profileRole, setProfileRole] = useState('user');
     const [shops, setShops] = useState([]);
-    const [products, setProducts] = useState([]);
+    const [services, setServices] = useState([]);
     const [selectedShopId, setSelectedShopId] = useState('');
-    const [deletingProductId, setDeletingProductId] = useState('');
+    const [deletingServiceId, setDeletingServiceId] = useState('');
 
     const canManageItems = useMemo(
         () => ['shop_owner', 'admin'].includes(profileRole),
@@ -24,21 +25,21 @@ const OwnerProductsPage = () => {
         [shops, selectedShopId]
     );
 
-    const fetchProductsForShop = async (shopId) => {
+    const fetchServicesForShop = async (shopId) => {
         if (!shopId) {
-            setProducts([]);
+            setServices([]);
             return;
         }
 
         try {
-            const { data } = await api.get('/products/me/list', {
+            const { data } = await api.get('/services/me/list', {
                 params: {
                     shopId,
                 },
             });
-            setProducts(data.products || []);
+            setServices(data.services || []);
         } catch (error) {
-            showError(extractErrorMessage(error, 'Unable to load products'));
+            showError(extractErrorMessage(error, 'Unable to load services'));
         }
     };
 
@@ -63,12 +64,12 @@ const OwnerProductsPage = () => {
             setSelectedShopId(defaultShopId);
 
             if (defaultShopId) {
-                await fetchProductsForShop(defaultShopId);
+                await fetchServicesForShop(defaultShopId);
             } else {
-                setProducts([]);
+                setServices([]);
             }
         } catch (error) {
-            showError(extractErrorMessage(error, 'Unable to load owner products page'));
+            showError(extractErrorMessage(error, 'Unable to load owner services page'));
         } finally {
             setLoading(false);
         }
@@ -81,26 +82,26 @@ const OwnerProductsPage = () => {
     const handleShopChange = (event) => {
         const shopId = event.target.value;
         setSelectedShopId(shopId);
-        fetchProductsForShop(shopId);
+        fetchServicesForShop(shopId);
     };
 
-    const deleteProduct = async (productId) => {
+    const deleteService = async (serviceId) => {
         try {
-            setDeletingProductId(productId);
-            await api.delete(`/products/${productId}`);
-            showSuccess('Product deleted');
-            await fetchProductsForShop(selectedShopId);
+            setDeletingServiceId(serviceId);
+            await api.delete(`/services/${serviceId}`);
+            showSuccess('Service deleted');
+            await fetchServicesForShop(selectedShopId);
         } catch (error) {
-            showError(extractErrorMessage(error, 'Unable to delete product'));
+            showError(extractErrorMessage(error, 'Unable to delete service'));
         } finally {
-            setDeletingProductId('');
+            setDeletingServiceId('');
         }
     };
 
     if (loading) {
         return (
             <div className="container mx-auto px-4 py-10">
-                <p className="text-gray-500">Loading owner products...</p>
+                <p className="text-gray-500">Loading owner services...</p>
             </div>
         );
     }
@@ -119,23 +120,23 @@ const OwnerProductsPage = () => {
         <div className="container mx-auto max-w-6xl px-4 py-8 md:py-10">
             <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-3xl font-black text-dark sm:text-4xl">Products Manager</h1>
-                    <p className="text-sm text-gray-500">Apne products ko clean list se manage karein.</p>
+                    <h1 className="text-3xl font-black text-dark sm:text-4xl">Services Manager</h1>
+                    <p className="text-sm text-gray-500">Apni services ki pricing aur details yahan manage karein.</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                     {shops.length > 0 && (
                         <Link
-                            to="/owner/products/new"
+                            to="/owner/services/new"
                             className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
                         >
-                            Add New
+                            Add Service
                         </Link>
                     )}
                     <Link
-                        to="/owner/services"
+                        to="/owner/products"
                         className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                     >
-                        Manage Services
+                        Manage Products
                     </Link>
                     <Link
                         to="/owner/shop"
@@ -143,18 +144,12 @@ const OwnerProductsPage = () => {
                     >
                         Shop Dashboard
                     </Link>
-                    <Link
-                        to="/profile"
-                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                        My Profile
-                    </Link>
                 </div>
             </div>
 
             {shops.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-6">
-                    <p className="text-gray-600">Pehle shop profile create karein, phir items add kar payenge.</p>
+                    <p className="text-gray-600">Pehle shop profile create karein, phir services add kar payenge.</p>
                     <Link
                         to="/owner/shop"
                         className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white"
@@ -169,16 +164,16 @@ const OwnerProductsPage = () => {
                     <div className="rounded-3xl border border-gray-100 bg-white p-5 sm:p-6">
                         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <h2 className="text-2xl font-black text-dark">Items List</h2>
+                                <h2 className="text-2xl font-black text-dark">Service List</h2>
                                 <p className="text-sm text-gray-500">
                                     Selected shop category: {selectedShop?.category || '-'}
                                 </p>
                             </div>
                             <Link
-                                to="/owner/products/new"
+                                to="/owner/services/new"
                                 className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
                             >
-                                Add New
+                                Add Service
                             </Link>
                         </div>
 
@@ -199,51 +194,48 @@ const OwnerProductsPage = () => {
                             </select>
                         </div>
 
-                        {products.length === 0 && (
+                        {services.length === 0 && (
                             <p className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500">
-                                Is shop me abhi tak koi product add nahi hua.
+                                Is shop me abhi tak koi service add nahi hui.
                             </p>
                         )}
 
-                        {products.length > 0 && (
+                        {services.length > 0 && (
                             <div className="space-y-3">
-                                {products.map((product) => (
+                                {services.map((service) => (
                                     <div
-                                        key={product._id}
+                                        key={service._id}
                                         className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3"
                                     >
                                         <div className="flex items-center gap-3">
                                             <img
-                                                src={product.images?.[0]}
-                                                alt={product.name}
+                                                src={service.images?.[0]}
+                                                alt={service.name}
                                                 loading="lazy"
                                                 decoding="async"
                                                 className="h-12 w-12 rounded-lg object-cover"
                                             />
                                             <div>
-                                                <p className="font-semibold text-dark">{product.name}</p>
+                                                <p className="font-semibold text-dark">{service.name}</p>
                                                 <p className="text-sm text-gray-500">
-                                                    Rs {Number(product.price).toFixed(0)} | {product.category}
-                                                </p>
-                                                <p className="text-xs font-medium text-gray-500">
-                                                    {product.viewsCount || 0} views
+                                                    {formatServicePrice(service)} | {service.category}
                                                 </p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <Link
-                                                to={`/owner/products/${product._id}/edit`}
+                                                to={`/owner/services/${service._id}/edit`}
                                                 className="rounded-lg border border-primary/30 px-3 py-1 text-sm font-semibold text-primary hover:bg-primary/10"
                                             >
                                                 Edit
                                             </Link>
                                             <button
                                                 type="button"
-                                                onClick={() => deleteProduct(product._id)}
-                                                disabled={deletingProductId === product._id}
+                                                onClick={() => deleteService(service._id)}
+                                                disabled={deletingServiceId === service._id}
                                                 className="rounded-lg border border-red-200 px-3 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
                                             >
-                                                {deletingProductId === product._id ? 'Deleting...' : 'Delete'}
+                                                {deletingServiceId === service._id ? 'Deleting...' : 'Delete'}
                                             </button>
                                         </div>
                                     </div>
@@ -257,4 +249,4 @@ const OwnerProductsPage = () => {
     );
 };
 
-export default OwnerProductsPage;
+export default OwnerServicesPage;

@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import generateToken from '../utils/generateToken.js';
+import { normalizeLocationLabel } from '../utils/locationNormalizer.js';
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
@@ -9,8 +10,8 @@ export const registerUser = async (req, res, next) => {
         const { name, email, password, city, area, role } = req.body;
         const normalizedName = String(name || '').trim();
         const normalizedEmail = String(email || '').trim().toLowerCase();
-        const normalizedCity = String(city || '').trim();
-        const normalizedArea = String(area || '').trim();
+        const normalizedCity = normalizeLocationLabel(city);
+        const normalizedArea = normalizeLocationLabel(area);
 
         if (!normalizedName || !normalizedEmail || !password || !normalizedCity || !normalizedArea) {
             res.status(400);
@@ -22,7 +23,7 @@ export const registerUser = async (req, res, next) => {
             throw new Error('Password must be at least 6 characters');
         }
 
-        const userExists = await User.findOne({ email: normalizedEmail });
+        const userExists = await User.exists({ email: normalizedEmail });
         if (userExists) {
             res.status(400);
             throw new Error('User already exists');
@@ -72,7 +73,9 @@ export const loginUser = async (req, res, next) => {
             throw new Error('Email and password are required');
         }
 
-        const user = await User.findOne({ email: normalizedEmail });
+        const user = await User.findOne({ email: normalizedEmail }).select(
+            'name email password role location followedShops'
+        );
 
         if (user && (await user.matchPassword(password))) {
             const token = generateToken(res, user._id);

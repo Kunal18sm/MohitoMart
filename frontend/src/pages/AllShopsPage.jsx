@@ -9,6 +9,7 @@ import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { filterCategoriesWithLocalImages } from '../utils/categoryImage';
+import { useLocationSuggestions } from '../utils/locationSuggestions';
 
 const AllShopsPage = () => {
     const { showError } = useFlash();
@@ -23,6 +24,12 @@ const AllShopsPage = () => {
     const [categories, setCategories] = useState([]);
     const [shops, setShops] = useState([]);
     const [loading, setLoading] = useState(true);
+    const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
+
+    const areaOptions = useMemo(
+        () => getAreaOptionsByCity(city),
+        [city, getAreaOptionsByCity]
+    );
 
     const fetchAllShops = async () => {
         try {
@@ -83,14 +90,6 @@ const AllShopsPage = () => {
 
     const applyLocation = (event) => {
         event.preventDefault();
-        localStorage.setItem(
-            'selectedLocation',
-            JSON.stringify({
-                city: city.trim(),
-                area: area.trim(),
-            })
-        );
-        window.dispatchEvent(new Event('storage'));
         fetchAllShops();
     };
 
@@ -144,12 +143,18 @@ const AllShopsPage = () => {
                     size="small"
                     onChange={(event) => setCity(event.target.value)}
                     label="City"
+                    inputProps={{
+                        list: 'all-shops-city-suggestions',
+                    }}
                 />
                 <TextField
                     value={area}
                     size="small"
                     onChange={(event) => setArea(event.target.value)}
                     label="Area"
+                    inputProps={{
+                        list: 'all-shops-area-suggestions',
+                    }}
                 />
                 <FormControl size="small">
                     <InputLabel id="shop-category-filter-label">Category</InputLabel>
@@ -183,6 +188,19 @@ const AllShopsPage = () => {
                     Apply
                 </Button>
             </form>
+            <datalist id="all-shops-city-suggestions">
+                {cityOptions.map((cityOption) => (
+                    <option value={cityOption} key={cityOption} />
+                ))}
+            </datalist>
+            <datalist id="all-shops-area-suggestions">
+                {areaOptions.map((areaOption) => (
+                    <option value={areaOption} key={areaOption} />
+                ))}
+            </datalist>
+            <p className="mb-6 text-xs text-gray-500">
+                Yahan location change temporary filter hai. Main location update karne ke liye profile use karein.
+            </p>
 
             {loading && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">

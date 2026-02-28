@@ -8,6 +8,7 @@ import { configureCloudinary } from './config/cloudinary.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import productRoutes from './routes/productRoutes.js';
+import serviceRoutes from './routes/serviceRoutes.js';
 import shopRoutes from './routes/shopRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import bannerRoutes from './routes/bannerRoutes.js';
@@ -69,6 +70,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/shops', shopRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/services', serviceRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/banners', bannerRoutes);
 

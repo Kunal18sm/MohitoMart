@@ -4,6 +4,7 @@ import api from '../services/api';
 import { useFlash } from '../context/FlashContext';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { uploadImages, validateImageFiles } from '../utils/uploadUtils';
+import { useLocationSuggestions } from '../utils/locationSuggestions';
 
 const AdminDashboardPage = () => {
     const navigate = useNavigate();
@@ -12,6 +13,15 @@ const AdminDashboardPage = () => {
     const [loading, setLoading] = useState(true);
     const [savingBanner, setSavingBanner] = useState(false);
     const [profile, setProfile] = useState(null);
+    const [showProfileEditor, setShowProfileEditor] = useState(false);
+    const [savingProfile, setSavingProfile] = useState(false);
+    const [profileForm, setProfileForm] = useState({
+        name: '',
+        email: '',
+        city: '',
+        area: '',
+        password: '',
+    });
     const [shops, setShops] = useState([]);
     const [products, setProducts] = useState([]);
     const [totalShops, setTotalShops] = useState(0);
@@ -22,6 +32,7 @@ const AdminDashboardPage = () => {
     const [productSearch, setProductSearch] = useState('');
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deletingProductId, setDeletingProductId] = useState('');
+    const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
 
     useEffect(
         () => () => {
@@ -47,6 +58,10 @@ const AdminDashboardPage = () => {
             return name.includes(keyword) || category.includes(keyword) || shopName.includes(keyword);
         });
     }, [products, productSearch]);
+    const areaOptions = useMemo(
+        () => getAreaOptionsByCity(profileForm.city),
+        [getAreaOptionsByCity, profileForm.city]
+    );
 
     const loadAdminDashboard = async () => {
         if (!localStorage.getItem('authToken')) {
@@ -65,6 +80,13 @@ const AdminDashboardPage = () => {
             }
 
             setProfile(profileData);
+            setProfileForm({
+                name: profileData.name || '',
+                email: profileData.email || '',
+                city: profileData.location?.city || '',
+                area: profileData.location?.area || '',
+                password: '',
+            });
 
             const [shopsRes, productsRes, bannerRes] = await Promise.all([
                 api.get('/shops', { params: { page: 1, limit: 5 } }),
@@ -153,6 +175,70 @@ const AdminDashboardPage = () => {
         }
     };
 
+    const updateAdminProfile = async (event) => {
+        event.preventDefault();
+
+        try {
+            const payload = {
+                name: profileForm.name.trim(),
+                email: profileForm.email.trim().toLowerCase(),
+                city: profileForm.city.trim(),
+                area: profileForm.area.trim(),
+                password: profileForm.password,
+            };
+
+            if (!payload.name || !payload.email || !payload.city || !payload.area) {
+                showError('Name, email, city and area are required');
+                return;
+            }
+
+            if (payload.password && payload.password.length < 6) {
+                showError('Password must be at least 6 characters');
+                return;
+            }
+
+            setSavingProfile(true);
+            const { data } = await api.put('/users/profile', payload);
+
+            setProfile((previous) => ({
+                ...previous,
+                ...data,
+            }));
+            setProfileForm((previous) => ({
+                ...previous,
+                name: data.name || previous.name,
+                email: data.email || previous.email,
+                city: data.location?.city || previous.city,
+                area: data.location?.area || previous.area,
+                password: '',
+            }));
+
+            localStorage.setItem(
+                'userProfile',
+                JSON.stringify({
+                    id: data._id,
+                    name: data.name,
+                    email: data.email,
+                    role: data.role,
+                    location: data.location,
+                })
+            );
+            localStorage.setItem(
+                'selectedLocation',
+                JSON.stringify({
+                    city: data.location?.city,
+                    area: data.location?.area,
+                })
+            );
+            window.dispatchEvent(new Event('storage'));
+            showSuccess('Admin profile updated');
+        } catch (error) {
+            showError(extractErrorMessage(error, 'Unable to update admin profile'));
+        } finally {
+            setSavingProfile(false);
+        }
+    };
+
     const handleLogout = async () => {
         try {
             await api.post('/auth/logout');
@@ -186,6 +272,13 @@ const AdminDashboardPage = () => {
                 <div className="flex flex-wrap items-center gap-2">
                     <button
                         type="button"
+                        onClick={() => setShowProfileEditor((previous) => !previous)}
+                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                        {showProfileEditor ? 'Close Profile Edit' : 'Edit Profile'}
+                    </button>
+                    <button
+                        type="button"
                         onClick={loadAdminDashboard}
                         className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                     >
@@ -200,6 +293,78 @@ const AdminDashboardPage = () => {
                     </button>
                 </div>
             </div>
+
+            {showProfileEditor && (
+                <section className="mb-8 rounded-3xl border border-gray-100 bg-white p-5 sm:p-6">
+                    <h2 className="mb-4 text-2xl font-black text-dark">Edit Admin Profile</h2>
+                    <form onSubmit={updateAdminProfile} className="grid gap-4 md:grid-cols-2">
+                        <input
+                            type="text"
+                            placeholder="Name"
+                            value={profileForm.name}
+                            onChange={(event) =>
+                                setProfileForm((previous) => ({ ...previous, name: event.target.value }))
+                            }
+                            className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                        />
+                        <input
+                            type="email"
+                            placeholder="Email"
+                            value={profileForm.email}
+                            onChange={(event) =>
+                                setProfileForm((previous) => ({ ...previous, email: event.target.value }))
+                            }
+                            className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                        />
+                        <input
+                            type="text"
+                            placeholder="City"
+                            list="admin-city-suggestions"
+                            value={profileForm.city}
+                            onChange={(event) =>
+                                setProfileForm((previous) => ({ ...previous, city: event.target.value }))
+                            }
+                            className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                        />
+                        <input
+                            type="text"
+                            placeholder="Area"
+                            list="admin-area-suggestions"
+                            value={profileForm.area}
+                            onChange={(event) =>
+                                setProfileForm((previous) => ({ ...previous, area: event.target.value }))
+                            }
+                            className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                        />
+                        <input
+                            type="password"
+                            placeholder="New password (optional)"
+                            value={profileForm.password}
+                            onChange={(event) =>
+                                setProfileForm((previous) => ({ ...previous, password: event.target.value }))
+                            }
+                            className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary md:col-span-2"
+                        />
+                        <button
+                            type="submit"
+                            disabled={savingProfile}
+                            className="rounded-lg bg-dark px-5 py-3 text-sm font-semibold text-white hover:bg-primary disabled:opacity-60 md:col-span-2"
+                        >
+                            {savingProfile ? 'Saving...' : 'Save Admin Profile'}
+                        </button>
+                        <datalist id="admin-city-suggestions">
+                            {cityOptions.map((cityOption) => (
+                                <option value={cityOption} key={cityOption} />
+                            ))}
+                        </datalist>
+                        <datalist id="admin-area-suggestions">
+                            {areaOptions.map((areaOption) => (
+                                <option value={areaOption} key={areaOption} />
+                            ))}
+                        </datalist>
+                    </form>
+                </section>
+            )}
 
             <section className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <article className="rounded-2xl border border-gray-100 bg-white p-4">

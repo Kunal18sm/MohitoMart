@@ -1,9 +1,11 @@
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import Shop from '../models/Shop.js';
 import ProductView from '../models/ProductView.js';
 import User from '../models/User.js';
 import { SHOP_CATEGORIES, normalizeCategory } from '../constants/shopCategories.js';
 import { destroyCloudinaryImages } from '../utils/cloudinaryCleanup.js';
+import { buildLocationFilterRegex } from '../utils/locationNormalizer.js';
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -26,7 +28,7 @@ const getFollowedShopIdsForUser = async (userId) => {
         return new Set();
     }
 
-    const user = await User.findById(userId).select('followedShops');
+    const user = await User.findById(userId).select('followedShops').lean();
     return new Set(user?.followedShops?.map((shopId) => shopId.toString()) || []);
 };
 
@@ -51,13 +53,21 @@ const mapProductWithFollowState = (product, followedShopIds = new Set()) => {
 const mapProductsWithFollowState = (products, followedShopIds = new Set()) =>
     products.map((product) => mapProductWithFollowState(product, followedShopIds));
 
+const toAggregateMatch = (filters) => {
+    const match = { ...filters };
+    if (typeof match.shop === 'string' && mongoose.Types.ObjectId.isValid(match.shop)) {
+        match.shop = new mongoose.Types.ObjectId(match.shop);
+    }
+    return match;
+};
+
 // @desc    Fetch all products with pagination and filters
 // @route   GET /api/products
 // @access  Public
 export const getProducts = async (req, res, next) => {
     try {
-        const page = Number(req.query.page || 1);
-        const limit = Math.min(Number(req.query.limit || 12), 50);
+        const page = Math.max(Number(req.query.page || 1), 1);
+        const limit = Math.min(Math.max(Number(req.query.limit || 12), 1), 50);
         const skip = (page - 1) * limit;
 
         const filters = {};
@@ -82,29 +92,39 @@ export const getProducts = async (req, res, next) => {
         if (req.query.city || req.query.area) {
             const shopFilters = {};
             if (req.query.city) {
-                shopFilters['location.city'] = {
-                    $regex: `^${escapeRegex(req.query.city)}$`,
-                    $options: 'i',
-                };
+                const cityFilter = buildLocationFilterRegex(req.query.city);
+                if (cityFilter) {
+                    shopFilters['location.city'] = cityFilter;
+                }
             }
             if (req.query.area) {
-                shopFilters['location.area'] = {
-                    $regex: `^${escapeRegex(req.query.area)}$`,
-                    $options: 'i',
-                };
+                const areaFilter = buildLocationFilterRegex(req.query.area);
+                if (areaFilter) {
+                    shopFilters['location.area'] = areaFilter;
+                }
             }
 
             const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            if (!nearbyShopIds.length) {
+                return res.status(200).json({
+                    products: [],
+                    page,
+                    pages: 0,
+                    total: 0,
+                });
+            }
             filters.shop = { $in: nearbyShopIds };
         }
 
         const [count, products, followedShopIds] = await Promise.all([
             Product.countDocuments(filters),
             Product.find(filters)
+                .select('name price images category description viewsCount shop createdAt')
                 .populate('shop', 'name category location rating numRatings')
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .limit(limit),
+                .limit(limit)
+                .lean(),
             getFollowedShopIdsForUser(req.user?._id),
         ]);
 
@@ -124,10 +144,13 @@ export const getProducts = async (req, res, next) => {
 // @access  Public
 export const getProductById = async (req, res, next) => {
     try {
-        const product = await Product.findById(req.params.id).populate(
+        const product = await Product.findById(req.params.id)
+            .select('name price images category description viewsCount shop createdAt')
+            .populate(
             'shop',
             'name category location rating numRatings mapUrl images mobile description'
-        );
+            )
+            .lean();
 
         if (!product) {
             res.status(404);
@@ -135,15 +158,25 @@ export const getProductById = async (req, res, next) => {
         }
 
         if (req.user?._id) {
-            const existingView = await ProductView.findOne({
-                product: product._id,
-                user: req.user._id,
-            });
+            const viewResult = await ProductView.updateOne(
+                {
+                    product: product._id,
+                    user: req.user._id,
+                },
+                {
+                    $setOnInsert: {
+                        product: product._id,
+                        user: req.user._id,
+                    },
+                },
+                {
+                    upsert: true,
+                }
+            );
 
-            if (!existingView) {
-                await ProductView.create({ product: product._id, user: req.user._id });
-                product.viewsCount += 1;
-                await product.save();
+            if (viewResult.upsertedCount > 0) {
+                await Product.updateOne({ _id: product._id }, { $inc: { viewsCount: 1 } });
+                product.viewsCount = Number(product.viewsCount || 0) + 1;
             }
         }
 
@@ -172,13 +205,13 @@ export const createProduct = async (req, res, next) => {
             throw new Error('price must be a valid number');
         }
 
-        const shop = await Shop.findById(shopId);
+        const shop = await Shop.findById(shopId).select('_id owner category').lean();
         if (!shop) {
             res.status(404);
             throw new Error('Shop not found');
         }
 
-        const isOwner = shop.owner.toString() === req.user._id.toString();
+        const isOwner = shop.owner.toString() === String(req.user._id);
         if (!isOwner && req.user.role !== 'admin') {
             res.status(403);
             throw new Error('Not authorized to add products to this shop');
@@ -221,8 +254,8 @@ export const updateProduct = async (req, res, next) => {
             throw new Error('Product not found');
         }
 
-        const shop = await Shop.findById(product.shop);
-        const isOwner = shop && shop.owner.toString() === req.user._id.toString();
+        const shop = await Shop.findById(product.shop).select('owner').lean();
+        const isOwner = shop && shop.owner.toString() === String(req.user._id);
 
         if (!isOwner && req.user.role !== 'admin') {
             res.status(403);
@@ -286,8 +319,8 @@ export const deleteProduct = async (req, res, next) => {
             throw new Error('Product not found');
         }
 
-        const shop = await Shop.findById(product.shop);
-        const isOwner = shop && shop.owner.toString() === req.user._id.toString();
+        const shop = await Shop.findById(product.shop).select('owner').lean();
+        const isOwner = shop && shop.owner.toString() === String(req.user._id);
 
         if (!isOwner && req.user.role !== 'admin') {
             res.status(403);
@@ -329,12 +362,13 @@ export const getMyProducts = async (req, res, next) => {
 
         if (req.query.shopId) {
             const requestedShopId = req.query.shopId;
-            const isOwned = ownedShopIds.some((shopId) => shopId.toString() === requestedShopId);
-            if (!isOwned && req.user.role !== 'admin') {
+            const ownedShopId =
+                ownedShopIds.find((shopId) => shopId.toString() === requestedShopId) || null;
+            if (!ownedShopId && req.user.role !== 'admin') {
                 res.status(403);
                 throw new Error('Not authorized to access this shop products');
             }
-            filters.shop = requestedShopId;
+            filters.shop = ownedShopId || requestedShopId;
         }
 
         const statsOnly = ['1', 'true'].includes(
@@ -342,37 +376,52 @@ export const getMyProducts = async (req, res, next) => {
         );
 
         if (statsOnly) {
-            const viewRows = await Product.find(filters).select('viewsCount').lean();
-            const totalProducts = viewRows.length;
-            const totalViews = viewRows.reduce(
-                (sum, row) => sum + Number(row.viewsCount || 0),
-                0
-            );
+            const aggregateMatch = toAggregateMatch(filters);
+            const [summary] = await Product.aggregate([
+                { $match: aggregateMatch },
+                {
+                    $group: {
+                        _id: null,
+                        totalProducts: { $sum: 1 },
+                        totalViews: { $sum: '$viewsCount' },
+                    },
+                },
+            ]);
 
             return res.status(200).json({
                 products: [],
                 summary: {
-                    totalProducts,
-                    totalViews,
+                    totalProducts: Number(summary?.totalProducts || 0),
+                    totalViews: Number(summary?.totalViews || 0),
                 },
             });
         }
 
-        const products = await Product.find(filters)
-            .populate('shop', 'name category location images')
-            .sort({ createdAt: -1 })
-            .lean();
+        const aggregateMatch = toAggregateMatch(filters);
+        const [products, summary] = await Promise.all([
+            Product.find(filters)
+                .populate('shop', 'name category location images')
+                .sort({ createdAt: -1 })
+                .lean(),
+            Product.aggregate([
+                { $match: aggregateMatch },
+                {
+                    $group: {
+                        _id: null,
+                        totalProducts: { $sum: 1 },
+                        totalViews: { $sum: '$viewsCount' },
+                    },
+                },
+            ]),
+        ]);
 
-        const totalViews = products.reduce(
-            (sum, row) => sum + Number(row.viewsCount || 0),
-            0
-        );
+        const aggregateSummary = summary?.[0];
 
         res.status(200).json({
             products,
             summary: {
-                totalProducts: products.length,
-                totalViews,
+                totalProducts: Number(aggregateSummary?.totalProducts || 0),
+                totalViews: Number(aggregateSummary?.totalViews || 0),
             },
         });
     } catch (error) {
@@ -401,17 +450,17 @@ export const getRandomProducts = async (req, res, next) => {
             const shopFilters = {};
 
             if (req.query.city) {
-                shopFilters['location.city'] = {
-                    $regex: `^${escapeRegex(req.query.city)}$`,
-                    $options: 'i',
-                };
+                const cityFilter = buildLocationFilterRegex(req.query.city);
+                if (cityFilter) {
+                    shopFilters['location.city'] = cityFilter;
+                }
             }
 
             if (req.query.area) {
-                shopFilters['location.area'] = {
-                    $regex: `^${escapeRegex(req.query.area)}$`,
-                    $options: 'i',
-                };
+                const areaFilter = buildLocationFilterRegex(req.query.area);
+                if (areaFilter) {
+                    shopFilters['location.area'] = areaFilter;
+                }
             }
 
             const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
@@ -428,13 +477,10 @@ export const getRandomProducts = async (req, res, next) => {
             { $sort: { shop: 1, _rand: 1 } },
             { $group: { _id: '$shop', product: { $first: '$$ROOT' } } },
             { $replaceRoot: { newRoot: '$product' } },
+            { $sample: { size: limit } },
         ]);
 
         let products = onePerShop;
-
-        if (products.length > limit) {
-            products = products.sort(() => 0.5 - Math.random()).slice(0, limit);
-        }
 
         if (products.length < limit) {
             const existingIds = products.map((product) => product._id);

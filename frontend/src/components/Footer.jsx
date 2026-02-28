@@ -31,6 +31,11 @@ const Footer = () => {
                             </Link>
                         </li>
                         <li>
+                            <Link to="/services/all" className="transition hover:text-primary">
+                                Browse Services
+                            </Link>
+                        </li>
+                        <li>
                             <Link to="/profile" className="transition hover:text-primary">
                                 Followed Shops
                             </Link>

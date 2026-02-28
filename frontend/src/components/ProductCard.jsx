@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Link } from 'react-router-dom';
 
 const ProductCard = ({ product, compact = false }) => {
@@ -40,4 +41,4 @@ const ProductCard = ({ product, compact = false }) => {
     );
 };
 
-export default ProductCard;
+export default memo(ProductCard);

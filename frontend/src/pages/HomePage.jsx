@@ -4,6 +4,7 @@ import { Button, Chip } from '@mui/material';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
 import TravelExploreRoundedIcon from '@mui/icons-material/TravelExploreRounded';
 import WindowRoundedIcon from '@mui/icons-material/WindowRounded';
+import MiscellaneousServicesRoundedIcon from '@mui/icons-material/MiscellaneousServicesRounded';
 import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard';
 import Skeleton from '../components/Skeleton';
@@ -187,23 +188,48 @@ const HomePage = () => {
                         >
                             Explore all
                         </Button>
-                        <Button
-                            component={Link}
-                            to="/shops/all"
-                            size="small"
-                            startIcon={<StorefrontRoundedIcon />}
-                            sx={{
-                                borderRadius: '999px',
-                                px: 1.8,
-                                textTransform: 'none',
-                                fontWeight: 700,
-                                color: 'var(--color-dark)',
-                                border: '1px solid rgba(15,23,42,0.16)',
-                                backgroundColor: 'rgba(255,255,255,0.85)',
-                            }}
-                        >
-                            Show all listed shops
-                        </Button>
+                        <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto">
+                            <Button
+                                component={Link}
+                                to="/shops/all"
+                                size="small"
+                                startIcon={<StorefrontRoundedIcon />}
+                                sx={{
+                                    borderRadius: '999px',
+                                    px: 1.35,
+                                    textTransform: 'none',
+                                    fontWeight: 700,
+                                    fontSize: '0.76rem',
+                                    whiteSpace: 'nowrap',
+                                    minWidth: 'auto',
+                                    color: 'var(--color-dark)',
+                                    border: '1px solid rgba(15,23,42,0.16)',
+                                    backgroundColor: 'rgba(255,255,255,0.85)',
+                                }}
+                            >
+                                All listed shops
+                            </Button>
+                            <Button
+                                component={Link}
+                                to="/services/all"
+                                size="small"
+                                startIcon={<MiscellaneousServicesRoundedIcon />}
+                                sx={{
+                                    borderRadius: '999px',
+                                    px: 1.35,
+                                    textTransform: 'none',
+                                    fontWeight: 700,
+                                    fontSize: '0.76rem',
+                                    whiteSpace: 'nowrap',
+                                    minWidth: 'auto',
+                                    color: 'var(--color-dark)',
+                                    border: '1px solid rgba(15,23,42,0.16)',
+                                    backgroundColor: 'rgba(255,255,255,0.85)',
+                                }}
+                            >
+                                All services
+                            </Button>
+                        </div>
                     </div>
                 </div>
                 <div className="flex flex-nowrap gap-3 overflow-x-auto overflow-y-hidden pb-2">

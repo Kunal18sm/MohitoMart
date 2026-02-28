@@ -2,18 +2,18 @@ import mongoose from 'mongoose';
 import { SHOP_CATEGORIES } from '../constants/shopCategories.js';
 
 const imageValidation = {
-    validator: (images) => Array.isArray(images) && images.length >= 3 && images.length <= 5,
-    message: 'Product must have between 3 and 5 images',
+    validator: (images) => Array.isArray(images) && images.length >= 1 && images.length <= 5,
+    message: 'Service must have between 1 and 5 images',
 };
 
-const productSchema = new mongoose.Schema(
+const serviceSchema = new mongoose.Schema(
     {
         shop: {
             type: mongoose.Schema.Types.ObjectId,
             required: true,
             ref: 'Shop',
         },
-        productId: {
+        serviceId: {
             type: String,
             unique: true,
             sparse: true,
@@ -39,15 +39,28 @@ const productSchema = new mongoose.Schema(
             trim: true,
             default: '',
         },
+        pricingType: {
+            type: String,
+            enum: ['fixed', 'range'],
+            default: 'fixed',
+        },
         price: {
             type: Number,
             required: true,
             default: 0,
             min: 0,
         },
-        viewsCount: {
+        priceMin: {
             type: Number,
+            required: true,
             default: 0,
+            min: 0,
+        },
+        priceMax: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
         },
     },
     {
@@ -55,10 +68,11 @@ const productSchema = new mongoose.Schema(
     }
 );
 
-productSchema.index({ shop: 1, category: 1, createdAt: -1 });
-productSchema.index({ shop: 1, createdAt: -1 });
-productSchema.index({ category: 1, createdAt: -1 });
-productSchema.index({ createdAt: -1 });
+serviceSchema.index({ shop: 1, category: 1, createdAt: -1 });
+serviceSchema.index({ shop: 1, createdAt: -1 });
+serviceSchema.index({ category: 1, createdAt: -1 });
+serviceSchema.index({ priceMin: 1, priceMax: 1 });
+serviceSchema.index({ createdAt: -1 });
 
-const Product = mongoose.model('Product', productSchema);
-export default Product;
+const Service = mongoose.model('Service', serviceSchema);
+export default Service;

@@ -5,7 +5,9 @@ import User from '../models/User.js';
 // @access  Private/Admin
 export const getUsers = async (req, res, next) => {
     try {
-        const users = await User.find({});
+        const users = await User.find({})
+            .select('_id name email role location createdAt updatedAt')
+            .lean();
         res.status(200).json(users);
     } catch (error) {
         next(error);
@@ -17,7 +19,7 @@ export const getUsers = async (req, res, next) => {
 // @access  Private/Admin
 export const getUserById = async (req, res, next) => {
     try {
-        const user = await User.findById(req.params.id).select('-password');
+        const user = await User.findById(req.params.id).select('-password').lean();
         if (user) {
             res.status(200).json(user);
         } else {

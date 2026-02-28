@@ -15,14 +15,16 @@ const getTokenFromRequest = (req) => {
 
 const getJwtSecret = () => process.env.JWT_SECRET || process.env.SESSION_SECRET;
 
+const decodeToken = (token) => jwt.verify(token, getJwtSecret());
+
 // Protect routes
 const protect = async (req, res, next) => {
     const token = getTokenFromRequest(req);
 
     if (token) {
         try {
-            const decoded = jwt.verify(token, getJwtSecret());
-            req.user = await User.findById(decoded.userId).select('-password');
+            const decoded = decodeToken(token);
+            req.user = await User.findById(decoded.userId).select('_id name email role location');
 
             if (!req.user) {
                 res.status(401);
@@ -31,7 +33,6 @@ const protect = async (req, res, next) => {
 
             next();
         } catch (error) {
-            console.error(error);
             res.status(401);
             next(new Error('Not authorized, token failed'));
         }
@@ -49,8 +50,10 @@ const optionalAuth = async (req, res, next) => {
     }
 
     try {
-        const decoded = jwt.verify(token, getJwtSecret());
-        req.user = await User.findById(decoded.userId).select('-password');
+        const decoded = decodeToken(token);
+        req.user = {
+            _id: decoded.userId,
+        };
     } catch (error) {
         req.user = null;
     }

@@ -1,8 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
+import { useLocationSuggestions } from '../utils/locationSuggestions';
+
+const getRedirectPathByRole = (role) => {
+    if (role === 'admin') {
+        return '/admin';
+    }
+
+    if (role === 'shop_owner') {
+        return '/owner/shop';
+    }
+
+    return '/';
+};
 
 const AuthPage = () => {
     const navigate = useNavigate();
@@ -10,6 +23,7 @@ const AuthPage = () => {
     const [mode, setMode] = useState('login');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
 
     const [loginData, setLoginData] = useState({
         email: '',
@@ -25,17 +39,20 @@ const AuthPage = () => {
         role: 'user',
     });
 
-    const getRedirectPathByRole = (role) => {
-        if (role === 'admin') {
-            return '/admin';
+    const areaOptions = useMemo(
+        () => getAreaOptionsByCity(registerData.city),
+        [getAreaOptionsByCity, registerData.city]
+    );
+
+    useEffect(() => {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            return;
         }
 
-        if (role === 'shop_owner') {
-            return '/owner/shop';
-        }
-
-        return '/profile';
-    };
+        const storedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+        navigate(getRedirectPathByRole(storedProfile.role), { replace: true });
+    }, [navigate]);
 
     const persistAuth = (payload) => {
         if (payload.token) {
@@ -85,7 +102,7 @@ const AuthPage = () => {
             });
             persistAuth(data);
             showSuccess('Login successful');
-            navigate(getRedirectPathByRole(data.role));
+            navigate(getRedirectPathByRole(data.role), { replace: true });
         } catch (err) {
             setError(extractErrorMessage(err, 'Login failed'));
         } finally {
@@ -125,7 +142,7 @@ const AuthPage = () => {
             const { data } = await api.post('/auth/register', payload);
             persistAuth(data);
             showSuccess('Registration successful');
-            navigate(getRedirectPathByRole(data.role));
+            navigate(getRedirectPathByRole(data.role), { replace: true });
         } catch (err) {
             setError(extractErrorMessage(err, 'Registration failed'));
         } finally {
@@ -225,6 +242,7 @@ const AuthPage = () => {
                                 type="text"
                                 placeholder="City"
                                 value={registerData.city}
+                                list="auth-city-suggestions"
                                 onChange={(event) =>
                                     setRegisterData((prev) => ({ ...prev, city: event.target.value }))
                                 }
@@ -234,6 +252,7 @@ const AuthPage = () => {
                                 type="text"
                                 placeholder="Area"
                                 value={registerData.area}
+                                list="auth-area-suggestions"
                                 onChange={(event) =>
                                     setRegisterData((prev) => ({ ...prev, area: event.target.value }))
                                 }
@@ -257,6 +276,16 @@ const AuthPage = () => {
                         >
                             {loading ? 'Please wait...' : 'Signup'}
                         </button>
+                        <datalist id="auth-city-suggestions">
+                            {cityOptions.map((cityOption) => (
+                                <option value={cityOption} key={cityOption} />
+                            ))}
+                        </datalist>
+                        <datalist id="auth-area-suggestions">
+                            {areaOptions.map((areaOption) => (
+                                <option value={areaOption} key={areaOption} />
+                            ))}
+                        </datalist>
                     </form>
                 )}
             </div>

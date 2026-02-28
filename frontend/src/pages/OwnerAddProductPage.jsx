@@ -185,6 +185,12 @@ const OwnerAddProductPage = () => {
                 >
                     Back to Products
                 </Link>
+                <Link
+                    to="/owner/services/new"
+                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                    Add Service Instead
+                </Link>
             </div>
 
             <div className="rounded-3xl border border-gray-100 bg-white p-5 sm:p-6">

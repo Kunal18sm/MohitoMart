@@ -1,6 +1,7 @@
 import api from '../services/api';
 
 const DEFAULT_MAX_SIZE_MB = 5;
+const DEFAULT_UPLOAD_CONCURRENCY = 3;
 
 const fileToBase64 = (file) =>
     new Promise((resolve, reject) => {
@@ -33,20 +34,45 @@ export const validateImageFiles = (
     return selected;
 };
 
-export const uploadImages = async (files, folder, onProgress) => {
-    const urls = [];
+export const uploadImages = async (
+    files,
+    folder,
+    onProgress,
+    { concurrency = DEFAULT_UPLOAD_CONCURRENCY } = {}
+) => {
     const selected = Array.from(files || []);
+    if (!selected.length) {
+        return [];
+    }
 
-    for (let index = 0; index < selected.length; index += 1) {
+    const urls = new Array(selected.length);
+    const workersCount = Math.min(
+        selected.length,
+        Math.max(1, Math.min(Number(concurrency) || DEFAULT_UPLOAD_CONCURRENCY, 5))
+    );
+    let cursor = 0;
+    let uploadedCount = 0;
+
+    const uploadSingleFile = async (index) => {
         const file = selected[index];
         const image = await fileToBase64(file);
         const { data } = await api.post('/uploads/image', { image, folder });
-        urls.push(data.url);
+        urls[index] = data.url;
+        uploadedCount += 1;
 
         if (typeof onProgress === 'function') {
-            onProgress(index + 1, selected.length);
+            onProgress(uploadedCount, selected.length);
         }
-    }
+    };
 
-    return urls;
+    const workers = Array.from({ length: workersCount }, async () => {
+        while (cursor < selected.length) {
+            const currentIndex = cursor;
+            cursor += 1;
+            await uploadSingleFile(currentIndex);
+        }
+    });
+
+    await Promise.all(workers);
+    return urls.filter(Boolean);
 };

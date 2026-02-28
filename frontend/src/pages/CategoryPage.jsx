@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
+import { useLocationSuggestions } from '../utils/locationSuggestions';
 
 const CategoryPage = () => {
     const { id } = useParams();
@@ -17,6 +18,11 @@ const CategoryPage = () => {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
+    const areaOptions = useMemo(
+        () => getAreaOptionsByCity(city),
+        [city, getAreaOptionsByCity]
+    );
 
     const categoryName = decodeURIComponent(id || '');
 
@@ -47,8 +53,6 @@ const CategoryPage = () => {
 
     const updateLocation = (event) => {
         event.preventDefault();
-        localStorage.setItem('selectedLocation', JSON.stringify({ city, area }));
-        window.dispatchEvent(new Event('storage'));
         fetchCategoryProducts();
     };
 
@@ -78,12 +82,14 @@ const CategoryPage = () => {
                         value={city}
                         onChange={(event) => setCity(event.target.value)}
                         placeholder="City"
+                        list="category-city-suggestions"
                         className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                     <input
                         value={area}
                         onChange={(event) => setArea(event.target.value)}
                         placeholder="Area"
+                        list="category-area-suggestions"
                         className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                     <button
@@ -93,6 +99,16 @@ const CategoryPage = () => {
                         Apply location
                     </button>
                 </form>
+                <datalist id="category-city-suggestions">
+                    {cityOptions.map((cityOption) => (
+                        <option value={cityOption} key={cityOption} />
+                    ))}
+                </datalist>
+                <datalist id="category-area-suggestions">
+                    {areaOptions.map((areaOption) => (
+                        <option value={areaOption} key={areaOption} />
+                    ))}
+                </datalist>
             </div>
 
             {error && <p className="mb-5 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</p>}

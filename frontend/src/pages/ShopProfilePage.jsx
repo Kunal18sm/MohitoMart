@@ -5,6 +5,7 @@ import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { uploadImages, validateImageFiles } from '../utils/uploadUtils';
 import { filterCategoriesWithLocalImages } from '../utils/categoryImage';
+import { useLocationSuggestions } from '../utils/locationSuggestions';
 
 const ProductBoxIcon = () => (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -35,6 +36,14 @@ const UsersIcon = () => (
     </svg>
 );
 
+const SparklesIcon = () => (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="m12 2 1.7 4.3L18 8l-4.3 1.7L12 14l-1.7-4.3L6 8l4.3-1.7L12 2Z" />
+        <path d="m5 15 1 2.5L8.5 19 6 20l-1 2.5L4 20l-2.5-1L4 17.5 5 15Z" />
+        <path d="m19 13 .8 2 .2.1 2 .8-2 .8-.2.1-.8 2-.8-2-.2-.1-2-.8 2-.8.2-.1.8-2Z" />
+    </svg>
+);
+
 const ShopProfilePage = () => {
     const navigate = useNavigate();
     const { showError, showSuccess } = useFlash();
@@ -47,7 +56,9 @@ const ShopProfilePage = () => {
     const [shopSummary, setShopSummary] = useState({
         totalProducts: 0,
         totalViews: 0,
+        totalServices: 0,
     });
+    const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [previewUrls, setPreviewUrls] = useState([]);
 
@@ -71,11 +82,16 @@ const ShopProfilePage = () => {
         return {
             totalProducts: Number(shopSummary.totalProducts || 0),
             totalViews: Number(shopSummary.totalViews || 0),
+            totalServices: Number(shopSummary.totalServices || 0),
             rating: Number(existingShop?.rating || 0).toFixed(1),
             ratingsCount: existingShop?.numRatings || 0,
             totalFollowers: Number(existingShop?.totalFollowers || 0),
         };
     }, [shopSummary, existingShop]);
+    const areaOptions = useMemo(
+        () => getAreaOptionsByCity(form.city),
+        [form.city, getAreaOptionsByCity]
+    );
 
     useEffect(
         () => () => {
@@ -125,20 +141,30 @@ const ShopProfilePage = () => {
                 setPreviewUrls(ownedShop.images || []);
 
                 try {
-                    const { data: productsRes } = await api.get('/products/me/list', {
-                        params: {
-                            shopId: ownedShop._id,
-                            statsOnly: true,
-                        },
-                    });
+                    const [productsRes, servicesRes] = await Promise.all([
+                        api.get('/products/me/list', {
+                            params: {
+                                shopId: ownedShop._id,
+                                statsOnly: true,
+                            },
+                        }),
+                        api.get('/services/me/list', {
+                            params: {
+                                shopId: ownedShop._id,
+                                statsOnly: true,
+                            },
+                        }),
+                    ]);
                     setShopSummary({
-                        totalProducts: productsRes.summary?.totalProducts || 0,
-                        totalViews: productsRes.summary?.totalViews || 0,
+                        totalProducts: productsRes.data.summary?.totalProducts || 0,
+                        totalViews: productsRes.data.summary?.totalViews || 0,
+                        totalServices: servicesRes.data.summary?.totalServices || 0,
                     });
-                } catch (productsError) {
+                } catch (error) {
                     setShopSummary({
                         totalProducts: 0,
                         totalViews: 0,
+                        totalServices: 0,
                     });
                 }
             } else {
@@ -152,6 +178,7 @@ const ShopProfilePage = () => {
                 setShopSummary({
                     totalProducts: 0,
                     totalViews: 0,
+                    totalServices: 0,
                 });
             }
         } catch (error) {
@@ -267,15 +294,25 @@ const ShopProfilePage = () => {
             <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 className="text-3xl font-black text-dark sm:text-4xl">Shop Dashboard</h1>
-                    <p className="text-sm text-gray-500">Simple sections to manage profile, images and product views.</p>
+                    <p className="text-sm text-gray-500">
+                        Profile, products aur services ko ek jagah se manage karein.
+                    </p>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                    <Link
-                        to="/owner/products"
-                        className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
-                    >
-                        Manage Products
-                    </Link>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+                    <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:grid-cols-2 sm:gap-3">
+                        <Link
+                            to="/owner/products"
+                            className="rounded-lg bg-primary px-4 py-2 text-center text-sm font-semibold text-white hover:bg-primary-dark"
+                        >
+                            Manage Products
+                        </Link>
+                        <Link
+                            to="/owner/services"
+                            className="rounded-lg bg-primary px-4 py-2 text-center text-sm font-semibold text-white hover:bg-primary-dark"
+                        >
+                            Manage Services
+                        </Link>
+                    </div>
                     <Link
                         to="/profile"
                         className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
@@ -299,7 +336,7 @@ const ShopProfilePage = () => {
                         </div>
                     )}
 
-                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
                         <Link
                             to="/owner/products"
                             className="min-w-0 rounded-xl border border-gray-100 bg-white p-2.5 transition hover:border-primary hover:shadow-sm sm:rounded-2xl sm:p-3"
@@ -309,6 +346,17 @@ const ShopProfilePage = () => {
                             </p>
                             <p className="mt-1 text-base font-black text-dark sm:mt-1.5 sm:text-xl">
                                 {shopStats.totalProducts}
+                            </p>
+                        </Link>
+                        <Link
+                            to="/owner/services"
+                            className="min-w-0 rounded-xl border border-gray-100 bg-white p-2.5 transition hover:border-primary hover:shadow-sm sm:rounded-2xl sm:p-3"
+                        >
+                            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500 sm:text-[11px]">
+                                <SparklesIcon /> Services
+                            </p>
+                            <p className="mt-1 text-base font-black text-dark sm:mt-1.5 sm:text-xl">
+                                {shopStats.totalServices}
                             </p>
                         </Link>
                         <div className="min-w-0 rounded-xl border border-gray-100 bg-white p-2.5 sm:rounded-2xl sm:p-3">
@@ -371,6 +419,7 @@ const ShopProfilePage = () => {
                         type="text"
                         placeholder="City"
                         value={form.city}
+                        list="shop-profile-city-suggestions"
                         onChange={(event) =>
                             setForm((previous) => ({ ...previous, city: event.target.value }))
                         }
@@ -380,6 +429,7 @@ const ShopProfilePage = () => {
                         type="text"
                         placeholder="Area"
                         value={form.area}
+                        list="shop-profile-area-suggestions"
                         onChange={(event) =>
                             setForm((previous) => ({ ...previous, area: event.target.value }))
                         }
@@ -458,6 +508,16 @@ const ShopProfilePage = () => {
                     >
                         {saving ? 'Saving...' : existingShop ? 'Update Shop Profile' : 'Create Shop Profile'}
                     </button>
+                    <datalist id="shop-profile-city-suggestions">
+                        {cityOptions.map((cityOption) => (
+                            <option value={cityOption} key={cityOption} />
+                        ))}
+                    </datalist>
+                    <datalist id="shop-profile-area-suggestions">
+                        {areaOptions.map((areaOption) => (
+                            <option value={areaOption} key={areaOption} />
+                        ))}
+                    </datalist>
                 </form>
             </div>
         </div>

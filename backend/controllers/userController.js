@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import Shop from '../models/Shop.js';
 import Product from '../models/Product.js';
+import { normalizeLocationLabel } from '../utils/locationNormalizer.js';
 
 const mapProductsAsFollowed = (products) =>
     products.map((product) => {
@@ -26,7 +27,7 @@ export const getUserProfile = async (req, res, next) => {
         const user = await User.findById(req.user._id).populate(
             'followedShops',
             'name category location images rating numRatings'
-        );
+        ).lean();
 
         if (user) {
             res.json({
@@ -60,8 +61,14 @@ export const updateUserProfile = async (req, res, next) => {
                 : user.email;
             user.username = user.email;
             user.location = {
-                city: req.body.city || user.location.city,
-                area: req.body.area || user.location.area,
+                city:
+                    req.body.city !== undefined
+                        ? normalizeLocationLabel(req.body.city) || user.location.city
+                        : user.location.city,
+                area:
+                    req.body.area !== undefined
+                        ? normalizeLocationLabel(req.body.area) || user.location.area
+                        : user.location.area,
             };
 
             if (req.body.password) {
@@ -92,25 +99,22 @@ export const updateUserProfile = async (req, res, next) => {
 // @access  Private
 export const followShop = async (req, res, next) => {
     try {
-        const shop = await Shop.findById(req.params.shopId);
+        const shop = await Shop.exists({ _id: req.params.shopId });
         if (!shop) {
             res.status(404);
             throw new Error('Shop not found');
         }
 
-        const user = await User.findById(req.user._id);
-        const alreadyFollowing = user.followedShops.some(
-            (shopId) => shopId.toString() === req.params.shopId
+        const updateResult = await User.updateOne(
+            { _id: req.user._id },
+            { $addToSet: { followedShops: req.params.shopId } }
         );
-
-        if (!alreadyFollowing) {
-            user.followedShops.push(req.params.shopId);
-            await user.save();
-        }
+        const user = await User.findById(req.user._id).select('followedShops').lean();
+        const alreadyFollowing = updateResult.modifiedCount === 0;
 
         res.status(200).json({
             message: alreadyFollowing ? 'Shop already followed' : 'Shop followed',
-            followedShopsCount: user.followedShops.length,
+            followedShopsCount: user?.followedShops?.length || 0,
         });
     } catch (error) {
         next(error);
@@ -122,16 +126,15 @@ export const followShop = async (req, res, next) => {
 // @access  Private
 export const unfollowShop = async (req, res, next) => {
     try {
-        const user = await User.findById(req.user._id);
-
-        user.followedShops = user.followedShops.filter(
-            (shopId) => shopId.toString() !== req.params.shopId
+        await User.updateOne(
+            { _id: req.user._id },
+            { $pull: { followedShops: req.params.shopId } }
         );
-        await user.save();
+        const user = await User.findById(req.user._id).select('followedShops').lean();
 
         res.status(200).json({
             message: 'Shop unfollowed',
-            followedShopsCount: user.followedShops.length,
+            followedShopsCount: user?.followedShops?.length || 0,
         });
     } catch (error) {
         next(error);
@@ -143,16 +146,18 @@ export const unfollowShop = async (req, res, next) => {
 // @access  Private
 export const getFollowedFeed = async (req, res, next) => {
     try {
-        const user = await User.findById(req.user._id).select('followedShops');
+        const user = await User.findById(req.user._id).select('followedShops').lean();
 
         if (!user.followedShops.length) {
             return res.status(200).json({ products: [] });
         }
 
         const products = await Product.find({ shop: { $in: user.followedShops } })
+            .select('shop name images category description price viewsCount createdAt')
             .populate('shop', 'name category location images rating numRatings')
             .sort({ createdAt: -1 })
-            .limit(30);
+            .limit(30)
+            .lean();
 
         res.status(200).json({ products: mapProductsAsFollowed(products) });
     } catch (error) {
@@ -166,7 +171,7 @@ export const getFollowedFeed = async (req, res, next) => {
 export const getFollowedFeedRandom = async (req, res, next) => {
     try {
         const limit = Math.min(Math.max(Number(req.query.limit || 10), 1), 25);
-        const user = await User.findById(req.user._id).select('followedShops');
+        const user = await User.findById(req.user._id).select('followedShops').lean();
 
         if (!user.followedShops.length) {
             return res.status(200).json({ products: [] });

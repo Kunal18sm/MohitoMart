@@ -30,6 +30,7 @@ const shopRatingSchema = new mongoose.Schema(
 );
 
 shopRatingSchema.index({ shop: 1, user: 1 }, { unique: true });
+shopRatingSchema.index({ shop: 1, createdAt: -1 });
 
 const ShopRating = mongoose.model('ShopRating', shopRatingSchema);
 export default ShopRating;

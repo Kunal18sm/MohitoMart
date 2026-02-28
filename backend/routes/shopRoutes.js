@@ -1,6 +1,7 @@
 import express from 'express';
 import {
     getShopCategories,
+    getShopLocations,
     getShops,
     getShopById,
     createShop,
@@ -13,6 +14,7 @@ import { protect, optionalAuth } from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 router.route('/categories').get(getShopCategories);
+router.route('/locations').get(getShopLocations);
 router.route('/me/owned').get(protect, getOwnedShops);
 router.route('/').get(optionalAuth, getShops).post(protect, createShop);
 router.route('/:id').get(optionalAuth, getShopById).put(protect, updateShop);

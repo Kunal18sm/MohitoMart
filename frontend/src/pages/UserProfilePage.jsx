@@ -3,12 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
+import { useLocationSuggestions } from '../utils/locationSuggestions';
 
 const UserProfilePage = () => {
     const navigate = useNavigate();
     const { showError, showSuccess } = useFlash();
     const [loading, setLoading] = useState(true);
+    const [savingProfile, setSavingProfile] = useState(false);
     const [profile, setProfile] = useState(null);
+    const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
     const [profileForm, setProfileForm] = useState({
         name: '',
         email: '',
@@ -18,6 +21,10 @@ const UserProfilePage = () => {
     });
 
     const isShopOwner = useMemo(() => profile?.role === 'shop_owner', [profile?.role]);
+    const areaOptions = useMemo(
+        () => getAreaOptionsByCity(profileForm.city),
+        [getAreaOptionsByCity, profileForm.city]
+    );
 
     const loadProfile = async () => {
         if (!localStorage.getItem('authToken')) {
@@ -69,6 +76,7 @@ const UserProfilePage = () => {
     const updateProfile = async (event) => {
         event.preventDefault();
         try {
+            setSavingProfile(true);
             const payload = {
                 ...profileForm,
                 name: profileForm.name.trim(),
@@ -108,6 +116,8 @@ const UserProfilePage = () => {
             showSuccess('Profile updated successfully');
         } catch (error) {
             showError(extractErrorMessage(error, 'Unable to update profile'));
+        } finally {
+            setSavingProfile(false);
         }
     };
 
@@ -146,6 +156,12 @@ const UserProfilePage = () => {
                     >
                         Add Items
                     </Link>
+                    <Link
+                        to="/owner/services"
+                        className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
+                    >
+                        Manage Services
+                    </Link>
                 </div>
             )}
 
@@ -182,6 +198,7 @@ const UserProfilePage = () => {
                             type="text"
                             placeholder="City"
                             value={profileForm.city}
+                            list="profile-city-suggestions"
                             onChange={(event) =>
                                 setProfileForm((previous) => ({ ...previous, city: event.target.value }))
                             }
@@ -194,6 +211,7 @@ const UserProfilePage = () => {
                             type="text"
                             placeholder="Area"
                             value={profileForm.area}
+                            list="profile-area-suggestions"
                             onChange={(event) =>
                                 setProfileForm((previous) => ({ ...previous, area: event.target.value }))
                             }
@@ -216,10 +234,21 @@ const UserProfilePage = () => {
                     </div>
                     <button
                         type="submit"
-                        className="rounded-lg bg-dark px-5 py-3 text-sm font-semibold text-white hover:bg-primary md:col-span-2"
+                        disabled={savingProfile}
+                        className="rounded-lg bg-dark px-5 py-3 text-sm font-semibold text-white hover:bg-primary disabled:opacity-60 md:col-span-2"
                     >
-                        Save Profile
+                        {savingProfile ? 'Saving...' : 'Save Profile'}
                     </button>
+                    <datalist id="profile-city-suggestions">
+                        {cityOptions.map((cityOption) => (
+                            <option value={cityOption} key={cityOption} />
+                        ))}
+                    </datalist>
+                    <datalist id="profile-area-suggestions">
+                        {areaOptions.map((areaOption) => (
+                            <option value={areaOption} key={areaOption} />
+                        ))}
+                    </datalist>
                 </form>
             </div>
         </div>
