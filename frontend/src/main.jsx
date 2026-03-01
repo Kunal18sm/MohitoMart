@@ -7,6 +7,12 @@ import './index.css';
 import App from './App.jsx';
 import { FlashProvider } from './context/FlashContext.jsx';
 
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    });
+}
+
 createRoot(document.getElementById('root')).render(
     <StrictMode>
         <Provider store={store}>

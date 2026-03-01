@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import FlashBanner from './components/FlashBanner';
 import Footer from './components/Footer';
 import GlobalSavingOverlay from './components/GlobalSavingOverlay';
+import InstallAppPrompt from './components/InstallAppPrompt';
 
 import HomePage from './pages/HomePage';
 import CategoryPage from './pages/CategoryPage';
@@ -35,6 +36,7 @@ function App() {
             <Navbar />
             <FlashBanner />
             <GlobalSavingOverlay />
+            <InstallAppPrompt />
 
             <main className="relative z-10 flex-grow">
                     <Routes>

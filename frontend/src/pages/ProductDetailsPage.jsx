@@ -148,7 +148,7 @@ const ProductDetailsPage = () => {
                             alt={product.name}
                             loading="eager"
                             decoding="async"
-                            className="h-[280px] w-full object-cover sm:h-[360px] md:h-[440px]"
+                            className="h-[240px] w-full object-cover sm:h-[300px] md:h-[360px]"
                         />
                     </div>
                     <div className="flex gap-3 overflow-x-auto">
@@ -166,33 +166,26 @@ const ProductDetailsPage = () => {
                                     alt="thumbnail"
                                     loading="lazy"
                                     decoding="async"
-                                    className="h-20 w-24 object-cover"
+                                    className="h-16 w-20 object-cover sm:h-20 sm:w-24"
                                 />
                             </button>
                         ))}
                     </div>
                 </div>
 
-                <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_14px_36px_rgba(15,23,42,0.08)] sm:p-6">
-                    <span className="rounded-full bg-light px-3 py-1 text-xs font-semibold text-gray-600">
+                <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_14px_36px_rgba(15,23,42,0.08)] sm:p-5">
+                    <span className="rounded-full bg-light px-2.5 py-1 text-[11px] font-semibold text-gray-600">
                         {product.category}
                     </span>
-                    <h1 className="mb-3 mt-4 text-3xl font-black text-dark sm:text-4xl">{product.name}</h1>
-                    <p className="mb-5 text-2xl font-black text-primary sm:text-3xl">
+                    <h1 className="mb-2 mt-3 text-2xl font-black text-dark sm:text-3xl">{product.name}</h1>
+                    <p className="mb-3 text-xl font-black text-primary sm:text-2xl">
                         {formatProductPrice(product)}
                     </p>
-                    <p className="mb-6 text-gray-600">{product.description || 'No description available.'}</p>
+                    <p className="mb-4 text-sm leading-relaxed text-gray-600">
+                        {product.description || 'No description available.'}
+                    </p>
 
-                    <div className="space-y-2 text-sm text-gray-600">
-                        <p>
-                            <span className="font-semibold text-dark">Views:</span> {product.viewsCount || 0}
-                        </p>
-                        <p>
-                            <span className="font-semibold text-dark">Shop:</span>{' '}
-                            <Link to={`/shop/${product.shop?._id}`} className="text-primary hover:underline">
-                                {product.shop?.name || 'Mohito Shop'}
-                            </Link>
-                        </p>
+                    <div className="space-y-1.5 text-sm text-gray-600">
                         <p>
                             <span className="font-semibold text-dark">Shop rating:</span>{' '}
                             {Number(product.shop?.rating || 0).toFixed(1)} / 5 ({product.shop?.numRatings || 0}{' '}
@@ -200,15 +193,17 @@ const ProductDetailsPage = () => {
                         </p>
                         <p>
                             <span className="font-semibold text-dark">Location:</span>{' '}
-                            {product.shop?.location?.area}, {product.shop?.location?.city}
+                            {product.shop?.location?.area && product.shop?.location?.city
+                                ? `${product.shop.location.area}, ${product.shop.location.city}`
+                                : 'Not available'}
                         </p>
                     </div>
 
-                    <div className="mt-6 flex flex-wrap gap-3">
+                    <div className="mt-4 flex flex-wrap gap-2.5">
                         {product.shop?._id && (
                             <Link
                                 to={`/shop/${product.shop._id}`}
-                                className="inline-flex rounded-lg bg-dark px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary"
+                                className="inline-flex rounded-lg bg-dark px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary sm:text-sm"
                             >
                                 Open Shop Profile
                             </Link>
@@ -218,7 +213,7 @@ const ProductDetailsPage = () => {
                                 type="button"
                                 onClick={handleFollowToggle}
                                 disabled={followLoading}
-                                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${
                                     isFollowed
                                         ? 'bg-green-600 text-white hover:bg-green-700'
                                         : 'bg-primary text-white hover:bg-primary-dark'
@@ -231,14 +226,14 @@ const ProductDetailsPage = () => {
                             <>
                                 <Link
                                     to={`/admin/products/${product._id}/edit`}
-                                    className="rounded-lg border border-primary/30 px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/10"
+                                    className="rounded-lg border border-primary/30 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 sm:text-sm"
                                 >
                                     Edit Product
                                 </Link>
                                 <button
                                     type="button"
                                     onClick={() => setShowDeleteConfirm(true)}
-                                    className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 sm:text-sm"
                                 >
                                     Delete Product
                                 </button>
@@ -249,23 +244,17 @@ const ProductDetailsPage = () => {
             </div>
 
             {product.shop && (
-                <section className="mt-8 rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_14px_36px_rgba(15,23,42,0.08)] sm:p-6">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">
-                        This product is offered by
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-                        <h2 className="text-2xl font-black text-dark">{product.shop.name || 'Mohito Shop'}</h2>
-                        {product.shop?._id && (
-                            <Link
-                                to={`/shop/${product.shop._id}`}
-                                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:border-primary hover:text-primary"
-                            >
-                                Open Shop Profile
-                            </Link>
-                        )}
+                <section className="mt-6 rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_14px_36px_rgba(15,23,42,0.08)] sm:p-5">
+                    <div className="mb-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
+                            This product is offered by
+                        </p>
+                        <h2 className="mt-1 text-xl font-black text-dark sm:text-2xl">
+                            {product.shop?.name || 'Mohito Shop'}
+                        </h2>
                     </div>
 
-                    <div className="relative mt-4">
+                    <div className="relative">
                         <div className="overflow-hidden rounded-2xl border border-gray-200">
                             <div
                                 className="flex transition-transform duration-500 ease-out"
@@ -280,7 +269,7 @@ const ProductDetailsPage = () => {
                                                     alt={product.shop.name}
                                                     loading="lazy"
                                                     decoding="async"
-                                                    className="h-56 w-full object-cover sm:h-64 md:h-72"
+                                                    className="h-52 w-full object-cover sm:h-60 md:h-64"
                                                 />
                                             </Link>
                                         ) : (
@@ -289,7 +278,7 @@ const ProductDetailsPage = () => {
                                                 alt={product.shop.name}
                                                 loading="lazy"
                                                 decoding="async"
-                                                className="h-56 w-full object-cover sm:h-64 md:h-72"
+                                                className="h-52 w-full object-cover sm:h-60 md:h-64"
                                             />
                                         )}
                                     </div>
@@ -337,7 +326,7 @@ const ProductDetailsPage = () => {
                                         alt={`${product.shop.name}-preview-${index + 1}`}
                                         loading="lazy"
                                         decoding="async"
-                                        className="h-16 w-24 object-cover sm:h-20 sm:w-32"
+                                        className="h-14 w-20 object-cover sm:h-16 sm:w-24"
                                     />
                                 </button>
                             ))}
