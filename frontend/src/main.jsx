@@ -7,7 +7,9 @@ import './index.css';
 import App from './App.jsx';
 import { FlashProvider } from './context/FlashContext.jsx';
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+if ('serviceWorker' in navigator && (import.meta.env.PROD || isLocalhost)) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/service-worker.js').catch(() => {});
     });

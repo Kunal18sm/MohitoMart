@@ -1,15 +1,25 @@
-const CACHE_NAME = 'mohito-mart-v1';
+const CACHE_NAME = 'mohito-mart-v2';
+const isLocalDevHost = ['localhost', '127.0.0.1'].includes(self.location.hostname);
 
 self.addEventListener('install', () => {
     self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-    event.waitUntil(self.clients.claim());
+    event.waitUntil(
+        caches
+            .keys()
+            .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+            .then(() => self.clients.claim()),
+    );
 });
 
 self.addEventListener('fetch', (event) => {
     const { request } = event;
+
+    if (isLocalDevHost) {
+        return;
+    }
 
     if (request.method !== 'GET') {
         return;
