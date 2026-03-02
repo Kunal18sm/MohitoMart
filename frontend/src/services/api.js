@@ -6,6 +6,7 @@ let pendingMutationCount = 0;
 const SESSION_MARKER_KEY = 'authToken';
 const USER_PROFILE_KEY = 'userProfile';
 const CSRF_COOKIE_KEY = 'mm_csrf';
+const CSRF_STORAGE_KEY = 'mm_csrf_token';
 
 const resolveApiBaseUrl = () => {
     const fallbackBaseUrl = 'http://localhost:5000/api';
@@ -54,6 +55,30 @@ const readCookieValue = (name) => {
     return decodeURIComponent(cookie.slice(name.length + 1));
 };
 
+const readStoredCsrfToken = () => {
+    if (typeof window === 'undefined') {
+        return '';
+    }
+
+    return String(window.localStorage.getItem(CSRF_STORAGE_KEY) || '').trim();
+};
+
+const storeCsrfToken = (token) => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    const normalizedToken = String(token || '').trim();
+    if (normalizedToken) {
+        window.localStorage.setItem(CSRF_STORAGE_KEY, normalizedToken);
+    } else {
+        window.localStorage.removeItem(CSRF_STORAGE_KEY);
+    }
+};
+
+const readCsrfTokenFromHeaders = (headers = {}) =>
+    String(headers?.['x-csrf-token'] || headers?.['X-CSRF-Token'] || '').trim();
+
 const api = axios.create({
     baseURL: resolveApiBaseUrl(),
     withCredentials: true,
@@ -66,7 +91,7 @@ api.interceptors.request.use((config) => {
         pendingMutationCount += 1;
         emitMutationState();
 
-        const csrfToken = readCookieValue(CSRF_COOKIE_KEY);
+        const csrfToken = readStoredCsrfToken() || readCookieValue(CSRF_COOKIE_KEY);
         if (csrfToken) {
             config.headers['X-CSRF-Token'] = csrfToken;
         }
@@ -81,11 +106,21 @@ api.interceptors.response.use(
             decrementMutationCount();
         }
 
+        const csrfToken = readCsrfTokenFromHeaders(response.headers);
+        if (csrfToken) {
+            storeCsrfToken(csrfToken);
+        }
+
         return response;
     },
     (error) => {
         if (error.config?.__trackMutation) {
             decrementMutationCount();
+        }
+
+        const csrfToken = readCsrfTokenFromHeaders(error.response?.headers);
+        if (csrfToken) {
+            storeCsrfToken(csrfToken);
         }
 
         const status = error.response?.status;

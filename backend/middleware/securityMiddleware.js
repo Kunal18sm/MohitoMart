@@ -2,6 +2,7 @@ import { generateCsrfToken, getReadableCookieConfig, getSessionMaxAgeMs } from '
 
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const DEFAULT_RATE_LIMIT_MAX = 30;
+const CSRF_RESPONSE_HEADER = 'X-CSRF-Token';
 
 const rateLimitBuckets = new Map();
 
@@ -71,13 +72,18 @@ const hasSessionCookie = (req) => Boolean(req.cookies?.mm_session || req.cookies
 const isSafeMethod = (method) => ['GET', 'HEAD', 'OPTIONS'].includes(String(method || '').toUpperCase());
 
 export const ensureCsrfCookie = (req, res, next) => {
-    if (!req.cookies?.mm_csrf) {
-        res.cookie('mm_csrf', generateCsrfToken(), {
+    let csrfToken = String(req.cookies?.mm_csrf || '').trim();
+
+    if (!csrfToken) {
+        csrfToken = generateCsrfToken();
+        res.cookie('mm_csrf', csrfToken, {
             ...getReadableCookieConfig(),
             maxAge: getSessionMaxAgeMs(),
         });
     }
 
+    res.locals.csrfToken = csrfToken;
+    res.setHeader(CSRF_RESPONSE_HEADER, csrfToken);
     next();
 };
 

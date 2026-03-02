@@ -65,6 +65,7 @@ app.use(
             return callback(new Error(`CORS blocked for origin: ${origin}`));
         },
         credentials: true,
+        exposedHeaders: ['X-CSRF-Token'],
     })
 ); // Enable Cross-Origin Resource Sharing
 const enableRequestLogs = process.env.ENABLE_REQUEST_LOGS === 'true';

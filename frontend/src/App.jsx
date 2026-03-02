@@ -29,6 +29,7 @@ const AdminProductEditPage = lazy(() => import('./pages/AdminProductEditPage'));
 const AllCategoriesPage = lazy(() => import('./pages/AllCategoriesPage'));
 const AllShopsPage = lazy(() => import('./pages/AllShopsPage'));
 const AllServicesPage = lazy(() => import('./pages/AllServicesPage'));
+const CSRF_STORAGE_KEY = 'mm_csrf_token';
 
 const PageFallback = () => (
     <div className="container mx-auto px-4 py-10">
@@ -82,6 +83,12 @@ function App() {
                 const response = await fetch(`${resolveApiBaseUrl()}/auth/session`, {
                     credentials: 'include',
                 });
+
+                const csrfToken = String(response.headers.get('x-csrf-token') || '').trim();
+                if (csrfToken) {
+                    localStorage.setItem(CSRF_STORAGE_KEY, csrfToken);
+                }
+
                 if (!response.ok) {
                     if (response.status === 401 || response.status === 403) {
                         localStorage.removeItem('authToken');
