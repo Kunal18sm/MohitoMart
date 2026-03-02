@@ -29,6 +29,23 @@ import {
 } from '../utils/categoryImage';
 import SuggestionInput from '../components/SuggestionInput';
 
+const readStoredLocation = () => {
+    let storedLocation = {};
+    try {
+        storedLocation = JSON.parse(localStorage.getItem('selectedLocation') || '{}');
+    } catch (error) {
+        storedLocation = {};
+    }
+
+    return {
+        city: String(storedLocation.city || localStorage.getItem('user_city') || '').trim(),
+        area: String(storedLocation.area || localStorage.getItem('user_area') || '').trim(),
+    };
+};
+
+const areAreasEqual = (left = [], right = []) =>
+    left.length === right.length && left.every((value, index) => value === right[index]);
+
 const sectionMotion = {
     initial: { opacity: 1, y: 0 },
     whileInView: { opacity: 1, y: 0 },
@@ -39,20 +56,7 @@ const sectionMotion = {
 const HomePage = () => {
     const { t } = useTranslation();
     const { showError } = useFlash();
-    const selectedLocation = useMemo(
-        () => {
-            const ls = JSON.parse(localStorage.getItem('selectedLocation') || '{}')
-            // Fallback to location from onboarding if context not set
-            if (!ls.city) {
-                ls.city = localStorage.getItem('user_city') || '';
-            }
-            if (!ls.area) {
-                ls.area = localStorage.getItem('user_area') || '';
-            }
-            return ls;
-        },
-        []
-    );
+    const [selectedLocation, setSelectedLocation] = useState(() => readStoredLocation());
     const currentUserRole = useMemo(() => {
         try {
             const storedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
@@ -67,7 +71,7 @@ const HomePage = () => {
     );
     const initialAreaFilterState = useMemo(
         () => getAreaFilterState(selectedLocation),
-        [selectedLocation]
+        [selectedLocation.area, selectedLocation.city]
     );
 
     const [activeSlide, setActiveSlide] = useState(0);
@@ -98,6 +102,41 @@ const HomePage = () => {
         [getAreaOptionsByCity, selectedLocation.city]
     );
     const areaSummary = useMemo(() => formatAreaSummary(activeAreas), [activeAreas]);
+    const activeAreasQuery = useMemo(() => buildAreaQueryParam(activeAreas), [activeAreas]);
+
+    useEffect(() => {
+        const syncLocation = () => {
+            const latestLocation = readStoredLocation();
+            setSelectedLocation((previous) =>
+                previous.city === latestLocation.city && previous.area === latestLocation.area
+                    ? previous
+                    : latestLocation
+            );
+        };
+
+        window.addEventListener('storage', syncLocation);
+        window.addEventListener('app:location-updated', syncLocation);
+
+        return () => {
+            window.removeEventListener('storage', syncLocation);
+            window.removeEventListener('app:location-updated', syncLocation);
+        };
+    }, []);
+
+    useEffect(() => {
+        const nextAreaFilterState = getAreaFilterState(selectedLocation);
+        const nextAreas = nextAreaFilterState.areas;
+        const nextSlots = [
+            nextAreaFilterState.primaryArea || '',
+            nextAreas[1] || '',
+            nextAreas[2] || '',
+        ];
+
+        setActiveAreas((previous) => (areAreasEqual(previous, nextAreas) ? previous : nextAreas));
+        setAreaSlots((previous) =>
+            previous.join('|') === nextSlots.join('|') ? previous : nextSlots
+        );
+    }, [selectedLocation.area, selectedLocation.city]);
 
     useEffect(() => {
         if (bannerImages.length <= 1) {
@@ -260,13 +299,16 @@ const HomePage = () => {
     useEffect(() => {
         fetchHomeBanners();
         fetchCategories();
+    }, []);
+
+    useEffect(() => {
         fetchFollowedRandomProducts(activeAreas);
         fetchRecentlyViewedProducts(activeAreas);
         fetchTopRatedShops(activeAreas);
         fetchLatestProducts(activeAreas);
         fetchRandomProducts(activeAreas);
         fetchRandomServices(activeAreas);
-    }, []);
+    }, [selectedLocation.city, activeAreasQuery]);
 
     const updateAreaSlot = (index, value) => {
         setAreaSlots((previous) => {
@@ -283,12 +325,6 @@ const HomePage = () => {
         setActiveAreas(nextAreas);
         setAreaSlots([primaryArea, nextAreas[1] || '', nextAreas[2] || '']);
         persistAreaFilterState(selectedLocation, nextAreas);
-        fetchFollowedRandomProducts(nextAreas);
-        fetchRecentlyViewedProducts(nextAreas);
-        fetchTopRatedShops(nextAreas);
-        fetchLatestProducts(nextAreas);
-        fetchRandomProducts(nextAreas);
-        fetchRandomServices(nextAreas);
     };
 
     return (

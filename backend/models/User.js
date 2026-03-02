@@ -43,17 +43,6 @@ const userSchema = new mongoose.Schema(
                 trim: true,
             },
         },
-        savedAddresses: [
-            {
-                title: { type: String, default: 'Home' },
-                address: { type: String, required: true },
-                city: { type: String, required: true },
-                area: { type: String, required: true },
-                pincode: { type: String },
-                landmark: { type: String },
-                isDefault: { type: Boolean, default: false }
-            }
-        ],
         geo: {
             type: {
                 type: String,

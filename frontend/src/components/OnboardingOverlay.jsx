@@ -58,7 +58,13 @@ const OnboardingOverlay = () => {
 
         const hasAuthToken = Boolean(localStorage.getItem('authToken'));
         if (hasAuthToken) {
-            setStep(2); // Go to role selection for logged in users
+            try {
+                const storedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+                setRole(storedProfile?.role === 'shop_owner' ? 'shop_owner' : 'user');
+            } catch (error) {
+                setRole('user');
+            }
+            setStep(3); // Role already selected at signup/profile, move to location
         } else {
             setStep(3); // Skip role selection for guests
         }
@@ -78,12 +84,13 @@ const OnboardingOverlay = () => {
             'selectedLocation',
             JSON.stringify({ city, area })
         );
+        window.dispatchEvent(new Event('app:location-updated'));
     };
 
     const handleLocationDetect = async () => {
         setLoadingLoc(true);
         try {
-            const detected = await detectDeviceLocation({ timeoutMs: 15000 });
+            const detected = await detectDeviceLocation({ timeoutMs: 9000 });
             setCity(detected.city);
             setArea(detected.area);
             persistGuestLocation(detected);
@@ -142,11 +149,9 @@ const OnboardingOverlay = () => {
                 }
 
                 window.dispatchEvent(new Event('storage'));
+                window.dispatchEvent(new Event('app:location-updated'));
                 setStep(0);
                 showSuccess('Onboarding completed successfully');
-
-                // Reload to reflect new role dashboard
-                window.location.reload();
             } catch (error) {
                 showError(error.response?.data?.message || 'Failed to complete onboarding');
             } finally {
@@ -160,6 +165,7 @@ const OnboardingOverlay = () => {
                 localStorage.setItem('user_area', area);
             }
             window.dispatchEvent(new Event('storage'));
+            window.dispatchEvent(new Event('app:location-updated'));
             setStep(0);
         }
     };

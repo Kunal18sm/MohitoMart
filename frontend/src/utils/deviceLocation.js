@@ -5,6 +5,9 @@ const buildBigDataCloudUrl = (latitude, longitude) =>
     `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`;
 
 const APPROXIMATE_ACCURACY_THRESHOLD_METERS = 5000;
+const QUICK_GEOLOCATION_CACHE_MAX_AGE_MS = 10 * 60 * 1000;
+const PRECISE_GEOLOCATION_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
+const REVERSE_GEOCODE_TIMEOUT_MS = 4500;
 
 const normalizeLabel = (value, fallback = '') => {
     const normalized = String(value || '').trim();
@@ -92,7 +95,7 @@ const parseBigDataCloudAddress = (payload = {}) => {
     return { city, area };
 };
 
-const fetchJson = async (url, timeoutMs = 8000) => {
+const fetchJson = async (url, timeoutMs = REVERSE_GEOCODE_TIMEOUT_MS) => {
     const abortController = new AbortController();
     const timeoutHandle = window.setTimeout(() => abortController.abort(), timeoutMs);
 
@@ -120,18 +123,52 @@ const getCurrentPosition = (options) =>
     });
 
 const getBestEffortPosition = async (timeoutMs) => {
+    const safeTimeoutMs = Math.max(4500, Number(timeoutMs) || 9000);
+    const quickTimeoutMs = Math.min(1800, Math.max(1200, Math.floor(safeTimeoutMs * 0.22)));
+    const startedAt = Date.now();
+
     try {
-        return await getCurrentPosition({
-            enableHighAccuracy: true,
-            maximumAge: 0,
-            timeout: timeoutMs,
-        });
-    } catch (highAccuracyError) {
-        return getCurrentPosition({
+        const quickPosition = await getCurrentPosition({
             enableHighAccuracy: false,
-            maximumAge: 2 * 60 * 1000,
-            timeout: timeoutMs,
+            maximumAge: QUICK_GEOLOCATION_CACHE_MAX_AGE_MS,
+            timeout: quickTimeoutMs,
         });
+
+        const quickAccuracy = readAccuracyMeters(quickPosition);
+        if (
+            quickAccuracy !== null &&
+            quickAccuracy <= APPROXIMATE_ACCURACY_THRESHOLD_METERS
+        ) {
+            return quickPosition;
+        }
+
+        const elapsedMs = Date.now() - startedAt;
+        const remainingTimeoutMs = Math.max(3000, safeTimeoutMs - elapsedMs);
+
+        try {
+            const refinedPosition = await getCurrentPosition({
+                enableHighAccuracy: true,
+                maximumAge: PRECISE_GEOLOCATION_CACHE_MAX_AGE_MS,
+                timeout: remainingTimeoutMs,
+            });
+            return selectMoreAccuratePosition(quickPosition, refinedPosition);
+        } catch (refineError) {
+            return quickPosition;
+        }
+    } catch (quickError) {
+        try {
+            return await getCurrentPosition({
+                enableHighAccuracy: true,
+                maximumAge: PRECISE_GEOLOCATION_CACHE_MAX_AGE_MS,
+                timeout: Math.min(safeTimeoutMs, 7000),
+            });
+        } catch (highAccuracyError) {
+            return getCurrentPosition({
+                enableHighAccuracy: false,
+                maximumAge: QUICK_GEOLOCATION_CACHE_MAX_AGE_MS,
+                timeout: Math.min(Math.max(Math.floor(safeTimeoutMs * 0.45), 2500), 4500),
+            });
+        }
     }
 };
 
@@ -167,8 +204,8 @@ export const detectDeviceLocation = async ({ timeoutMs = 12000 } = {}) => {
         try {
             const retryPosition = await getCurrentPosition({
                 enableHighAccuracy: true,
-                maximumAge: 0,
-                timeout: Math.max(timeoutMs, 18000),
+                maximumAge: PRECISE_GEOLOCATION_CACHE_MAX_AGE_MS,
+                timeout: Math.min(Math.max(Math.floor(timeoutMs * 0.5), 2500), 5000),
             });
             position = selectMoreAccuratePosition(position, retryPosition);
         } catch (retryError) {

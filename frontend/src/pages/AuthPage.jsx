@@ -62,6 +62,8 @@ const AuthPage = () => {
         area: '',
         role: 'user',
     });
+    const [googleCredential, setGoogleCredential] = useState('');
+    const [showGoogleRolePrompt, setShowGoogleRolePrompt] = useState(false);
 
     const areaOptions = useMemo(
         () => getAreaOptionsByCity(registerData.city),
@@ -162,7 +164,7 @@ const AuthPage = () => {
     const autofillLocationFromDevice = async () => {
         try {
             setDetectingLocation(true);
-            const detected = await detectDeviceLocation({ timeoutMs: 15000 });
+            const detected = await detectDeviceLocation({ timeoutMs: 9000 });
             setRegisterData((previous) => ({
                 ...previous,
                 city: detected.city,
@@ -212,18 +214,82 @@ const AuthPage = () => {
         }
     };
 
-    const handleGoogleSuccess = async (credentialResponse) => {
+    const handleGoogleSuccess = (credentialResponse) => {
+        const credential = String(credentialResponse?.credential || '').trim();
+        if (!credential) {
+            const message = 'Google authentication failed. Missing credential.';
+            setError(message);
+            showError(message);
+            return;
+        }
+
+        const authenticateWithGoogle = async () => {
+            try {
+                setLoading(true);
+                setError('');
+                const { data } = await api.post('/auth/google', { credential });
+                setShowGoogleRolePrompt(false);
+                setGoogleCredential('');
+                persistAuth(data);
+                showSuccess('Google Login successful');
+                navigate(getRedirectPathByRole(data.role), { replace: true });
+            } catch (err) {
+                const statusCode = err?.response?.status;
+                const backendMessage = String(err?.response?.data?.message || '');
+                const roleSelectionRequired =
+                    statusCode === 409 && backendMessage.includes('ROLE_SELECTION_REQUIRED');
+
+                if (roleSelectionRequired) {
+                    setGoogleCredential(credential);
+                    setShowGoogleRolePrompt(true);
+                    return;
+                }
+
+                const message = extractErrorMessage(err, 'Google authentication failed');
+                setError(message);
+                showError(message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        authenticateWithGoogle();
+    };
+
+    const closeGoogleRolePrompt = () => {
+        if (loading) {
+            return;
+        }
+
+        setShowGoogleRolePrompt(false);
+        setGoogleCredential('');
+    };
+
+    const completeGoogleAuth = async (selectedRole = 'user') => {
+        if (!googleCredential) {
+            const message = 'Google authentication failed. Please try again.';
+            setError(message);
+            showError(message);
+            setShowGoogleRolePrompt(false);
+            return;
+        }
+
         try {
             setLoading(true);
             setError('');
             const { data } = await api.post('/auth/google', {
-                credential: credentialResponse.credential
+                credential: googleCredential,
+                role: selectedRole === 'shop_owner' ? 'shop_owner' : 'user',
             });
+            setShowGoogleRolePrompt(false);
+            setGoogleCredential('');
             persistAuth(data);
             showSuccess('Google Login successful');
             navigate(getRedirectPathByRole(data.role), { replace: true });
         } catch (err) {
-            setError(extractErrorMessage(err, 'Google authentication failed'));
+            const message = extractErrorMessage(err, 'Google authentication failed');
+            setError(message);
+            showError(message);
         } finally {
             setLoading(false);
         }
@@ -248,8 +314,8 @@ const AuthPage = () => {
             role: registerData.role,
         };
 
-        if (!payload.name || !payload.username || !payload.email || !payload.password || !payload.city || !payload.area) {
-            const message = 'Name, username, email, password, city and area are required';
+        if (!payload.name || !payload.email || !payload.password) {
+            const message = 'Name, email and password are required';
             setError(message);
             showError(message);
             return;
@@ -270,7 +336,9 @@ const AuthPage = () => {
             showSuccess('Registration successful');
             navigate(getRedirectPathByRole(data.role), { replace: true });
         } catch (err) {
-            setError(extractErrorMessage(err, 'Registration failed'));
+            const message = extractErrorMessage(err, 'Registration failed');
+            setError(message);
+            showError(message);
         } finally {
             setLoading(false);
         }
@@ -340,7 +408,6 @@ const AuthPage = () => {
                             <GoogleLogin
                                 onSuccess={handleGoogleSuccess}
                                 onError={handleGoogleError}
-                                useOneTap
                             />
                         </div>
                     </form>
@@ -369,7 +436,7 @@ const AuthPage = () => {
                         />
                         <input
                             type="text"
-                            placeholder="Username"
+                            placeholder="Username (optional)"
                             value={registerData.username}
                             onChange={(event) =>
                                 setRegisterData((prev) => ({ ...prev, username: event.target.value }))
@@ -442,12 +509,65 @@ const AuthPage = () => {
                             <GoogleLogin
                                 onSuccess={handleGoogleSuccess}
                                 onError={handleGoogleError}
-                                useOneTap
                             />
                         </div>
                     </form>
                 )}
             </div>
+            {showGoogleRolePrompt && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
+                    <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+                        <h2 className="text-lg font-bold text-dark">Continue as</h2>
+                        <p className="mt-1 text-xs text-gray-600">
+                            Choose your role to continue.
+                        </p>
+                        <div className="mt-4 flex flex-col items-center space-y-3">
+                            <button
+                                type="button"
+                                onClick={() => completeGoogleAuth('user')}
+                                disabled={loading}
+                                className="w-3/4 overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:border-primary hover:shadow-sm disabled:opacity-50"
+                            >
+                                <div className="aspect-square w-full bg-gray-50 p-2">
+                                    <img
+                                        src="/logo/users.jpeg"
+                                        alt="Customer"
+                                        className="h-full w-full object-contain"
+                                    />
+                                </div>
+                                <span className="block px-4 py-3 text-center text-sm font-semibold text-dark">
+                                    Customer
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => completeGoogleAuth('shop_owner')}
+                                disabled={loading}
+                                className="w-3/4 overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:border-primary hover:shadow-sm disabled:opacity-50"
+                            >
+                                <div className="aspect-square w-full bg-gray-50 p-2">
+                                    <img
+                                        src="/logo/shops.jpeg"
+                                        alt="Shop Owner"
+                                        className="h-full w-full object-contain"
+                                    />
+                                </div>
+                                <span className="block px-4 py-3 text-center text-sm font-semibold text-dark">
+                                    Shop Owner
+                                </span>
+                            </button>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={closeGoogleRolePrompt}
+                            disabled={loading}
+                            className="mt-3 w-full rounded-lg px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
