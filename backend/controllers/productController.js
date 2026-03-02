@@ -92,6 +92,20 @@ const toAggregateMatch = (filters) => {
     return match;
 };
 
+const resolveProductSort = (sortValue) => {
+    const normalized = String(sortValue || 'latest').trim().toLowerCase();
+    const sortMap = {
+        latest: { createdAt: -1 },
+        oldest: { createdAt: 1 },
+        price_asc: { price: 1, createdAt: -1 },
+        price_desc: { price: -1, createdAt: -1 },
+        views_desc: { viewsCount: -1, createdAt: -1 },
+        views_asc: { viewsCount: 1, createdAt: -1 },
+    };
+
+    return sortMap[normalized] || sortMap.latest;
+};
+
 // @desc    Fetch all products with pagination and filters
 // @route   GET /api/products
 // @access  Public
@@ -152,12 +166,14 @@ export const getProducts = async (req, res, next) => {
             filters.shop = { $in: nearbyShopIds };
         }
 
+        const sortClause = resolveProductSort(req.query.sort);
+
         const [count, products, followedShopIds] = await Promise.all([
             Product.countDocuments(filters),
             Product.find(filters)
                 .select('name price hideOriginalPrice images category description viewsCount shop createdAt')
                 .populate('shop', 'name category location rating numRatings allowPriceHide')
-                .sort({ createdAt: -1 })
+                .sort(sortClause)
                 .skip(skip)
                 .limit(limit)
                 .lean(),
@@ -562,6 +578,156 @@ export const getRandomProducts = async (req, res, next) => {
 
         const followedShopIds = await getFollowedShopIdsForUser(req.user?._id);
         res.status(200).json({ products: mapProductsWithFollowState(products, followedShopIds) });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get latest products for discovery
+// @route   GET /api/products/latest
+// @access  Public
+export const getLatestProducts = async (req, res, next) => {
+    try {
+        const limit = Math.min(Math.max(Number(req.query.limit || 12), 1), 40);
+        const filters = {};
+
+        if (req.query.category) {
+            const normalizedCategory = normalizeCategory(req.query.category);
+            if (!normalizedCategory) {
+                res.status(400);
+                throw new Error('Invalid product category');
+            }
+            filters.category = normalizedCategory;
+        }
+
+        const locationClauses = [];
+        const cityClause = buildLocationFieldClause('location.city', req.query.city);
+        const areaClause = buildLocationFieldClause('location.area', req.query.areas, req.query.area);
+
+        if (cityClause) {
+            locationClauses.push(cityClause);
+        }
+        if (areaClause) {
+            locationClauses.push(areaClause);
+        }
+
+        if (locationClauses.length) {
+            const shopFilters = {};
+
+            if (locationClauses.length === 1) {
+                Object.assign(shopFilters, locationClauses[0]);
+            } else {
+                shopFilters.$and = locationClauses;
+            }
+
+            const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            if (!nearbyShopIds.length) {
+                return res.status(200).json({ products: [] });
+            }
+
+            filters.shop = { $in: nearbyShopIds };
+        }
+
+        const [products, followedShopIds] = await Promise.all([
+            Product.find(filters)
+                .select('name price hideOriginalPrice images category description viewsCount shop createdAt')
+                .populate('shop', 'name category location rating numRatings images allowPriceHide')
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .lean(),
+            getFollowedShopIdsForUser(req.user?._id),
+        ]);
+
+        res.status(200).json({ products: mapProductsWithFollowState(products, followedShopIds) });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get recently viewed products for current user
+// @route   GET /api/products/recently-viewed
+// @access  Private
+export const getRecentlyViewedProducts = async (req, res, next) => {
+    try {
+        const limit = Math.min(Math.max(Number(req.query.limit || 10), 1), 30);
+        const candidateLimit = Math.min(limit * 4, 120);
+
+        const viewedRows = await ProductView.find({ user: req.user._id })
+            .sort({ updatedAt: -1 })
+            .limit(candidateLimit)
+            .select('product')
+            .lean();
+
+        const orderedProductIds = [...new Set(
+            viewedRows
+                .map((entry) => entry.product?.toString())
+                .filter(Boolean)
+        )];
+
+        if (!orderedProductIds.length) {
+            return res.status(200).json({ products: [] });
+        }
+
+        const filters = {
+            _id: {
+                $in: orderedProductIds,
+            },
+        };
+
+        if (req.query.category) {
+            const normalizedCategory = normalizeCategory(req.query.category);
+            if (!normalizedCategory) {
+                res.status(400);
+                throw new Error('Invalid product category');
+            }
+            filters.category = normalizedCategory;
+        }
+
+        const locationClauses = [];
+        const cityClause = buildLocationFieldClause('location.city', req.query.city);
+        const areaClause = buildLocationFieldClause('location.area', req.query.areas, req.query.area);
+
+        if (cityClause) {
+            locationClauses.push(cityClause);
+        }
+        if (areaClause) {
+            locationClauses.push(areaClause);
+        }
+
+        if (locationClauses.length) {
+            const shopFilters = {};
+
+            if (locationClauses.length === 1) {
+                Object.assign(shopFilters, locationClauses[0]);
+            } else {
+                shopFilters.$and = locationClauses;
+            }
+
+            const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            if (!nearbyShopIds.length) {
+                return res.status(200).json({ products: [] });
+            }
+
+            filters.shop = { $in: nearbyShopIds };
+        }
+
+        const [products, followedShopIds] = await Promise.all([
+            Product.find(filters)
+                .select('name price hideOriginalPrice images category description viewsCount shop createdAt')
+                .populate('shop', 'name category location rating numRatings images allowPriceHide')
+                .lean(),
+            getFollowedShopIdsForUser(req.user?._id),
+        ]);
+
+        const productById = new Map(products.map((product) => [product._id.toString(), product]));
+        const orderedProducts = orderedProductIds
+            .map((id) => productById.get(id))
+            .filter(Boolean)
+            .slice(0, limit);
+
+        res.status(200).json({
+            products: mapProductsWithFollowState(orderedProducts, followedShopIds),
+        });
     } catch (error) {
         next(error);
     }

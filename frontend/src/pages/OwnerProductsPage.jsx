@@ -4,6 +4,7 @@ import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { formatProductPrice } from '../utils/productPrice';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const OwnerProductsPage = () => {
     const navigate = useNavigate();
@@ -14,6 +15,7 @@ const OwnerProductsPage = () => {
     const [products, setProducts] = useState([]);
     const [selectedShopId, setSelectedShopId] = useState('');
     const [deletingProductId, setDeletingProductId] = useState('');
+    const [productIdToDelete, setProductIdToDelete] = useState('');
 
     const canManageItems = useMemo(
         () => ['shop_owner', 'admin'].includes(profileRole),
@@ -23,6 +25,10 @@ const OwnerProductsPage = () => {
     const selectedShop = useMemo(
         () => shops.find((shop) => shop._id === selectedShopId) || null,
         [shops, selectedShopId]
+    );
+    const productToDelete = useMemo(
+        () => products.find((product) => product._id === productIdToDelete) || null,
+        [products, productIdToDelete]
     );
 
     const fetchProductsForShop = async (shopId) => {
@@ -85,16 +91,25 @@ const OwnerProductsPage = () => {
         fetchProductsForShop(shopId);
     };
 
-    const deleteProduct = async (productId) => {
+    const requestDeleteProduct = (productId) => {
+        setProductIdToDelete(productId);
+    };
+
+    const deleteProduct = async () => {
+        if (!productIdToDelete) {
+            return;
+        }
+
         try {
-            setDeletingProductId(productId);
-            await api.delete(`/products/${productId}`);
+            setDeletingProductId(productIdToDelete);
+            await api.delete(`/products/${productIdToDelete}`);
             showSuccess('Product deleted');
             await fetchProductsForShop(selectedShopId);
         } catch (error) {
             showError(extractErrorMessage(error, 'Unable to delete product'));
         } finally {
             setDeletingProductId('');
+            setProductIdToDelete('');
         }
     };
 
@@ -120,22 +135,7 @@ const OwnerProductsPage = () => {
         <div className="container mx-auto max-w-6xl px-4 py-8 md:py-10">
             <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-3xl font-black text-dark sm:text-4xl">Products Manager</h1>
-                    <p className="text-sm text-gray-500">Apne products ko clean list se manage karein.</p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                    <Link
-                        to="/owner/services"
-                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                        Manage Services
-                    </Link>
-                    <Link
-                        to="/owner/shop"
-                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                        Shop Dashboard
-                    </Link>
+                    <h1 className="text-3xl text-base font-black text-dark sm:text-4xl">Manage all products</h1>
                 </div>
             </div>
 
@@ -157,9 +157,6 @@ const OwnerProductsPage = () => {
                         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <h2 className="text-2xl font-black text-dark">Items List</h2>
-                                <p className="text-sm text-gray-500">
-                                    Selected shop category: {selectedShop?.category || '-'}
-                                </p>
                             </div>
                             <Link
                                 to="/owner/products/new"
@@ -167,23 +164,6 @@ const OwnerProductsPage = () => {
                             >
                                 Add New
                             </Link>
-                        </div>
-
-                        <div className="mb-5 md:max-w-sm">
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Select Shop
-                            </label>
-                            <select
-                                value={selectedShopId}
-                                onChange={handleShopChange}
-                                className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                            >
-                                {shops.map((shop) => (
-                                    <option value={shop._id} key={shop._id}>
-                                        {shop.name} ({shop.category})
-                                    </option>
-                                ))}
-                            </select>
                         </div>
 
                         {products.length === 0 && (
@@ -226,7 +206,7 @@ const OwnerProductsPage = () => {
                                             </Link>
                                             <button
                                                 type="button"
-                                                onClick={() => deleteProduct(product._id)}
+                                                onClick={() => requestDeleteProduct(product._id)}
                                                 disabled={deletingProductId === product._id}
                                                 className="rounded-lg border border-red-200 px-3 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
                                             >
@@ -240,6 +220,22 @@ const OwnerProductsPage = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={Boolean(productIdToDelete)}
+                title="Delete Product?"
+                message={`Do you really want to delete "${productToDelete?.name || 'this product'}"?`}
+                confirmLabel="Delete"
+                cancelLabel="Cancel"
+                onConfirm={deleteProduct}
+                onCancel={() => {
+                    if (!deletingProductId) {
+                        setProductIdToDelete('');
+                    }
+                }}
+                loading={deletingProductId === productIdToDelete}
+                danger
+            />
         </div>
     );
 };

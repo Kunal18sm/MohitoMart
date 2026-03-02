@@ -39,6 +39,7 @@ export const getUserProfile = async (req, res, next) => {
                 email: user.email,
                 role: user.role,
                 location: user.location,
+                savedAddresses: user.savedAddresses,
                 followedShops: user.followedShops,
             });
         } else {
@@ -77,6 +78,9 @@ export const updateUserProfile = async (req, res, next) => {
             if (req.body.password) {
                 user.password = req.body.password;
             }
+            if (req.body.savedAddresses) {
+                user.savedAddresses = req.body.savedAddresses;
+            }
 
             const updatedUser = await user.save();
 
@@ -86,6 +90,7 @@ export const updateUserProfile = async (req, res, next) => {
                 email: updatedUser.email,
                 role: updatedUser.role,
                 location: updatedUser.location,
+                savedAddresses: updatedUser.savedAddresses,
                 followedShopsCount: updatedUser.followedShops?.length || 0,
             });
         } else {

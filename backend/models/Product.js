@@ -45,6 +45,10 @@ const productSchema = new mongoose.Schema(
             default: 0,
             min: 0,
         },
+        originalPrice: {
+            type: Number,
+            min: 0,
+        },
         hideOriginalPrice: {
             type: Boolean,
             default: false,
@@ -63,6 +67,7 @@ productSchema.index({ shop: 1, category: 1, createdAt: -1 });
 productSchema.index({ shop: 1, createdAt: -1 });
 productSchema.index({ category: 1, createdAt: -1 });
 productSchema.index({ createdAt: -1 });
+productSchema.index({ shop: 1 });
 
 const Product = mongoose.model('Product', productSchema);
 export default Product;

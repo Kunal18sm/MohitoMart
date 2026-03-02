@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const getStoredUserRole = () => {
     try {
@@ -16,10 +17,14 @@ const getStoredUserRole = () => {
 };
 
 const Navbar = () => {
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const { t, i18n } = useTranslation();
     const [isLoggedIn, setIsLoggedIn] = useState(Boolean(localStorage.getItem('authToken')));
     const [userRole, setUserRole] = useState(getStoredUserRole);
-    const [locationLabel, setLocationLabel] = useState('Set location');
+    const [locationLabel, setLocationLabel] = useState('...');
+
+    // Global search state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isSearchFocused, setIsSearchFocused] = useState(false);
 
     useEffect(() => {
         document.documentElement.classList.remove('dark');
@@ -30,7 +35,11 @@ const Navbar = () => {
             setUserRole(getStoredUserRole());
             const location = JSON.parse(localStorage.getItem('selectedLocation') || '{}');
             setLocationLabel(
-                location.city && location.area ? `${location.area}, ${location.city}` : 'Set location'
+                location.city && location.area
+                    ? `${location.area}, ${location.city}`
+                    : localStorage.getItem('user_city')
+                        ? `${localStorage.getItem('user_area')}, ${localStorage.getItem('user_city')}`
+                        : t('set_location') || 'Set location'
             );
         };
 
@@ -57,19 +66,19 @@ const Navbar = () => {
 
     const primaryCtaLabel = useMemo(() => {
         if (!isLoggedIn) {
-            return 'Login / Signup';
+            return t('login_signup') || 'Login / Signup';
         }
 
         if (userRole === 'admin') {
-            return 'Admin Panel';
+            return t('admin_panel') || 'Admin Panel';
         }
 
         if (userRole === 'shop_owner') {
-            return 'Shop Profile';
+            return t('shop_profile') || 'Shop Profile';
         }
 
-        return 'Account';
-    }, [isLoggedIn, userRole]);
+        return t('account') || 'Account';
+    }, [isLoggedIn, t, userRole]);
 
     return (
         <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/70 bg-white/90 backdrop-blur-xl">
@@ -77,23 +86,82 @@ const Navbar = () => {
                 <div className="flex items-center justify-between gap-4">
                     <Link to="/" className="leading-tight">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-500">
-                            Local Marketplace
+                            {t('local_marketplace') || 'Local Marketplace'}
                         </p>
                         <p className="text-xl font-black tracking-tight text-dark sm:text-2xl">
                             MOHITO <span className="text-primary">MART</span>
                         </p>
                     </Link>
 
-                    <div className="hidden items-center gap-6 text-sm font-semibold text-gray-600 lg:flex">
+                    <div className="hidden items-center gap-6 text-sm font-semibold text-gray-600 xl:flex">
                         <Link to="/" className="transition-colors hover:text-primary">
-                            Home
+                            {t('home') || 'Home'}
                         </Link>
                         <Link to="/services/all" className="transition-colors hover:text-primary">
-                            Services
+                            {t('services') || 'Services'}
                         </Link>
+                        {isLoggedIn && (
+                            <Link to="/cart" className="transition-colors hover:text-primary">
+                                {t('wishlist') || 'Wishlist'}
+                            </Link>
+                        )}
+                    </div>
+
+                    <div className="hidden flex-1 max-w-md relative mx-4 lg:block">
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onFocus={() => setIsSearchFocused(true)}
+                                onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                                placeholder={t('search_placeholder') || 'Search products, shops, services...'}
+                                className="w-full rounded-full bg-gray-100/50 border border-transparent px-4 py-2 pl-10 text-sm outline-none focus:border-primary/50 focus:bg-white transition-all focus:ring-4 focus:ring-primary/10"
+                            />
+                            <svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+
+                        {/* Suggestions Dropdown Container */}
+                        {isSearchFocused && searchQuery.length > 1 && (
+                            <div className="absolute top-full left-0 right-0 mt-2 glass-panel rounded-2xl p-4 z-50">
+                                <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-400">
+                                    {t('suggestions') || 'Suggestions'}
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-3 p-2 hover:bg-white/50 rounded-lg cursor-pointer">
+                                        <div className="h-8 w-8 bg-gray-200 rounded-md"></div>
+                                        <div>
+                                            <p className="line-clamp-1 text-sm font-medium text-dark">
+                                                {searchQuery} {t('in_products') || 'in Products'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 p-2 hover:bg-white/50 rounded-lg cursor-pointer">
+                                        <div className="h-8 w-8 bg-gray-200 rounded-md rounded-full"></div>
+                                        <div>
+                                            <p className="line-clamp-1 text-sm font-medium text-dark">
+                                                {searchQuery} {t('in_shops') || 'in Shops'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="hidden items-center gap-3 md:flex">
+                        <button
+                            onClick={() => {
+                                const newLng = i18n.language === 'en' ? 'hi' : 'en';
+                                i18n.changeLanguage(newLng);
+                                localStorage.setItem('app_language', newLng);
+                            }}
+                            className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/20"
+                        >
+                            {i18n.language === 'en' ? 'HI' : 'EN'}
+                        </button>
                         <span className="rounded-full bg-light px-4 py-2 text-sm font-medium text-gray-600">
                             {locationLabel}
                         </span>
@@ -105,43 +173,27 @@ const Navbar = () => {
                         </Link>
                     </div>
 
-                    <button
-                        className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-dark md:hidden"
-                        onClick={() => setIsMenuOpen((previous) => !previous)}
-                        type="button"
-                    >
-                        {isMenuOpen ? 'Close' : 'Menu'}
-                    </button>
-                </div>
-
-                {isMenuOpen && (
-                    <div className="mt-3 space-y-2 rounded-2xl border border-gray-100 bg-white p-4 shadow-lg md:hidden">
-                        <div className="rounded-lg bg-light px-3 py-2 text-sm font-medium text-gray-600">
-                            {locationLabel}
-                        </div>
-                        <Link
-                            to="/"
-                            onClick={() => setIsMenuOpen(false)}
-                            className="block rounded-lg px-2 py-2 text-sm font-medium text-gray-700 hover:bg-light"
+                    <div className="md:hidden flex items-center gap-2">
+                        <button
+                            onClick={() => {
+                                const newLng = i18n.language === 'en' ? 'hi' : 'en';
+                                i18n.changeLanguage(newLng);
+                                localStorage.setItem('app_language', newLng);
+                            }}
+                            className="rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary"
                         >
-                            Home
-                        </Link>
-                        <Link
-                            to="/services/all"
-                            onClick={() => setIsMenuOpen(false)}
-                            className="block rounded-lg px-2 py-2 text-sm font-medium text-gray-700 hover:bg-light"
-                        >
-                            Services
-                        </Link>
-                        <Link
-                            to={primaryCtaPath}
-                            onClick={() => setIsMenuOpen(false)}
-                            className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-dark px-3 py-2 text-sm font-semibold text-white hover:bg-primary"
-                        >
-                            {primaryCtaLabel}
-                        </Link>
+                            {i18n.language === 'en' ? 'HI' : 'EN'}
+                        </button>
+                        {isLoggedIn && (
+                            <Link
+                                to="/cart"
+                                className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-semibold text-dark"
+                            >
+                                {t('wishlist') || 'Wishlist'}
+                            </Link>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
         </nav>
     );

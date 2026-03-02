@@ -11,8 +11,10 @@ import userRoutes from './routes/userRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import serviceRoutes from './routes/serviceRoutes.js';
 import shopRoutes from './routes/shopRoutes.js';
+import cartRoutes from './routes/cartRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import bannerRoutes from './routes/bannerRoutes.js';
+import { ensureCsrfCookie, securityHeaders, verifyCsrfToken } from './middleware/securityMiddleware.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 // Load env variables
@@ -26,9 +28,12 @@ const app = express();
 
 // Middleware
 app.use(compression());
+app.use(securityHeaders);
+app.use(cookieParser()); // Cookie parser
+app.use(ensureCsrfCookie);
+app.use(verifyCsrfToken);
 app.use(express.json({ limit: '20mb' })); // Body parser
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
-app.use(cookieParser()); // Cookie parser
 
 const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, '');
 
@@ -73,6 +78,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/shops', shopRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/services', serviceRoutes);
+app.use('/api/cart', cartRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/banners', bannerRoutes);
 

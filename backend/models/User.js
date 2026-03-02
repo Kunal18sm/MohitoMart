@@ -16,8 +16,8 @@ const userSchema = new mongoose.Schema(
         },
         username: {
             type: String,
+            required: true,
             unique: true,
-            sparse: true,
             lowercase: true,
             trim: true,
         },
@@ -36,13 +36,31 @@ const userSchema = new mongoose.Schema(
         location: {
             city: {
                 type: String,
-                required: true,
                 trim: true,
             },
             area: {
                 type: String,
-                required: true,
                 trim: true,
+            },
+        },
+        savedAddresses: [
+            {
+                title: { type: String, default: 'Home' },
+                address: { type: String, required: true },
+                city: { type: String, required: true },
+                area: { type: String, required: true },
+                pincode: { type: String },
+                landmark: { type: String },
+                isDefault: { type: Boolean, default: false }
+            }
+        ],
+        geo: {
+            type: {
+                type: String,
+                enum: ['Point'],
+            },
+            coordinates: {
+                type: [Number], // [longitude, latitude]
             },
         },
         followedShops: [
@@ -51,6 +69,17 @@ const userSchema = new mongoose.Schema(
                 ref: 'Shop',
             },
         ],
+        onboardingCompleted: {
+            type: Boolean,
+            default: false,
+        },
+        locationPermissionGranted: {
+            type: Boolean,
+            default: false,
+        },
+        lastLoginAt: {
+            type: Date,
+        },
     },
     {
         timestamps: true,
@@ -59,6 +88,7 @@ const userSchema = new mongoose.Schema(
 
 // Method to check if entered password matches the hashed password in DB
 userSchema.methods.matchPassword = async function (enteredPassword) {
+    if (!this.password) return false;
     return await bcrypt.compare(enteredPassword, this.password);
 };
 

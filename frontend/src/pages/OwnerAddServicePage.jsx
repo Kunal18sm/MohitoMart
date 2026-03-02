@@ -19,6 +19,8 @@ const OwnerAddServicePage = () => {
     const [form, setForm] = useState({
         shopId: '',
         name: '',
+        pricingType: 'range',
+        price: '',
         priceMin: '',
         priceMax: '',
         description: '',
@@ -103,20 +105,8 @@ const OwnerAddServicePage = () => {
             return;
         }
 
-        if (!form.name.trim() || form.priceMin === '' || form.priceMax === '') {
-            showError('Service name and price range are required');
-            return;
-        }
-
-        const priceMin = Number(form.priceMin);
-        const priceMax = Number(form.priceMax);
-        if (!Number.isFinite(priceMin) || !Number.isFinite(priceMax) || priceMin < 0 || priceMax < 0) {
-            showError('Please enter a valid non-negative price range');
-            return;
-        }
-
-        if (priceMax < priceMin) {
-            showError('Max price should be greater than or equal to min price');
+        if (!form.name.trim()) {
+            showError('Service name is required');
             return;
         }
 
@@ -125,20 +115,54 @@ const OwnerAddServicePage = () => {
             return;
         }
 
+        const payload = {
+            shopId: form.shopId,
+            name: form.name.trim(),
+            description: form.description.trim(),
+        };
+
+        if (form.pricingType === 'fixed') {
+            if (form.price === '') {
+                showError('Please enter a fixed price');
+                return;
+            }
+
+            const fixedPrice = Number(form.price);
+            if (!Number.isFinite(fixedPrice) || fixedPrice < 0) {
+                showError('Please enter a valid non-negative price');
+                return;
+            }
+
+            payload.price = fixedPrice;
+        } else {
+            if (form.priceMin === '' || form.priceMax === '') {
+                showError('Price range is required');
+                return;
+            }
+
+            const priceMin = Number(form.priceMin);
+            const priceMax = Number(form.priceMax);
+            if (!Number.isFinite(priceMin) || !Number.isFinite(priceMax) || priceMin < 0 || priceMax < 0) {
+                showError('Please enter a valid non-negative price range');
+                return;
+            }
+
+            if (priceMax < priceMin) {
+                showError('Max price should be greater than or equal to min price');
+                return;
+            }
+
+            payload.priceMin = priceMin;
+            payload.priceMax = priceMax;
+        }
+
         try {
             setUploading(true);
             const uploadedImageUrls = await uploadImages(selectedFiles, 'mohito-mart/services');
             setUploading(false);
 
             setSaving(true);
-            await api.post('/services', {
-                shopId: form.shopId,
-                name: form.name.trim(),
-                priceMin,
-                priceMax,
-                description: form.description.trim(),
-                images: uploadedImageUrls,
-            });
+            await api.post('/services', { ...payload, images: uploadedImageUrls });
 
             showSuccess('Service added successfully');
             navigate('/owner/services');
@@ -185,17 +209,15 @@ const OwnerAddServicePage = () => {
     }
 
     return (
-        <div className="container mx-auto max-w-4xl px-4 py-8 md:py-10">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="container mx-auto max-w-4xl px-4 py-6 md:py-8">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-3xl font-black text-dark sm:text-4xl">Add New Service</h1>
-                    <p className="text-sm text-gray-500">
-                        Selected category: {selectedShop?.category || '-'}
-                    </p>
+                    <h1 className="text-2xl font-black text-dark sm:text-3xl">Add New Service</h1>
+                    <p className="text-xs text-gray-500">Category: {selectedShop?.category || '-'}</p>
                 </div>
                 <Link
                     to="/owner/services"
-                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                 >
                     Back to Services
                 </Link>
@@ -203,27 +225,29 @@ const OwnerAddServicePage = () => {
 
             <div className="rounded-3xl border border-gray-100 bg-white p-5 sm:p-6">
                 <form onSubmit={addService} className="grid gap-4 md:grid-cols-2">
-                    <div>
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Shop
-                        </label>
-                        <select
-                            value={form.shopId}
-                            onChange={(event) =>
-                                setForm((previous) => ({ ...previous, shopId: event.target.value }))
-                            }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                        >
-                            {shops.map((shop) => (
-                                <option value={shop._id} key={shop._id}>
-                                    {shop.name} ({shop.category})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    {shops.length > 1 && (
+                        <div className="md:col-span-2">
+                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
+                                Shop
+                            </label>
+                            <select
+                                value={form.shopId}
+                                onChange={(event) =>
+                                    setForm((previous) => ({ ...previous, shopId: event.target.value }))
+                                }
+                                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                            >
+                                {shops.map((shop) => (
+                                    <option value={shop._id} key={shop._id}>
+                                        {shop.name} ({shop.category})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
-                    <div>
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <div className={shops.length > 1 ? '' : 'md:col-span-2'}>
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
                             Service Name
                         </label>
                         <input
@@ -232,45 +256,87 @@ const OwnerAddServicePage = () => {
                             onChange={(event) =>
                                 setForm((previous) => ({ ...previous, name: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                             placeholder="e.g. Hair Cut, Pant Stitching"
                         />
                     </div>
 
                     <div>
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Price Min (Rs)
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
+                            Price Type
                         </label>
-                        <input
-                            type="number"
-                            min="0"
-                            value={form.priceMin}
+                        <select
+                            value={form.pricingType}
                             onChange={(event) =>
-                                setForm((previous) => ({ ...previous, priceMin: event.target.value }))
+                                setForm((previous) => ({
+                                    ...previous,
+                                    pricingType: event.target.value,
+                                    price: '',
+                                    priceMin: '',
+                                    priceMax: '',
+                                }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                            placeholder="e.g. 100"
-                        />
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                        >
+                            <option value="fixed">Fixed Price</option>
+                            <option value="range">Price Range</option>
+                        </select>
                     </div>
 
-                    <div>
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Price Max (Rs)
-                        </label>
-                        <input
-                            type="number"
-                            min="0"
-                            value={form.priceMax}
-                            onChange={(event) =>
-                                setForm((previous) => ({ ...previous, priceMax: event.target.value }))
-                            }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                            placeholder="e.g. 500"
-                        />
-                    </div>
+                    {form.pricingType === 'fixed' ? (
+                        <div className="md:col-span-2">
+                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
+                                Price (Rs)
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                value={form.price}
+                                onChange={(event) =>
+                                    setForm((previous) => ({ ...previous, price: event.target.value }))
+                                }
+                                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                                placeholder="e.g. 499"
+                            />
+                        </div>
+                    ) : (
+                        <>
+                            <div>
+                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
+                                    Price Min (Rs)
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={form.priceMin}
+                                    onChange={(event) =>
+                                        setForm((previous) => ({ ...previous, priceMin: event.target.value }))
+                                    }
+                                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                                    placeholder="e.g. 100"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
+                                    Price Max (Rs)
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={form.priceMax}
+                                    onChange={(event) =>
+                                        setForm((previous) => ({ ...previous, priceMax: event.target.value }))
+                                    }
+                                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                                    placeholder="e.g. 500"
+                                />
+                            </div>
+                        </>
+                    )}
 
                     <div className="md:col-span-2">
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
                             Description
                         </label>
                         <textarea
@@ -279,24 +345,37 @@ const OwnerAddServicePage = () => {
                             onChange={(event) =>
                                 setForm((previous) => ({ ...previous, description: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                            placeholder="Service ka detail likhein (optional)"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                            placeholder="Service details (optional)"
                         />
                     </div>
 
                     <div className="md:col-span-2">
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
                             Service Images (1 to 5)
                         </label>
+                        <label
+                            htmlFor="owner-service-images"
+                            className="flex h-24 w-full cursor-pointer items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50/70 transition-colors hover:border-primary hover:bg-primary/5"
+                        >
+                            <div className="flex flex-col items-center gap-1 text-center">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-dark text-lg font-bold text-white">
+                                    +
+                                </span>
+                                <p className="text-xs font-semibold text-dark">Tap to add photos</p>
+                                <p className="text-[11px] text-gray-500">PNG/JPG, max 5 images</p>
+                            </div>
+                        </label>
                         <input
+                            id="owner-service-images"
                             type="file"
                             accept="image/*"
                             multiple
                             onChange={handleFileSelection}
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm"
+                            className="hidden"
                         />
                         {(uploading || saving) && (
-                            <p className="mt-2 text-sm text-gray-500">
+                            <p className="mt-2 text-xs text-gray-500">
                                 {uploading ? 'Uploading images...' : 'Saving service...'}
                             </p>
                         )}
@@ -311,7 +390,7 @@ const OwnerAddServicePage = () => {
                                     alt={`preview-${index + 1}`}
                                     loading="lazy"
                                     decoding="async"
-                                    className="h-24 w-full rounded-lg border border-gray-200 object-cover"
+                                    className="h-20 w-full rounded-lg border border-gray-200 object-cover"
                                 />
                             ))}
                         </div>

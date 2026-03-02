@@ -56,10 +56,25 @@ const shopSchema = new mongoose.Schema(
             trim: true,
             default: '',
         },
+        whatsappNumber: {
+            type: String,
+            trim: true,
+            default: '',
+        },
+        openTime: {
+            type: String,
+            trim: true,
+            default: '09:00',
+        },
+        closeTime: {
+            type: String,
+            trim: true,
+            default: '21:00',
+        },
         mapUrl: {
             type: String,
-            required: true,
             trim: true,
+            default: '',
         },
         description: {
             type: String,
@@ -67,6 +82,14 @@ const shopSchema = new mongoose.Schema(
             default: '',
         },
         allowPriceHide: {
+            type: Boolean,
+            default: false,
+        },
+        isDeliveryAvailable: {
+            type: Boolean,
+            default: true,
+        },
+        isServiceAvailable: {
             type: Boolean,
             default: false,
         },

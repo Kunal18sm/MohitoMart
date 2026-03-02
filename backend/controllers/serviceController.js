@@ -116,6 +116,18 @@ const mergeShopFilter = (existingShopFilter, nearbyShopIds) => {
     return existingShopFilter;
 };
 
+const resolveServiceSort = (sortValue) => {
+    const normalized = String(sortValue || 'latest').trim().toLowerCase();
+    const sortMap = {
+        latest: { createdAt: -1 },
+        oldest: { createdAt: 1 },
+        price_asc: { priceMin: 1, createdAt: -1 },
+        price_desc: { priceMax: -1, createdAt: -1 },
+    };
+
+    return sortMap[normalized] || sortMap.latest;
+};
+
 // @desc    Fetch all services with pagination and filters
 // @route   GET /api/services
 // @access  Public
@@ -197,12 +209,16 @@ export const getServices = async (req, res, next) => {
             filters.priceMin = { $lte: maxPrice };
         }
 
+        const sortClause = resolveServiceSort(req.query.sort);
+
         const [count, services] = await Promise.all([
             Service.countDocuments(filters),
             Service.find(filters)
-                .select('name pricingType price priceMin priceMax images category description shop createdAt')
+                .select(
+                    'name pricingType price priceMin priceMax images category description viewsCount shop createdAt'
+                )
                 .populate('shop', 'name category location rating numRatings')
-                .sort({ createdAt: -1 })
+                .sort(sortClause)
                 .skip(skip)
                 .limit(limit)
                 .lean(),
@@ -286,7 +302,9 @@ export const getRandomServices = async (req, res, next) => {
 export const getServiceById = async (req, res, next) => {
     try {
         const service = await Service.findById(req.params.id)
-            .select('name pricingType price priceMin priceMax images category description shop createdAt')
+            .select(
+                'name pricingType price priceMin priceMax images category description viewsCount shop createdAt'
+            )
             .populate('shop', 'name category location rating numRatings mapUrl images mobile description')
             .lean();
 
@@ -294,6 +312,9 @@ export const getServiceById = async (req, res, next) => {
             res.status(404);
             throw new Error('Service not found');
         }
+
+        await Service.updateOne({ _id: service._id }, { $inc: { viewsCount: 1 } });
+        service.viewsCount = Number(service.viewsCount || 0) + 1;
 
         res.status(200).json(service);
     } catch (error) {
@@ -465,6 +486,7 @@ export const getMyServices = async (req, res, next) => {
                 services: [],
                 summary: {
                     totalServices: 0,
+                    totalViews: 0,
                 },
             });
         }
@@ -496,6 +518,7 @@ export const getMyServices = async (req, res, next) => {
                     $group: {
                         _id: null,
                         totalServices: { $sum: 1 },
+                        totalViews: { $sum: '$viewsCount' },
                     },
                 },
             ]);
@@ -504,6 +527,7 @@ export const getMyServices = async (req, res, next) => {
                 services: [],
                 summary: {
                     totalServices: Number(summary?.totalServices || 0),
+                    totalViews: Number(summary?.totalViews || 0),
                 },
             });
         }
@@ -520,6 +544,7 @@ export const getMyServices = async (req, res, next) => {
                     $group: {
                         _id: null,
                         totalServices: { $sum: 1 },
+                        totalViews: { $sum: '$viewsCount' },
                     },
                 },
             ]),
@@ -531,6 +556,7 @@ export const getMyServices = async (req, res, next) => {
             services,
             summary: {
                 totalServices: Number(aggregateSummary?.totalServices || 0),
+                totalViews: Number(aggregateSummary?.totalViews || 0),
             },
         });
     } catch (error) {

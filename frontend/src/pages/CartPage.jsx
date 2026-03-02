@@ -1,115 +1,231 @@
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import api from '../services/api';
+import { useFlash } from '../context/FlashContext';
+import { extractErrorMessage } from '../utils/errorUtils';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const CartPage = () => {
-    // Dummy cart items
-    const cartItems = [
-        {
-            product: '1',
-            name: 'Sony WH-1000XM4 Noise Canceling Headphones',
-            image: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
-            price: 299.99,
-            qty: 1,
-            countInStock: 5,
-        },
-        {
-            product: '4',
-            name: 'Nike Air Max 270',
-            image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
-            price: 150.00,
-            qty: 2,
-            countInStock: 8,
+    const navigate = useNavigate();
+    const { t } = useTranslation();
+    const { showError, showSuccess } = useFlash();
+
+    const [loading, setLoading] = useState(true);
+    const [items, setItems] = useState([]);
+    const [updatingProductId, setUpdatingProductId] = useState('');
+    const [itemIdToRemove, setItemIdToRemove] = useState('');
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+    const isLoggedIn = Boolean(localStorage.getItem('authToken'));
+    const itemToRemove = useMemo(
+        () => items.find((entry) => entry.product === itemIdToRemove) || null,
+        [items, itemIdToRemove]
+    );
+
+    const applyCartResponse = (payload) => {
+        setItems(Array.isArray(payload?.items) ? payload.items : []);
+    };
+
+    const fetchCart = async () => {
+        if (!isLoggedIn) {
+            setLoading(false);
+            return;
         }
-    ];
 
-    const subtotal = cartItems.reduce((acc, item) => acc + item.qty * item.price, 0);
+        try {
+            setLoading(true);
+            const { data } = await api.get('/cart');
+            applyCartResponse(data);
+        } catch (error) {
+            showError(extractErrorMessage(error, 'Unable to load wishlist'));
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    return (
-        <div className="container mx-auto px-4 py-8">
-            <h1 className="text-4xl font-black text-dark tracking-tight mb-8">Shopping Cart</h1>
+    useEffect(() => {
+        fetchCart();
+    }, []);
 
-            <div className="flex flex-col lg:flex-row gap-10">
-                {/* Cart Items List */}
-                <div className="w-full lg:w-2/3">
-                    {cartItems.length === 0 ? (
-                        <div className="bg-light p-8 rounded-2xl text-center">
-                            <p className="text-xl text-gray-500 mb-4">Your cart is empty.</p>
-                            <Link to="/" className="text-primary font-bold hover:underline">Go Shopping</Link>
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            {cartItems.map((item) => (
-                                <div key={item.product} className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row items-center gap-6 group hover:border-primary/20 transition-colors">
-                                    <div className="w-32 h-32 rounded-2xl overflow-hidden bg-light shrink-0">
-                                        <img src={item.image} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" />
-                                    </div>
+    const requestRemoveItem = (productId) => {
+        setItemIdToRemove(productId);
+    };
 
-                                    <div className="flex-grow flex flex-col md:flex-row md:items-center justify-between w-full">
-                                        <div className="mb-4 md:mb-0 max-w-sm">
-                                            <Link to={`/product/${item.product}`} className="text-lg font-bold text-dark hover:text-primary transition-colors line-clamp-2 leading-tight mb-1">
-                                                {item.name}
-                                            </Link>
-                                            <p className="text-gray-500 font-medium">${item.price.toFixed(2)}</p>
-                                        </div>
+    const removeItem = async () => {
+        if (!itemIdToRemove) {
+            return;
+        }
 
-                                        <div className="flex items-center gap-6 md:gap-8">
-                                            <div className="flex items-center bg-light justify-between w-28 rounded-full border border-gray-200 p-1">
-                                                <button className="w-8 h-8 rounded-full bg-white text-dark shadow-sm font-black hover:text-primary">-</button>
-                                                <span className="font-bold">{item.qty}</span>
-                                                <button className="w-8 h-8 rounded-full bg-white text-dark shadow-sm font-black hover:text-primary">+</button>
-                                            </div>
+        try {
+            setUpdatingProductId(itemIdToRemove);
+            const { data } = await api.delete(`/cart/items/${itemIdToRemove}`);
+            applyCartResponse(data);
+            showSuccess(t('wishlist_item_removed') || 'Item removed from wishlist');
+        } catch (error) {
+            showError(extractErrorMessage(error, 'Unable to remove wishlist item'));
+        } finally {
+            setUpdatingProductId('');
+            setItemIdToRemove('');
+        }
+    };
 
-                                            <div className="text-xl font-black text-dark w-24 text-right">
-                                                ${(item.price * item.qty).toFixed(2)}
-                                            </div>
+    const clearAllItems = async () => {
+        try {
+            setUpdatingProductId('all');
+            const { data } = await api.delete('/cart');
+            applyCartResponse(data);
+            showSuccess(t('wishlist_cleared') || 'Wishlist cleared');
+        } catch (error) {
+            showError(extractErrorMessage(error, 'Unable to clear wishlist'));
+        } finally {
+            setUpdatingProductId('');
+            setShowClearConfirm(false);
+        }
+    };
 
-                                            <button className="w-10 h-10 flex items-center justify-center rounded-full bg-red-50 text-secondary hover:bg-secondary hover:text-white transition-colors flex-shrink-0">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                {/* Order Summary */}
-                <div className="w-full lg:w-1/3">
-                    <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-xl shadow-dark/5 sticky top-28">
-                        <h2 className="text-2xl font-black text-dark mb-6">Order Summary</h2>
-
-                        <div className="space-y-4 mb-6 border-b border-gray-100 pb-6 text-lg text-gray-600">
-                            <div className="flex justify-between">
-                                <span>Subtotal ({cartItems.reduce((a, c) => a + c.qty, 0)} items)</span>
-                                <span className="font-bold text-dark">${subtotal.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span>Shipping</span>
-                                <span className="font-bold text-dark">{subtotal > 100 ? 'Free' : '$10.00'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span>Tax (8%)</span>
-                                <span className="font-bold text-dark">${(subtotal * 0.08).toFixed(2)}</span>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-between text-2xl font-black text-dark mb-8">
-                            <span>Total</span>
-                            <span className="text-primary">${(subtotal + (subtotal > 100 ? 0 : 10) + (subtotal * 0.08)).toFixed(2)}</span>
-                        </div>
-
-                        <button
-                            disabled={cartItems.length === 0}
-                            className="w-full bg-dark hover:bg-primary-dark text-white py-4 rounded-xl font-bold text-xl shadow-lg transition-transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
-                        >
-                            Proceed to Checkout
-                        </button>
-                        <div className="mt-4 text-center">
-                            <Link to="/" className="text-primary font-semibold hover:underline">Continue Shopping</Link>
-                        </div>
-                    </div>
+    if (!isLoggedIn) {
+        return (
+            <div className="container mx-auto px-4 py-10">
+                <div className="mx-auto max-w-2xl rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center">
+                    <h1 className="text-3xl font-black text-dark">{t('wishlist_title') || 'My Wishlist'}</h1>
+                    <p className="mt-3 text-gray-600">
+                        {t('login_to_view_wishlist') || 'Please login to view your wishlist items.'}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/auth')}
+                        className="mt-6 rounded-xl bg-dark px-5 py-3 text-sm font-semibold text-white hover:bg-primary"
+                    >
+                        {t('login_signup') || 'Login / Signup'}
+                    </button>
                 </div>
             </div>
+        );
+    }
+
+    if (loading) {
+        return (
+            <div className="container mx-auto px-4 py-10">
+                <p className="text-gray-500">{t('loading_wishlist') || 'Loading your wishlist...'}</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="container mx-auto px-4 py-6 md:py-8">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h1 className="text-3xl font-black tracking-tight text-dark sm:text-4xl">
+                        {t('wishlist_title') || 'My Wishlist'}
+                    </h1>
+                    <p className="text-xs text-gray-500">{items.length} {t('items_count') || 'items saved'}</p>
+                </div>
+                {items.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setShowClearConfirm(true)}
+                        disabled={updatingProductId === 'all'}
+                        className="rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60"
+                    >
+                        {updatingProductId === 'all'
+                            ? t('clearing') || 'Clearing...'
+                            : t('clear_wishlist') || 'Clear Wishlist'}
+                    </button>
+                )}
+            </div>
+
+            {items.length === 0 ? (
+                <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
+                    <p className="mb-4 text-lg text-gray-500">{t('wishlist_empty') || 'Your wishlist is empty.'}</p>
+                    <Link to="/" className="font-bold text-primary hover:underline">
+                        {t('continue_browsing') || 'Continue browsing'}
+                    </Link>
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                    {items.map((item) => (
+                        <article
+                            key={item.product}
+                            className="flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white p-2.5 shadow-sm"
+                        >
+                            <Link to={`/product/${item.product}`} className="overflow-hidden rounded-xl bg-light">
+                                <img
+                                    src={item.image || 'https://via.placeholder.com/400x400?text=Product'}
+                                    alt={item.name}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="h-28 w-full object-cover sm:h-32"
+                                />
+                            </Link>
+
+                            <div className="mt-2 flex flex-1 flex-col gap-2">
+                                <Link
+                                    to={`/product/${item.product}`}
+                                    className="line-clamp-2 text-xs font-semibold leading-tight text-dark hover:text-primary sm:text-sm"
+                                >
+                                    {item.name}
+                                </Link>
+                                {Number(item.qty || 1) > 1 && (
+                                    <p className="text-[11px] text-gray-500">
+                                        {t('saved_qty') || 'Saved quantity'}: {item.qty}
+                                    </p>
+                                )}
+                                <div className="mt-auto flex gap-2">
+                                    <Link
+                                        to={`/product/${item.product}`}
+                                        className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-center text-[11px] font-semibold text-gray-700 hover:bg-gray-50 sm:text-xs"
+                                    >
+                                        {t('view') || 'View'}
+                                    </Link>
+                                    <button
+                                        type="button"
+                                        onClick={() => requestRemoveItem(item.product)}
+                                        disabled={updatingProductId === item.product}
+                                        className="flex-1 rounded-lg border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60 sm:text-xs"
+                                    >
+                                        {updatingProductId === item.product
+                                            ? t('removing') || 'Removing...'
+                                            : t('remove') || 'Remove'}
+                                    </button>
+                                </div>
+                            </div>
+                        </article>
+                    ))}
+                </div>
+            )}
+
+            <ConfirmDialog
+                open={Boolean(itemIdToRemove)}
+                title="Remove Item?"
+                message={`Do you really want to remove "${itemToRemove?.name || 'this item'}" from wishlist?`}
+                confirmLabel="Remove"
+                cancelLabel="Cancel"
+                onConfirm={removeItem}
+                onCancel={() => {
+                    if (!updatingProductId) {
+                        setItemIdToRemove('');
+                    }
+                }}
+                loading={updatingProductId === itemIdToRemove}
+                danger={false}
+            />
+
+            <ConfirmDialog
+                open={showClearConfirm}
+                title="Clear Wishlist?"
+                message={t('confirm_clear_wishlist') || 'Do you really want to clear your wishlist?'}
+                confirmLabel="Clear Wishlist"
+                cancelLabel="Cancel"
+                onConfirm={clearAllItems}
+                onCancel={() => {
+                    if (updatingProductId !== 'all') {
+                        setShowClearConfirm(false);
+                    }
+                }}
+                loading={updatingProductId === 'all'}
+                danger
+            />
         </div>
     );
 };

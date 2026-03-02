@@ -6,6 +6,7 @@ import { useFlash } from '../context/FlashContext';
 import { uploadImages, validateImageFiles } from '../utils/uploadUtils';
 import { filterCategoriesWithLocalImages } from '../utils/categoryImage';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
+import SuggestionInput from '../components/SuggestionInput';
 
 const ProductBoxIcon = () => (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -229,8 +230,8 @@ const ShopProfilePage = () => {
                 description: form.description.trim(),
             };
 
-            if (!payload.name || !payload.category || !payload.city || !payload.area || !payload.mapUrl) {
-                showError('Name, category, city, area and map URL are required');
+            if (!payload.name || !payload.category || !payload.city || !payload.area) {
+                showError('Name, category, city and area are required');
                 return;
             }
 
@@ -290,204 +291,271 @@ const ShopProfilePage = () => {
     }
 
     return (
-        <div className="container mx-auto max-w-6xl px-4 py-8 md:py-10">
-            <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h1 className="text-3xl font-black text-dark sm:text-4xl">Shop Dashboard</h1>
-                    <p className="text-sm text-gray-500">
-                        Profile, products aur services ko ek jagah se manage karein.
-                    </p>
-                </div>
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-                    <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:grid-cols-2 sm:gap-3">
+        <div className="container mx-auto max-w-6xl px-4 py-5 md:py-6">
+            <section className="rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-sm sm:p-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    
+
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
                         <Link
                             to="/owner/products"
-                            className="rounded-lg bg-primary px-4 py-2 text-center text-sm font-semibold text-white hover:bg-primary-dark"
+                            className="rounded-lg bg-dark px-3 py-2 text-center text-xs font-semibold text-white transition-colors hover:bg-primary"
                         >
                             Manage Products
                         </Link>
                         <Link
                             to="/owner/services"
-                            className="rounded-lg bg-primary px-4 py-2 text-center text-sm font-semibold text-white hover:bg-primary-dark"
+                            className="rounded-lg bg-dark px-3 py-2 text-center text-xs font-semibold text-white transition-colors hover:bg-primary"
                         >
                             Manage Services
                         </Link>
+                        
                     </div>
-                    <Link
-                        to="/profile"
-                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                        My Profile
-                    </Link>
                 </div>
-            </div>
+
+            </section>
 
             {existingShop && (
-                <section className="mb-6 space-y-5">
-                    {existingShop.images?.[0] && (
-                        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-                            <img
-                                src={existingShop.images[0]}
-                                alt={existingShop.name}
-                                loading="lazy"
-                                decoding="async"
-                                className="h-40 w-full object-cover sm:h-52"
-                            />
+                <section className="mt-3 space-y-3">
+                    <article className="rounded-2xl border border-gray-200 bg-white p-2">
+                        {existingShop.images?.length ? (
+                            <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1">
+                                {existingShop.images.map((imageUrl, index) => (
+                                    <img
+                                        key={`${imageUrl}-${index}`}
+                                        src={imageUrl}
+                                        alt={`${existingShop.name}-${index + 1}`}
+                                        loading="lazy"
+                                        decoding="async"
+                                        className="h-36 min-w-[220px] snap-start rounded-xl border border-gray-200 object-cover sm:h-44 sm:min-w-[260px]"
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex h-36 items-center justify-center rounded-xl bg-gray-50 text-xs font-semibold text-gray-500 sm:h-44">
+                                No cover image
+                            </div>
+                        )}
+                        <div className="space-y-1 px-2 py-2 sm:px-3">
+                            <p className="line-clamp-1 text-sm font-bold text-dark">{existingShop.name}</p>
+                            <p className="line-clamp-2 text-xs text-gray-500">
+                                {existingShop.description || 'Shop description add karein for better discovery.'}
+                            </p>
                         </div>
-                    )}
+                    </article>
 
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+                    <div className="mx-auto grid w-full max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
                         <Link
                             to="/owner/products"
-                            className="min-w-0 rounded-xl border border-gray-100 bg-white p-2.5 transition hover:border-primary hover:shadow-sm sm:rounded-2xl sm:p-3"
+                            className="rounded-xl border border-gray-200 bg-white p-2.5 text-center transition hover:border-primary"
                         >
-                            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500 sm:text-[11px]">
+                            <p className="mx-auto inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700">
                                 <ProductBoxIcon /> Products
                             </p>
-                            <p className="mt-1 text-base font-black text-dark sm:mt-1.5 sm:text-xl">
-                                {shopStats.totalProducts}
-                            </p>
+                            <p className="mt-1.5 text-base font-black text-dark">{shopStats.totalProducts}</p>
                         </Link>
+
                         <Link
                             to="/owner/services"
-                            className="min-w-0 rounded-xl border border-gray-100 bg-white p-2.5 transition hover:border-primary hover:shadow-sm sm:rounded-2xl sm:p-3"
+                            className="rounded-xl border border-gray-200 bg-white p-2.5 text-center transition hover:border-primary"
                         >
-                            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500 sm:text-[11px]">
+                            <p className="mx-auto inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700">
                                 <SparklesIcon /> Services
                             </p>
-                            <p className="mt-1 text-base font-black text-dark sm:mt-1.5 sm:text-xl">
-                                {shopStats.totalServices}
-                            </p>
+                            <p className="mt-1.5 text-base font-black text-dark">{shopStats.totalServices}</p>
                         </Link>
-                        <div className="min-w-0 rounded-xl border border-gray-100 bg-white p-2.5 sm:rounded-2xl sm:p-3">
-                            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500 sm:text-[11px]">
+
+                        <div className="rounded-xl border border-gray-200 bg-white p-2.5 text-center">
+                            <p className="mx-auto inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
                                 <EyeIcon /> Views
                             </p>
-                            <p className="mt-1 text-base font-black text-dark sm:mt-1.5 sm:text-xl">
-                                {shopStats.totalViews}
-                            </p>
+                            <p className="mt-1.5 text-base font-black text-dark">{shopStats.totalViews}</p>
                         </div>
-                        <div className="min-w-0 rounded-xl border border-gray-100 bg-white p-2.5 sm:rounded-2xl sm:p-3">
-                            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500 sm:text-[11px]">
+
+                        <div className="rounded-xl border border-gray-200 bg-white p-2.5 text-center">
+                            <p className="mx-auto inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
                                 <StarIcon /> Rating
                             </p>
-                            <p className="mt-1 text-base font-black text-dark sm:mt-1.5 sm:text-xl">
+                            <p className="mt-1.5 text-base font-black text-dark">
                                 {shopStats.rating}{' '}
-                                <span className="text-[10px] font-semibold text-gray-500 sm:text-sm">
+                                <span className="text-[11px] font-semibold text-gray-500">
                                     ({shopStats.ratingsCount})
                                 </span>
                             </p>
                         </div>
                     </div>
 
-                    <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700">
-                        <UsersIcon />
-                        Total Followers: {shopStats.totalFollowers}
+                    <div className="mx-auto flex w-full max-w-3xl justify-center">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700">
+                            <UsersIcon />
+                            Total Followers: {shopStats.totalFollowers}
+                        </div>
                     </div>
                 </section>
             )}
 
-            <div className="rounded-3xl border border-gray-100 bg-white p-5 sm:p-6">
-                <h2 className="mb-4 text-2xl font-black text-dark">
-                    {existingShop ? 'Update Shop Details' : 'Create Shop Details'}
-                </h2>
-                <form onSubmit={submitShop} className="grid gap-4 md:grid-cols-2">
-                    <input
-                        type="text"
-                        placeholder="Shop name"
-                        value={form.name}
-                        onChange={(event) =>
-                            setForm((previous) => ({ ...previous, name: event.target.value }))
-                        }
-                        className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                    />
-                    <select
-                        value={form.category}
-                        onChange={(event) =>
-                            setForm((previous) => ({ ...previous, category: event.target.value }))
-                        }
-                        className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                    >
-                        <option value="">Select category</option>
-                        {categories.map((category) => (
-                            <option value={category} key={category}>
-                                {category}
-                            </option>
-                        ))}
-                    </select>
-                    <input
-                        type="text"
-                        placeholder="City"
-                        value={form.city}
-                        list="shop-profile-city-suggestions"
-                        onChange={(event) =>
-                            setForm((previous) => ({ ...previous, city: event.target.value }))
-                        }
-                        className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                    />
-                    <input
-                        type="text"
-                        placeholder="Area"
-                        value={form.area}
-                        list="shop-profile-area-suggestions"
-                        onChange={(event) =>
-                            setForm((previous) => ({ ...previous, area: event.target.value }))
-                        }
-                        className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                    />
-                    <input
-                        type="text"
-                        placeholder="Address (optional)"
-                        value={form.address}
-                        onChange={(event) =>
-                            setForm((previous) => ({ ...previous, address: event.target.value }))
-                        }
-                        className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                    />
-                    <input
-                        type="text"
-                        placeholder="Mobile (optional)"
-                        value={form.mobile}
-                        onChange={(event) =>
-                            setForm((previous) => ({ ...previous, mobile: event.target.value }))
-                        }
-                        className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                    />
-                    <input
-                        type="text"
-                        placeholder="Google Maps URL"
-                        value={form.mapUrl}
-                        onChange={(event) =>
-                            setForm((previous) => ({ ...previous, mapUrl: event.target.value }))
-                        }
-                        className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary md:col-span-2"
-                    />
-                    <textarea
-                        rows="3"
-                        placeholder="Shop description (optional)"
-                        value={form.description}
-                        onChange={(event) =>
-                            setForm((previous) => ({ ...previous, description: event.target.value }))
-                        }
-                        className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary md:col-span-2"
-                    />
+            <section className="mt-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-lg font-black text-dark">
+                        {existingShop ? 'Update Shop Details' : 'Create Shop Details'}
+                    </h2>
+                </div>
 
-                    <div className="md:col-span-2">
-                        <label className="mb-1 block text-sm font-semibold text-gray-700">
-                            Select Shop Images (1 to 5)
+                <form onSubmit={submitShop} className="grid gap-3 md:grid-cols-2">
+                    <div>
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
+                            Shop Name
                         </label>
                         <input
+                            type="text"
+                            placeholder="Shop name"
+                            value={form.name}
+                            onChange={(event) =>
+                                setForm((previous) => ({ ...previous, name: event.target.value }))
+                            }
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
+                            Category
+                        </label>
+                        <select
+                            value={form.category}
+                            onChange={(event) =>
+                                setForm((previous) => ({ ...previous, category: event.target.value }))
+                            }
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                        >
+                            <option value="">Select category</option>
+                            {categories.map((category) => (
+                                <option value={category} key={category}>
+                                    {category}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
+                            City
+                        </label>
+                        <SuggestionInput
+                            value={form.city}
+                            options={cityOptions}
+                            onChange={(nextValue) =>
+                                setForm((previous) => ({ ...previous, city: nextValue }))
+                            }
+                            placeholder="City"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
+                            Area
+                        </label>
+                        <SuggestionInput
+                            value={form.area}
+                            options={areaOptions}
+                            onChange={(nextValue) =>
+                                setForm((previous) => ({ ...previous, area: nextValue }))
+                            }
+                            placeholder="Area"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
+                            Address (Optional)
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="Address"
+                            value={form.address}
+                            onChange={(event) =>
+                                setForm((previous) => ({ ...previous, address: event.target.value }))
+                            }
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
+                            Mobile (Optional)
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="Mobile number"
+                            value={form.mobile}
+                            onChange={(event) =>
+                                setForm((previous) => ({ ...previous, mobile: event.target.value }))
+                            }
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                        />
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
+                            Google Map URL (Optional)
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="https://maps.google.com/..."
+                            value={form.mapUrl}
+                            onChange={(event) =>
+                                setForm((previous) => ({ ...previous, mapUrl: event.target.value }))
+                            }
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                        />
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
+                            Description (Optional)
+                        </label>
+                        <textarea
+                            rows="3"
+                            placeholder="Short shop description"
+                            value={form.description}
+                            onChange={(event) =>
+                                setForm((previous) => ({ ...previous, description: event.target.value }))
+                            }
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                        />
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
+                            Shop Images (1 to 5)
+                        </label>
+                        <label
+                            htmlFor="shop-profile-images"
+                            className="flex h-20 w-full cursor-pointer items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50/70 transition-colors hover:border-primary hover:bg-primary/5"
+                        >
+                            <div className="text-center">
+                                <span className="mx-auto flex h-6 w-6 items-center justify-center rounded-full bg-dark text-sm font-bold text-white">
+                                    +
+                                </span>
+                                <p className="mt-1 text-xs font-semibold text-dark">Add or replace shop photos</p>
+                                <p className="text-[11px] text-gray-500">JPG/PNG, max 5 images</p>
+                            </div>
+                        </label>
+                        <input
+                            id="shop-profile-images"
                             type="file"
                             accept="image/*"
                             multiple
                             onChange={handleFileSelection}
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm"
+                            className="hidden"
                         />
-                        {uploading && <p className="mt-2 text-sm text-gray-500">Uploading images...</p>}
+                        {uploading && <p className="mt-1 text-xs text-gray-500">Uploading images...</p>}
                     </div>
 
                     {previewUrls.length > 0 && (
-                        <div className="grid grid-cols-3 gap-3 md:col-span-2 md:grid-cols-5">
+                        <div className="grid grid-cols-3 gap-2 md:col-span-2 md:grid-cols-5">
                             {previewUrls.map((url, index) => (
                                 <img
                                     key={`${url}-${index}`}
@@ -495,7 +563,7 @@ const ShopProfilePage = () => {
                                     alt={`preview-${index + 1}`}
                                     loading="lazy"
                                     decoding="async"
-                                    className="h-20 w-full rounded-lg border border-gray-200 object-cover md:h-24"
+                                    className="h-16 w-full rounded-lg border border-gray-200 object-cover sm:h-20"
                                 />
                             ))}
                         </div>
@@ -504,22 +572,12 @@ const ShopProfilePage = () => {
                     <button
                         type="submit"
                         disabled={saving || uploading}
-                        className="rounded-lg bg-dark px-5 py-3 text-sm font-semibold text-white hover:bg-primary disabled:opacity-50 md:col-span-2"
+                        className="rounded-lg bg-dark px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary disabled:opacity-50 md:col-span-2"
                     >
                         {saving ? 'Saving...' : existingShop ? 'Update Shop Profile' : 'Create Shop Profile'}
                     </button>
-                    <datalist id="shop-profile-city-suggestions">
-                        {cityOptions.map((cityOption) => (
-                            <option value={cityOption} key={cityOption} />
-                        ))}
-                    </datalist>
-                    <datalist id="shop-profile-area-suggestions">
-                        {areaOptions.map((areaOption) => (
-                            <option value={areaOption} key={areaOption} />
-                        ))}
-                    </datalist>
                 </form>
-            </div>
+            </section>
         </div>
     );
 };

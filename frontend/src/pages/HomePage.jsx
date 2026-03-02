@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Chip, TextField } from '@mui/material';
+import { useTranslation } from 'react-i18next';
+import { Button, Chip } from '@mui/material';
 import AddBoxRoundedIcon from '@mui/icons-material/AddBoxRounded';
 import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
@@ -8,6 +9,7 @@ import WindowRoundedIcon from '@mui/icons-material/WindowRounded';
 import MiscellaneousServicesRoundedIcon from '@mui/icons-material/MiscellaneousServicesRounded';
 import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard';
+import ShopCard from '../components/ShopCard';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
@@ -25,6 +27,7 @@ import {
     getCategoryLocalImage,
     handleCategoryImageError,
 } from '../utils/categoryImage';
+import SuggestionInput from '../components/SuggestionInput';
 
 const sectionMotion = {
     initial: { opacity: 1, y: 0 },
@@ -34,9 +37,20 @@ const sectionMotion = {
 };
 
 const HomePage = () => {
+    const { t } = useTranslation();
     const { showError } = useFlash();
     const selectedLocation = useMemo(
-        () => JSON.parse(localStorage.getItem('selectedLocation') || '{}'),
+        () => {
+            const ls = JSON.parse(localStorage.getItem('selectedLocation') || '{}')
+            // Fallback to location from onboarding if context not set
+            if (!ls.city) {
+                ls.city = localStorage.getItem('user_city') || '';
+            }
+            if (!ls.area) {
+                ls.area = localStorage.getItem('user_area') || '';
+            }
+            return ls;
+        },
         []
     );
     const currentUserRole = useMemo(() => {
@@ -62,6 +76,9 @@ const HomePage = () => {
     const [followedProducts, setFollowedProducts] = useState([]);
     const [randomProducts, setRandomProducts] = useState([]);
     const [randomServices, setRandomServices] = useState([]);
+    const [recentlyViewedProducts, setRecentlyViewedProducts] = useState([]);
+    const [topRatedShops, setTopRatedShops] = useState([]);
+    const [latestProducts, setLatestProducts] = useState([]);
     const [areaSlots, setAreaSlots] = useState(() => [
         initialAreaFilterState.primaryArea || '',
         initialAreaFilterState.areas[1] || '',
@@ -71,6 +88,9 @@ const HomePage = () => {
     const [loadingFollowed, setLoadingFollowed] = useState(false);
     const [loadingRandom, setLoadingRandom] = useState(false);
     const [loadingRandomServices, setLoadingRandomServices] = useState(false);
+    const [loadingRecentlyViewed, setLoadingRecentlyViewed] = useState(false);
+    const [loadingTopRatedShops, setLoadingTopRatedShops] = useState(false);
+    const [loadingLatestProducts, setLoadingLatestProducts] = useState(false);
     const { getAreaOptionsByCity } = useLocationSuggestions();
 
     const nearbyAreaOptions = useMemo(
@@ -158,6 +178,67 @@ const HomePage = () => {
         }
     };
 
+    const fetchRecentlyViewedProducts = async (areas = activeAreas) => {
+        if (!localStorage.getItem('authToken')) {
+            setRecentlyViewedProducts([]);
+            return;
+        }
+
+        try {
+            setLoadingRecentlyViewed(true);
+            const { data } = await api.get('/products/recently-viewed', {
+                params: {
+                    limit: 12,
+                    city: selectedLocation.city || undefined,
+                    areas: buildAreaQueryParam(areas),
+                },
+            });
+            setRecentlyViewedProducts(data.products || []);
+        } catch (error) {
+            setRecentlyViewedProducts([]);
+        } finally {
+            setLoadingRecentlyViewed(false);
+        }
+    };
+
+    const fetchTopRatedShops = async (areas = activeAreas) => {
+        try {
+            setLoadingTopRatedShops(true);
+            const { data } = await api.get('/shops', {
+                params: {
+                    page: 1,
+                    limit: 10,
+                    sort: 'rating_desc',
+                    city: selectedLocation.city || undefined,
+                    areas: buildAreaQueryParam(areas),
+                },
+            });
+            setTopRatedShops(data.shops || []);
+        } catch (error) {
+            setTopRatedShops([]);
+        } finally {
+            setLoadingTopRatedShops(false);
+        }
+    };
+
+    const fetchLatestProducts = async (areas = activeAreas) => {
+        try {
+            setLoadingLatestProducts(true);
+            const { data } = await api.get('/products/latest', {
+                params: {
+                    limit: 12,
+                    city: selectedLocation.city || undefined,
+                    areas: buildAreaQueryParam(areas),
+                },
+            });
+            setLatestProducts(data.products || []);
+        } catch (error) {
+            setLatestProducts([]);
+        } finally {
+            setLoadingLatestProducts(false);
+        }
+    };
+
     const fetchRandomServices = async (areas = activeAreas) => {
         try {
             setLoadingRandomServices(true);
@@ -180,6 +261,9 @@ const HomePage = () => {
         fetchHomeBanners();
         fetchCategories();
         fetchFollowedRandomProducts(activeAreas);
+        fetchRecentlyViewedProducts(activeAreas);
+        fetchTopRatedShops(activeAreas);
+        fetchLatestProducts(activeAreas);
         fetchRandomProducts(activeAreas);
         fetchRandomServices(activeAreas);
     }, []);
@@ -200,6 +284,9 @@ const HomePage = () => {
         setAreaSlots([primaryArea, nextAreas[1] || '', nextAreas[2] || '']);
         persistAreaFilterState(selectedLocation, nextAreas);
         fetchFollowedRandomProducts(nextAreas);
+        fetchRecentlyViewedProducts(nextAreas);
+        fetchTopRatedShops(nextAreas);
+        fetchLatestProducts(nextAreas);
         fetchRandomProducts(nextAreas);
         fetchRandomServices(nextAreas);
     };
@@ -233,9 +320,8 @@ const HomePage = () => {
                                         key={`${image}-dot-${index}`}
                                         type="button"
                                         onClick={() => setActiveSlide(index)}
-                                        className={`h-2.5 w-7 rounded-full transition ${
-                                            index === activeSlide ? 'bg-white' : 'bg-white/40'
-                                        }`}
+                                        className={`h-2.5 w-7 rounded-full transition ${index === activeSlide ? 'bg-white' : 'bg-white/40'
+                                            }`}
                                     />
                                 ))}
                             </div>
@@ -269,73 +355,32 @@ const HomePage = () => {
                         </div>
 
                         <div className="min-w-0 flex-[0.9]">
-                            <TextField
-                                size="small"
+                            <input
                                 value={areaSlots[0] || 'Not set'}
                                 disabled
-                                placeholder="P"
-                                sx={{
-                                    width: '100%',
-                                    '& .MuiInputBase-root': { height: 34 },
-                                    '& .MuiInputBase-input': {
-                                        py: 0.55,
-                                        px: 0.8,
-                                        fontSize: '0.74rem',
-                                        textOverflow: 'ellipsis',
-                                        overflow: 'hidden',
-                                        whiteSpace: 'nowrap',
-                                    },
-                                }}
+                                className="h-[34px] w-full rounded-md border border-gray-200 bg-gray-100 px-2.5 text-[11px] font-medium text-gray-600"
                             />
                         </div>
 
                         <div className="min-w-0 flex-1 transition-[flex] duration-200 focus-within:flex-[1.5]">
-                            <TextField
-                                size="small"
+                            <SuggestionInput
                                 value={areaSlots[1]}
-                                onChange={(event) => updateAreaSlot(1, event.target.value)}
+                                onChange={(nextValue) => updateAreaSlot(1, nextValue)}
                                 placeholder="A1"
-                                inputProps={{
-                                    list: 'home-nearby-area-suggestions',
-                                    maxLength: 70,
-                                }}
-                                sx={{
-                                    width: '100%',
-                                    '& .MuiInputBase-root': { height: 34 },
-                                    '& .MuiInputBase-input': {
-                                        py: 0.55,
-                                        px: 0.8,
-                                        fontSize: '0.74rem',
-                                        textOverflow: 'ellipsis',
-                                        overflow: 'hidden',
-                                        whiteSpace: 'nowrap',
-                                    },
-                                }}
+                                maxLength={70}
+                                options={nearbyAreaOptions}
+                                className="h-[34px] w-full rounded-md border border-gray-200 px-2.5 text-[11px] outline-none focus:border-primary"
                             />
                         </div>
 
                         <div className="min-w-0 flex-1 transition-[flex] duration-200 focus-within:flex-[1.5]">
-                            <TextField
-                                size="small"
+                            <SuggestionInput
                                 value={areaSlots[2]}
-                                onChange={(event) => updateAreaSlot(2, event.target.value)}
+                                onChange={(nextValue) => updateAreaSlot(2, nextValue)}
                                 placeholder="A2"
-                                inputProps={{
-                                    list: 'home-nearby-area-suggestions',
-                                    maxLength: 70,
-                                }}
-                                sx={{
-                                    width: '100%',
-                                    '& .MuiInputBase-root': { height: 34 },
-                                    '& .MuiInputBase-input': {
-                                        py: 0.55,
-                                        px: 0.8,
-                                        fontSize: '0.74rem',
-                                        textOverflow: 'ellipsis',
-                                        overflow: 'hidden',
-                                        whiteSpace: 'nowrap',
-                                    },
-                                }}
+                                maxLength={70}
+                                options={nearbyAreaOptions}
+                                className="h-[34px] w-full rounded-md border border-gray-200 px-2.5 text-[11px] outline-none focus:border-primary"
                             />
                         </div>
 
@@ -358,11 +403,6 @@ const HomePage = () => {
                             <span className="hidden sm:inline">Apply</span>
                         </Button>
                     </div>
-                    <datalist id="home-nearby-area-suggestions">
-                        {nearbyAreaOptions.map((areaOption) => (
-                            <option value={areaOption} key={areaOption} />
-                        ))}
-                    </datalist>
                 </div>
             </motion.section>
 
@@ -417,8 +457,8 @@ const HomePage = () => {
                 )}
                 <div className="mb-4">
                     <div className="mb-2 flex items-center justify-between gap-2">
-                        <h2 className="whitespace-nowrap text-xl font-black text-dark sm:text-3xl">
-                            Browse Categories
+                        <h2 className="whitespace-nowrap text-lg font-black text-dark sm:text-2xl">
+                            {t('categories') || 'Browse Categories'}
                         </h2>
                         <Link
                             to="/categories"
@@ -506,41 +546,139 @@ const HomePage = () => {
             </motion.section>
 
             <motion.section {...sectionMotion} className="container mx-auto px-4 py-8 md:py-10">
+                <div className="rounded-[2.5rem] bg-gradient-to-br from-primary/15 via-primary/5 to-transparent p-6 sm:p-8 border border-primary/20 shadow-lg relative overflow-hidden">
+                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/20 rounded-full blur-3xl"></div>
+                    <div className="mb-6 flex flex-wrap items-end justify-between gap-3 relative z-10">
+                        <div>
+                            <div className="inline-flex items-center gap-2 mb-2 px-3 py-1 rounded-full bg-primary/20 text-primary-dark text-xs font-bold uppercase tracking-widest">
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg>
+                                Your Feed
+                            </div>
+                            <h2 className="text-2xl font-black text-dark sm:text-3xl">Followed Shops Updates</h2>
+                        </div>
+                        {!localStorage.getItem('authToken') && (
+                            <Link to="/auth" className="text-sm font-semibold text-primary hover:underline bg-white/80 backdrop-blur px-4 py-2 rounded-xl shadow-sm">
+                                Login to see followed feed
+                            </Link>
+                        )}
+                    </div>
+
+                    <div className="relative z-10">
+
+                        {loadingFollowed && (
+                            <div className="flex gap-3 overflow-x-auto pb-2">
+                                {[...Array(4)].map((_, index) => (
+                                    <div key={index} className="min-w-[44%] sm:min-w-[30%] md:min-w-[20%]">
+                                        <Skeleton type="product" />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {!loadingFollowed && followedProducts.length === 0 && (
+                            <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
+                                Followed products available nahi hain. Shops follow karo to yahan products dikhenge.
+                            </p>
+                        )}
+
+                        {!loadingFollowed && followedProducts.length > 0 && (
+                            <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+                                {followedProducts.map((product) => (
+                                    <div
+                                        key={product._id}
+                                        className="min-w-[52%] shrink-0 snap-start sm:min-w-[35%] md:min-w-[240px] lg:min-w-[220px]"
+                                    >
+                                        <ProductCard product={product} compact desktopTall />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </motion.section>
+
+            <motion.section {...sectionMotion} className="container mx-auto px-4 py-4 md:py-6">
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
-                        <h2 className="text-2xl font-black text-dark sm:text-3xl">Followed Shops Random Picks</h2>
+                        <h2 className="text-xl font-black text-dark sm:text-2xl">Recently Viewed</h2>
                     </div>
                     {!localStorage.getItem('authToken') && (
                         <Link to="/auth" className="text-sm font-semibold text-primary hover:underline">
-                            Login to see followed feed
+                            Login to build your viewed list
                         </Link>
                     )}
                 </div>
 
-                {loadingFollowed && (
+                {loadingRecentlyViewed && (
                     <div className="flex gap-3 overflow-x-auto pb-2">
                         {[...Array(4)].map((_, index) => (
-                            <div key={index} className="min-w-[46%] sm:min-w-[32%] md:min-w-[22%]">
+                            <div key={index} className="min-w-[44%] sm:min-w-[30%] md:min-w-[20%]">
                                 <Skeleton type="product" />
                             </div>
                         ))}
                     </div>
                 )}
 
-                {!loadingFollowed && followedProducts.length === 0 && (
+                {!loadingRecentlyViewed &&
+                    localStorage.getItem('authToken') &&
+                    recentlyViewedProducts.length === 0 && (
+                        <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
+                            Aapke recently viewed products abhi empty hain.
+                        </p>
+                    )}
+
+                {!loadingRecentlyViewed && recentlyViewedProducts.length > 0 && (
+                    <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+                        {recentlyViewedProducts.map((product) => (
+                            <div
+                                key={product._id}
+                                className="min-w-[52%] shrink-0 snap-start sm:min-w-[35%] md:min-w-[240px] lg:min-w-[220px]"
+                            >
+                                <ProductCard product={product} compact desktopTall />
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </motion.section>
+
+            <motion.section {...sectionMotion} className="container mx-auto px-4 py-4 md:py-6">
+                <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                        <h2 className="text-xl font-black text-dark sm:text-2xl">
+                            Top Rated Shops Near You
+                        </h2>
+                        <p className="text-sm text-gray-500">
+                            {selectedLocation.city && activeAreas.length
+                                ? `Sorted by rating in ${areaSummary}, ${selectedLocation.city}`
+                                : 'Sorted by best ratings across all shops'}
+                        </p>
+                    </div>
+                </div>
+
+                {loadingTopRatedShops && (
+                    <div className="flex gap-3 overflow-x-auto pb-2">
+                        {[...Array(3)].map((_, index) => (
+                            <div key={index} className="min-w-[62%] sm:min-w-[45%] md:min-w-[280px]">
+                                <div className="h-[260px] animate-pulse rounded-2xl bg-gray-200" />
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {!loadingTopRatedShops && topRatedShops.length === 0 && (
                     <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
-                        Followed products available nahi hain. Shops follow karo to yahan products dikhenge.
+                        Nearby top-rated shops abhi available nahi hain.
                     </p>
                 )}
 
-                {!loadingFollowed && followedProducts.length > 0 && (
+                {!loadingTopRatedShops && topRatedShops.length > 0 && (
                     <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
-                        {followedProducts.map((product) => (
+                        {topRatedShops.map((shop) => (
                             <div
-                                key={product._id}
-                                className="min-w-[60%] shrink-0 snap-start sm:min-w-[38%] md:min-w-[280px] lg:min-w-[240px]"
+                                key={shop._id}
+                                className="min-w-[62%] shrink-0 snap-start sm:min-w-[45%] md:min-w-[280px]"
                             >
-                                <ProductCard product={product} compact desktopTall />
+                                <ShopCard shop={shop} />
                             </div>
                         ))}
                     </div>
@@ -551,10 +689,10 @@ const HomePage = () => {
                 <motion.section {...sectionMotion} className="container mx-auto px-4 py-2 md:py-4">
                     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                         <div>
-                            <h2 className="text-2xl font-black text-dark sm:text-3xl">
+                            <h2 className="text-xl font-black text-dark sm:text-2xl">
                                 Services Near You
                             </h2>
-                            
+
                         </div>
                     </div>
 
@@ -563,14 +701,14 @@ const HomePage = () => {
                             <Link
                                 key={service._id}
                                 to={`/service/${service._id}`}
-                                className="group min-w-[58%] shrink-0 snap-start overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md sm:min-w-[38%] md:min-w-[230px] lg:min-w-[220px]"
+                                className="group min-w-[50%] shrink-0 snap-start overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md sm:min-w-[34%] md:min-w-[220px] lg:min-w-[200px]"
                             >
                                 <img
                                     src={service.images?.[0] || 'https://via.placeholder.com/700x420?text=Service+Image'}
                                     alt={service.name}
                                     loading="lazy"
                                     decoding="async"
-                                    className="h-24 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-28"
+                                    className="h-20 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-24"
                                 />
                                 <div className="p-2.5">
                                     <h3 className="line-clamp-1 text-sm font-black text-dark">
@@ -586,7 +724,42 @@ const HomePage = () => {
             <motion.section {...sectionMotion} className="container mx-auto px-4 py-4">
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
-                        <h2 className="text-2xl font-black text-dark sm:text-3xl">
+                        <h2 className="text-xl font-black text-dark sm:text-2xl">
+                            Newly Added Products
+                        </h2>
+                        <p className="text-sm text-gray-500">
+                            Fresh listings from nearby shops.
+                        </p>
+                    </div>
+                </div>
+
+                {loadingLatestProducts && (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                        {[...Array(8)].map((_, index) => (
+                            <Skeleton key={index} type="product" />
+                        ))}
+                    </div>
+                )}
+
+                {!loadingLatestProducts && latestProducts.length === 0 && (
+                    <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
+                        Newly added products abhi available nahi hain.
+                    </p>
+                )}
+
+                {!loadingLatestProducts && latestProducts.length > 0 && (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                        {latestProducts.map((product) => (
+                            <ProductCard key={product._id} product={product} desktopTall />
+                        ))}
+                    </div>
+                )}
+            </motion.section>
+
+            <motion.section {...sectionMotion} className="container mx-auto px-4 py-4">
+                <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                        <h2 className="text-xl font-black text-dark sm:text-2xl">
                             Available in your nearby shops
                         </h2>
                         <p className="text-sm text-gray-500">

@@ -6,6 +6,7 @@ import { extractErrorMessage } from '../utils/errorUtils';
 import { uploadImages, validateImageFiles } from '../utils/uploadUtils';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
 import { formatProductPrice } from '../utils/productPrice';
+import SuggestionInput from '../components/SuggestionInput';
 
 const AdminDashboardPage = () => {
     const navigate = useNavigate();
@@ -317,23 +318,21 @@ const AdminDashboardPage = () => {
                             }
                             className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
                         />
-                        <input
-                            type="text"
+                        <SuggestionInput
                             placeholder="City"
-                            list="admin-city-suggestions"
                             value={profileForm.city}
-                            onChange={(event) =>
-                                setProfileForm((previous) => ({ ...previous, city: event.target.value }))
+                            options={cityOptions}
+                            onChange={(nextValue) =>
+                                setProfileForm((previous) => ({ ...previous, city: nextValue }))
                             }
                             className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
                         />
-                        <input
-                            type="text"
+                        <SuggestionInput
                             placeholder="Area"
-                            list="admin-area-suggestions"
                             value={profileForm.area}
-                            onChange={(event) =>
-                                setProfileForm((previous) => ({ ...previous, area: event.target.value }))
+                            options={areaOptions}
+                            onChange={(nextValue) =>
+                                setProfileForm((previous) => ({ ...previous, area: nextValue }))
                             }
                             className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
                         />
@@ -353,16 +352,6 @@ const AdminDashboardPage = () => {
                         >
                             {savingProfile ? 'Saving...' : 'Save Admin Profile'}
                         </button>
-                        <datalist id="admin-city-suggestions">
-                            {cityOptions.map((cityOption) => (
-                                <option value={cityOption} key={cityOption} />
-                            ))}
-                        </datalist>
-                        <datalist id="admin-area-suggestions">
-                            {areaOptions.map((areaOption) => (
-                                <option value={areaOption} key={areaOption} />
-                            ))}
-                        </datalist>
                     </form>
                 </section>
             )}

@@ -19,6 +19,7 @@ const productViewSchema = new mongoose.Schema(
 );
 
 productViewSchema.index({ product: 1, user: 1 }, { unique: true });
+productViewSchema.index({ user: 1, updatedAt: -1 });
 
 const ProductView = mongoose.model('ProductView', productViewSchema);
 export default ProductView;

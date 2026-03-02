@@ -167,10 +167,10 @@ const OwnerAddProductPage = () => {
     return (
         <div className="container mx-auto max-w-4xl px-4 py-6 md:py-8">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <h1 className="text-3xl font-black text-dark sm:text-4xl">Add New Product</h1>
+                <h1 className="text-2xl font-black text-dark sm:text-3xl">Add New Product</h1>
                 <Link
                     to="/owner/products"
-                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                 >
                     Back to Products
                 </Link>
@@ -178,17 +178,8 @@ const OwnerAddProductPage = () => {
 
             <div className="rounded-3xl border border-gray-100 bg-white p-5 sm:p-6">
                 <form onSubmit={addProduct} className="grid gap-4 md:grid-cols-2">
-                    <div className="md:col-span-2">
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Shop
-                        </label>
-                        <p className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700">
-                            {shops?.[0]?.name || 'Your Shop'} ({shops?.[0]?.category || 'General'})
-                        </p>
-                    </div>
-
                     <div>
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
                             Product Name (Optional)
                         </label>
                         <input
@@ -197,14 +188,14 @@ const OwnerAddProductPage = () => {
                             onChange={(event) =>
                                 setForm((previous) => ({ ...previous, name: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                             placeholder="e.g. Wireless Headphones (optional)"
                         />
                     </div>
 
                     <div>
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-green-700">
-                            Price (Rs) 
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
+                            Price (Rs)
                         </label>
                         <input
                             type="number"
@@ -213,17 +204,17 @@ const OwnerAddProductPage = () => {
                             onChange={(event) =>
                                 setForm((previous) => ({ ...previous, price: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-green-300 bg-green-50/40 px-4 py-3 outline-none focus:border-green-500"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                             placeholder="e.g. 999"
                         />
                     </div>
 
                     {canUseHiddenPrice && (
                         <div className="md:col-span-2">
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
                                 Price Visibility
                             </label>
-                            <label className="inline-flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                            <label className="inline-flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
                                 <span className="text-xs font-semibold text-gray-700">
                                     Hide original price from customers and competitors
                                 </span>
@@ -246,7 +237,7 @@ const OwnerAddProductPage = () => {
                     )}
 
                     <div className="md:col-span-2">
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
                             Description
                         </label>
                         <textarea
@@ -255,24 +246,37 @@ const OwnerAddProductPage = () => {
                             onChange={(event) =>
                                 setForm((previous) => ({ ...previous, description: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                             placeholder="Product details (optional)"
                         />
                     </div>
 
                     <div className="md:col-span-2">
-                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-green-700">
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
                             Product Images (1 to 5)
                         </label>
+                        <label
+                            htmlFor="owner-product-images"
+                            className="flex h-24 w-full cursor-pointer items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50/70 transition-colors hover:border-primary hover:bg-primary/5"
+                        >
+                            <div className="flex flex-col items-center gap-1 text-center">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-dark text-lg font-bold text-white">
+                                    +
+                                </span>
+                                <p className="text-xs font-semibold text-dark">Tap to add photos</p>
+                                <p className="text-[11px] text-gray-500">PNG/JPG, max 5 images</p>
+                            </div>
+                        </label>
                         <input
+                            id="owner-product-images"
                             type="file"
                             accept="image/*"
                             multiple
                             onChange={handleFileSelection}
-                            className="w-full rounded-lg border border-green-300 bg-green-50/40 px-4 py-3 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-green-600 file:px-3 file:py-1.5 file:font-semibold file:text-white hover:file:bg-green-700"
+                            className="hidden"
                         />
                         {(uploading || saving) && (
-                            <p className="mt-2 text-sm text-gray-500">
+                            <p className="mt-2 text-xs text-gray-500">
                                 {uploading ? 'Uploading images...' : 'Saving product...'}
                             </p>
                         )}
@@ -287,7 +291,7 @@ const OwnerAddProductPage = () => {
                                     alt={`preview-${index + 1}`}
                                     loading="lazy"
                                     decoding="async"
-                                    className="h-24 w-full rounded-lg border border-gray-200 object-cover"
+                                    className="h-20 w-full rounded-lg border border-gray-200 object-cover"
                                 />
                             ))}
                         </div>

@@ -73,9 +73,8 @@ const ServiceDetailsPage = () => {
                                     key={image}
                                     type="button"
                                     onClick={() => setMainImage(image)}
-                                    className={`overflow-hidden rounded-lg border ${
-                                        mainImage === image ? 'border-primary' : 'border-gray-200'
-                                    }`}
+                                    className={`overflow-hidden rounded-lg border ${mainImage === image ? 'border-primary' : 'border-gray-200'
+                                        }`}
                                 >
                                     <img
                                         src={image}
@@ -127,12 +126,19 @@ const ServiceDetailsPage = () => {
                     </div>
 
                     {service.shop?._id && (
-                        <div className="mt-6">
+                        <div className="mt-8 flex flex-wrap gap-4">
+                            <button
+                                type="button"
+                                className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:shadow-primary/30"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                Book Service Now
+                            </button>
                             <Link
                                 to={`/shop/${service.shop._id}`}
-                                className="inline-flex rounded-lg bg-dark px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary"
+                                className="inline-flex items-center justify-center rounded-xl bg-dark px-6 py-3 text-sm font-bold text-white shadow-lg transition-colors hover:bg-gray-800 hover:shadow-gray-800/30"
                             >
-                                Open Shop Profile
+                                View Shop Profile
                             </Link>
                         </div>
                     )}

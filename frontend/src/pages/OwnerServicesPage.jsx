@@ -4,6 +4,7 @@ import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { formatServicePrice } from '../utils/servicePrice';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const OwnerServicesPage = () => {
     const navigate = useNavigate();
@@ -12,8 +13,13 @@ const OwnerServicesPage = () => {
     const [profileRole, setProfileRole] = useState('user');
     const [shops, setShops] = useState([]);
     const [services, setServices] = useState([]);
+    const [servicesSummary, setServicesSummary] = useState({
+        totalServices: 0,
+        totalViews: 0,
+    });
     const [selectedShopId, setSelectedShopId] = useState('');
     const [deletingServiceId, setDeletingServiceId] = useState('');
+    const [serviceIdToDelete, setServiceIdToDelete] = useState('');
 
     const canManageItems = useMemo(
         () => ['shop_owner', 'admin'].includes(profileRole),
@@ -23,6 +29,10 @@ const OwnerServicesPage = () => {
     const selectedShop = useMemo(
         () => shops.find((shop) => shop._id === selectedShopId) || null,
         [shops, selectedShopId]
+    );
+    const serviceToDelete = useMemo(
+        () => services.find((service) => service._id === serviceIdToDelete) || null,
+        [services, serviceIdToDelete]
     );
 
     const fetchServicesForShop = async (shopId) => {
@@ -38,6 +48,10 @@ const OwnerServicesPage = () => {
                 },
             });
             setServices(data.services || []);
+            setServicesSummary({
+                totalServices: Number(data.summary?.totalServices || 0),
+                totalViews: Number(data.summary?.totalViews || 0),
+            });
         } catch (error) {
             showError(extractErrorMessage(error, 'Unable to load services'));
         }
@@ -67,6 +81,10 @@ const OwnerServicesPage = () => {
                 await fetchServicesForShop(defaultShopId);
             } else {
                 setServices([]);
+                setServicesSummary({
+                    totalServices: 0,
+                    totalViews: 0,
+                });
             }
         } catch (error) {
             showError(extractErrorMessage(error, 'Unable to load owner services page'));
@@ -85,16 +103,25 @@ const OwnerServicesPage = () => {
         fetchServicesForShop(shopId);
     };
 
-    const deleteService = async (serviceId) => {
+    const requestDeleteService = (serviceId) => {
+        setServiceIdToDelete(serviceId);
+    };
+
+    const deleteService = async () => {
+        if (!serviceIdToDelete) {
+            return;
+        }
+
         try {
-            setDeletingServiceId(serviceId);
-            await api.delete(`/services/${serviceId}`);
+            setDeletingServiceId(serviceIdToDelete);
+            await api.delete(`/services/${serviceIdToDelete}`);
             showSuccess('Service deleted');
             await fetchServicesForShop(selectedShopId);
         } catch (error) {
             showError(extractErrorMessage(error, 'Unable to delete service'));
         } finally {
             setDeletingServiceId('');
+            setServiceIdToDelete('');
         }
     };
 
@@ -123,20 +150,6 @@ const OwnerServicesPage = () => {
                     <h1 className="text-3xl font-black text-dark sm:text-4xl">Services Manager</h1>
                     <p className="text-sm text-gray-500">Apni services ki pricing aur details yahan manage karein.</p>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                    <Link
-                        to="/owner/products"
-                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                        Manage Products
-                    </Link>
-                    <Link
-                        to="/owner/shop"
-                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                        Shop Dashboard
-                    </Link>
-                </div>
             </div>
 
             {shops.length === 0 && (
@@ -158,7 +171,7 @@ const OwnerServicesPage = () => {
                             <div>
                                 <h2 className="text-2xl font-black text-dark">Service List</h2>
                                 <p className="text-sm text-gray-500">
-                                    Selected shop category: {selectedShop?.category || '-'}
+                                    {servicesSummary.totalServices} services | {servicesSummary.totalViews} total views
                                 </p>
                             </div>
                             <Link
@@ -167,23 +180,6 @@ const OwnerServicesPage = () => {
                             >
                                 Add Service
                             </Link>
-                        </div>
-
-                        <div className="mb-5 md:max-w-sm">
-                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Select Shop
-                            </label>
-                            <select
-                                value={selectedShopId}
-                                onChange={handleShopChange}
-                                className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
-                            >
-                                {shops.map((shop) => (
-                                    <option value={shop._id} key={shop._id}>
-                                        {shop.name} ({shop.category})
-                                    </option>
-                                ))}
-                            </select>
                         </div>
 
                         {services.length === 0 && (
@@ -212,6 +208,9 @@ const OwnerServicesPage = () => {
                                                 <p className="text-sm text-gray-500">
                                                     {formatServicePrice(service)} | {service.category}
                                                 </p>
+                                                <p className="text-xs font-medium text-gray-500">
+                                                    {service.viewsCount || 0} views
+                                                </p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -223,7 +222,7 @@ const OwnerServicesPage = () => {
                                             </Link>
                                             <button
                                                 type="button"
-                                                onClick={() => deleteService(service._id)}
+                                                onClick={() => requestDeleteService(service._id)}
                                                 disabled={deletingServiceId === service._id}
                                                 className="rounded-lg border border-red-200 px-3 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
                                             >
@@ -237,6 +236,22 @@ const OwnerServicesPage = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={Boolean(serviceIdToDelete)}
+                title="Delete Service?"
+                message={`Do you really want to delete "${serviceToDelete?.name || 'this service'}"?`}
+                confirmLabel="Delete"
+                cancelLabel="Cancel"
+                onConfirm={deleteService}
+                onCancel={() => {
+                    if (!deletingServiceId) {
+                        setServiceIdToDelete('');
+                    }
+                }}
+                loading={deletingServiceId === serviceIdToDelete}
+                danger
+            />
         </div>
     );
 };

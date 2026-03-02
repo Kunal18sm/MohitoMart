@@ -51,7 +51,7 @@ export const useLocationSuggestions = () => {
             try {
                 const { data } = await api.get('/shops/locations', {
                     params: {
-                        limit: 1000,
+                        limit: 400,
                     },
                 });
 

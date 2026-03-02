@@ -17,6 +17,7 @@ const ProductDetailsPage = () => {
     const [isFollowed, setIsFollowed] = useState(false);
     const [followLoading, setFollowLoading] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [addingToCart, setAddingToCart] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [shopGalleryIndex, setShopGalleryIndex] = useState(0);
@@ -92,6 +93,30 @@ const ProductDetailsPage = () => {
             showError(extractErrorMessage(err, 'Unable to delete product'));
         } finally {
             setDeleteLoading(false);
+        }
+    };
+
+    const handleAddToCart = async () => {
+        if (!product?._id) {
+            return;
+        }
+
+        if (!localStorage.getItem('authToken')) {
+            navigate('/auth');
+            return;
+        }
+
+        try {
+            setAddingToCart(true);
+            await api.post('/cart/items', {
+                productId: product._id,
+                qty: 1,
+            });
+            showSuccess('Added to wishlist');
+        } catch (err) {
+            showError(extractErrorMessage(err, 'Unable to add to wishlist'));
+        } finally {
+            setAddingToCart(false);
         }
     };
 
@@ -200,6 +225,14 @@ const ProductDetailsPage = () => {
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2.5">
+                        <button
+                            type="button"
+                            onClick={handleAddToCart}
+                            disabled={addingToCart}
+                            className="inline-flex rounded-lg border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 sm:text-sm disabled:opacity-60"
+                        >
+                            {addingToCart ? 'Adding...' : 'Add to Wishlist'}
+                        </button>
                         {product.shop?._id && (
                             <Link
                                 to={`/shop/${product.shop._id}`}

@@ -4,6 +4,9 @@ import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
+import { detectDeviceLocation } from '../utils/deviceLocation';
+import { GoogleLogin } from '@react-oauth/google';
+import SuggestionInput from '../components/SuggestionInput';
 
 const getRedirectPathByRole = (role) => {
     if (role === 'admin') {
@@ -17,21 +20,42 @@ const getRedirectPathByRole = (role) => {
     return '/';
 };
 
+const hasValidLocation = (location) => {
+    const city = String(location?.city || '').trim();
+    const area = String(location?.area || '').trim();
+    return Boolean(city && area);
+};
+
+const resolveOnboardingComplete = (payload = {}) => {
+    if (payload.role && payload.role !== 'user') {
+        return true;
+    }
+
+    const hasProfileLocation = hasValidLocation(payload.location);
+    if (typeof payload.onboardingCompleted === 'boolean') {
+        return payload.onboardingCompleted || hasProfileLocation;
+    }
+
+    return hasProfileLocation;
+};
+
 const AuthPage = () => {
     const navigate = useNavigate();
     const { showError, showSuccess } = useFlash();
     const [mode, setMode] = useState('login');
     const [loading, setLoading] = useState(false);
+    const [detectingLocation, setDetectingLocation] = useState(false);
     const [error, setError] = useState('');
     const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
 
     const [loginData, setLoginData] = useState({
-        email: '',
+        identifier: '',
         password: '',
     });
 
     const [registerData, setRegisterData] = useState({
         name: '',
+        username: '',
         email: '',
         password: '',
         city: '',
@@ -45,18 +69,55 @@ const AuthPage = () => {
     );
 
     useEffect(() => {
-        const token = localStorage.getItem('authToken');
-        if (!token) {
+        const hasSession = Boolean(localStorage.getItem('authToken'));
+        if (!hasSession) {
             return;
         }
 
-        const storedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+        let storedProfile = {};
+        try {
+            storedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+        } catch (error) {
+            storedProfile = {};
+        }
         navigate(getRedirectPathByRole(storedProfile.role), { replace: true });
     }, [navigate]);
 
+    useEffect(() => {
+        if (mode !== 'register') {
+            return;
+        }
+
+        let storedLocation = {};
+        try {
+            storedLocation = JSON.parse(localStorage.getItem('selectedLocation') || '{}');
+        } catch (parseError) {
+            storedLocation = {};
+        }
+        const city = String(storedLocation.city || localStorage.getItem('user_city') || '').trim();
+        const area = String(storedLocation.area || localStorage.getItem('user_area') || '').trim();
+
+        if (!city || !area) {
+            return;
+        }
+
+        setRegisterData((previous) => ({
+            ...previous,
+            city: previous.city || city,
+            area: previous.area || area,
+        }));
+    }, [mode]);
+
     const persistAuth = (payload) => {
-        if (payload.token) {
-            localStorage.setItem('authToken', payload.token);
+        localStorage.setItem('authToken', 'session');
+
+        const onboardingCompleted = resolveOnboardingComplete(payload);
+        localStorage.setItem('onboarding_complete', onboardingCompleted ? 'true' : 'false');
+
+        if (payload.locationPermissionGranted) {
+            localStorage.setItem('location_permission_granted', 'true');
+        } else {
+            localStorage.removeItem('location_permission_granted');
         }
 
         localStorage.setItem(
@@ -83,11 +144,52 @@ const AuthPage = () => {
         window.dispatchEvent(new Event('storage'));
     };
 
+    const persistGuestLocation = ({ city, area, latitude, longitude }) => {
+        localStorage.setItem('user_city', city);
+        localStorage.setItem('user_area', area);
+        localStorage.setItem('user_lat', String(latitude));
+        localStorage.setItem('user_lon', String(longitude));
+        localStorage.setItem(
+            'selectedLocation',
+            JSON.stringify({
+                city,
+                area,
+            })
+        );
+        window.dispatchEvent(new Event('storage'));
+    };
+
+    const autofillLocationFromDevice = async () => {
+        try {
+            setDetectingLocation(true);
+            const detected = await detectDeviceLocation({ timeoutMs: 15000 });
+            setRegisterData((previous) => ({
+                ...previous,
+                city: detected.city,
+                area: detected.area,
+            }));
+            persistGuestLocation(detected);
+            if (detected.isApproximate) {
+                showSuccess(
+                    `Approximate location: ${detected.area}, ${detected.city}. Please verify area.`
+                );
+            } else {
+                showSuccess(`Location detected: ${detected.area}, ${detected.city}`);
+            }
+        } catch (err) {
+            const message = extractErrorMessage(err, 'Unable to detect your location');
+            setError(message);
+            showError(message);
+        } finally {
+            setDetectingLocation(false);
+        }
+    };
+
     const handleLogin = async (event) => {
         event.preventDefault();
 
-        if (!loginData.email.trim() || !loginData.password.trim()) {
-            const message = 'Email and password are required';
+        if (!loginData.identifier.trim() || !loginData.password.trim()) {
+            const message = 'Username/Email and password are required';
             setError(message);
             showError(message);
             return;
@@ -97,7 +199,7 @@ const AuthPage = () => {
             setLoading(true);
             setError('');
             const { data } = await api.post('/auth/login', {
-                email: loginData.email.trim(),
+                identifier: loginData.identifier.trim(),
                 password: loginData.password,
             });
             persistAuth(data);
@@ -110,11 +212,35 @@ const AuthPage = () => {
         }
     };
 
+    const handleGoogleSuccess = async (credentialResponse) => {
+        try {
+            setLoading(true);
+            setError('');
+            const { data } = await api.post('/auth/google', {
+                credential: credentialResponse.credential
+            });
+            persistAuth(data);
+            showSuccess('Google Login successful');
+            navigate(getRedirectPathByRole(data.role), { replace: true });
+        } catch (err) {
+            setError(extractErrorMessage(err, 'Google authentication failed'));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleError = () => {
+        const msg = 'Google authentication failed. Please try again.';
+        setError(msg);
+        showError(msg);
+    };
+
     const handleRegister = async (event) => {
         event.preventDefault();
 
         const payload = {
             name: registerData.name.trim(),
+            username: registerData.username.trim(),
             email: registerData.email.trim(),
             password: registerData.password,
             city: registerData.city.trim(),
@@ -122,8 +248,8 @@ const AuthPage = () => {
             role: registerData.role,
         };
 
-        if (!payload.name || !payload.email || !payload.password || !payload.city || !payload.area) {
-            const message = 'Name, email, password, city and area are required';
+        if (!payload.name || !payload.username || !payload.email || !payload.password || !payload.city || !payload.area) {
+            const message = 'Name, username, email, password, city and area are required';
             setError(message);
             showError(message);
             return;
@@ -157,18 +283,16 @@ const AuthPage = () => {
                     <button
                         type="button"
                         onClick={() => setMode('login')}
-                        className={`rounded-full px-5 py-2 text-sm font-semibold ${
-                            mode === 'login' ? 'bg-dark text-white' : 'bg-light text-gray-600'
-                        }`}
+                        className={`rounded-full px-5 py-2 text-sm font-semibold ${mode === 'login' ? 'bg-dark text-white' : 'bg-light text-gray-600'
+                            }`}
                     >
                         Login
                     </button>
                     <button
                         type="button"
                         onClick={() => setMode('register')}
-                        className={`rounded-full px-5 py-2 text-sm font-semibold ${
-                            mode === 'register' ? 'bg-dark text-white' : 'bg-light text-gray-600'
-                        }`}
+                        className={`rounded-full px-5 py-2 text-sm font-semibold ${mode === 'register' ? 'bg-dark text-white' : 'bg-light text-gray-600'
+                            }`}
                     >
                         Signup
                     </button>
@@ -178,15 +302,16 @@ const AuthPage = () => {
 
                 {mode === 'login' && (
                     <form onSubmit={handleLogin} className="space-y-4">
-                        <h1 className="text-3xl font-black text-dark">Login</h1>
+                        <h1 className="text-2xl font-black text-dark sm:text-3xl">Login</h1>
+
                         <input
-                            type="email"
-                            placeholder="Email"
-                            value={loginData.email}
+                            type="text"
+                            placeholder="Email or Username"
+                            value={loginData.identifier}
                             onChange={(event) =>
-                                setLoginData((prev) => ({ ...prev, email: event.target.value }))
+                                setLoginData((prev) => ({ ...prev, identifier: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                         />
                         <input
                             type="password"
@@ -195,7 +320,7 @@ const AuthPage = () => {
                             onChange={(event) =>
                                 setLoginData((prev) => ({ ...prev, password: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                         />
                         <button
                             type="submit"
@@ -204,12 +329,35 @@ const AuthPage = () => {
                         >
                             {loading ? 'Please wait...' : 'Login'}
                         </button>
+
+                        <div className="relative flex items-center py-4">
+                            <div className="flex-grow border-t border-gray-200"></div>
+                            <span className="shrink-0 px-4 text-sm text-gray-500">Or continue with</span>
+                            <div className="flex-grow border-t border-gray-200"></div>
+                        </div>
+
+                        <div className="flex justify-center">
+                            <GoogleLogin
+                                onSuccess={handleGoogleSuccess}
+                                onError={handleGoogleError}
+                                useOneTap
+                            />
+                        </div>
                     </form>
                 )}
 
                 {mode === 'register' && (
                     <form onSubmit={handleRegister} className="space-y-4">
-                        <h1 className="text-3xl font-black text-dark">Create Account</h1>
+                        <h1 className="text-2xl font-black text-dark sm:text-3xl">Create Account</h1>
+
+                        <button
+                            type="button"
+                            onClick={autofillLocationFromDevice}
+                            disabled={detectingLocation}
+                            className="inline-flex items-center rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-60"
+                        >
+                            {detectingLocation ? 'Detecting location...' : 'Use my current location'}
+                        </button>
                         <input
                             type="text"
                             placeholder="Full name"
@@ -217,7 +365,16 @@ const AuthPage = () => {
                             onChange={(event) =>
                                 setRegisterData((prev) => ({ ...prev, name: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                        />
+                        <input
+                            type="text"
+                            placeholder="Username"
+                            value={registerData.username}
+                            onChange={(event) =>
+                                setRegisterData((prev) => ({ ...prev, username: event.target.value }))
+                            }
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                         />
                         <input
                             type="email"
@@ -226,7 +383,7 @@ const AuthPage = () => {
                             onChange={(event) =>
                                 setRegisterData((prev) => ({ ...prev, email: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                         />
                         <input
                             type="password"
@@ -235,28 +392,26 @@ const AuthPage = () => {
                             onChange={(event) =>
                                 setRegisterData((prev) => ({ ...prev, password: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                         />
                         <div className="grid gap-3 md:grid-cols-2">
-                            <input
-                                type="text"
-                                placeholder="City"
+                            <SuggestionInput
                                 value={registerData.city}
-                                list="auth-city-suggestions"
-                                onChange={(event) =>
-                                    setRegisterData((prev) => ({ ...prev, city: event.target.value }))
+                                placeholder="City"
+                                options={cityOptions}
+                                onChange={(nextValue) =>
+                                    setRegisterData((prev) => ({ ...prev, city: nextValue }))
                                 }
-                                className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                             />
-                            <input
-                                type="text"
-                                placeholder="Area"
+                            <SuggestionInput
                                 value={registerData.area}
-                                list="auth-area-suggestions"
-                                onChange={(event) =>
-                                    setRegisterData((prev) => ({ ...prev, area: event.target.value }))
+                                placeholder="Area"
+                                options={areaOptions}
+                                onChange={(nextValue) =>
+                                    setRegisterData((prev) => ({ ...prev, area: nextValue }))
                                 }
-                                className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                             />
                         </div>
                         <select
@@ -264,7 +419,7 @@ const AuthPage = () => {
                             onChange={(event) =>
                                 setRegisterData((prev) => ({ ...prev, role: event.target.value }))
                             }
-                            className="w-full rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
                         >
                             <option value="user">I am a customer</option>
                             <option value="shop_owner">I am a shop owner</option>
@@ -276,16 +431,20 @@ const AuthPage = () => {
                         >
                             {loading ? 'Please wait...' : 'Signup'}
                         </button>
-                        <datalist id="auth-city-suggestions">
-                            {cityOptions.map((cityOption) => (
-                                <option value={cityOption} key={cityOption} />
-                            ))}
-                        </datalist>
-                        <datalist id="auth-area-suggestions">
-                            {areaOptions.map((areaOption) => (
-                                <option value={areaOption} key={areaOption} />
-                            ))}
-                        </datalist>
+
+                        <div className="relative flex items-center py-4">
+                            <div className="flex-grow border-t border-gray-200"></div>
+                            <span className="shrink-0 px-4 text-sm text-gray-500">Or continue with</span>
+                            <div className="flex-grow border-t border-gray-200"></div>
+                        </div>
+
+                        <div className="flex justify-center">
+                            <GoogleLogin
+                                onSuccess={handleGoogleSuccess}
+                                onError={handleGoogleError}
+                                useOneTap
+                            />
+                        </div>
                     </form>
                 )}
             </div>

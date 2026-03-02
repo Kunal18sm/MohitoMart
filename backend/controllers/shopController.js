@@ -8,7 +8,6 @@ import { SHOP_CATEGORIES, normalizeCategory } from '../constants/shopCategories.
 import { destroyCloudinaryImages } from '../utils/cloudinaryCleanup.js';
 import {
     buildLocationFieldClause,
-    normalizeLocationKey,
     normalizeLocationLabel,
 } from '../utils/locationNormalizer.js';
 
@@ -70,6 +69,14 @@ const getFollowedShopIdsForUser = async (userId) => {
     return new Set(user?.followedShops?.map((shopId) => shopId.toString()) || []);
 };
 
+const LOCATION_SUGGESTION_CACHE_TTL_MS = 5 * 60 * 1000;
+const locationSuggestionCache = new Map();
+
+const getLocationSuggestionCacheKey = (limit) => `locations:${limit}`;
+const clearLocationSuggestionCache = () => {
+    locationSuggestionCache.clear();
+};
+
 const recalculateShopRating = async (shopId) => {
     const [stats] = await ShopRating.aggregate([
         { $match: { shop: new mongoose.Types.ObjectId(shopId) } },
@@ -93,6 +100,20 @@ const recalculateShopRating = async (shopId) => {
             select: 'rating numRatings',
         }
     );
+};
+
+const resolveShopSort = (sortValue) => {
+    const normalized = String(sortValue || 'latest').trim().toLowerCase();
+    const sortMap = {
+        latest: { createdAt: -1 },
+        oldest: { createdAt: 1 },
+        rating_desc: { rating: -1, numRatings: -1, createdAt: -1 },
+        rating_asc: { rating: 1, createdAt: -1 },
+        name_asc: { name: 1 },
+        name_desc: { name: -1 },
+    };
+
+    return sortMap[normalized] || sortMap.latest;
 };
 
 // @desc    Get shop categories
@@ -131,55 +152,82 @@ export const getShopCategories = async (req, res, next) => {
 export const getShopLocations = async (req, res, next) => {
     try {
         const limit = Math.min(Math.max(Number(req.query.limit || 500), 1), 2000);
+        const cacheKey = getLocationSuggestionCacheKey(limit);
+        const cacheEntry = locationSuggestionCache.get(cacheKey);
+        if (cacheEntry && cacheEntry.expiresAt > Date.now()) {
+            return res.status(200).json(cacheEntry.payload);
+        }
 
-        const rawLocations = await Shop.find({})
-            .select('location.city location.area')
-            .lean();
-
-        const groupedLocations = new Map();
-        rawLocations.forEach((shop) => {
-            const normalizedCity = normalizeLocationLabel(shop?.location?.city);
-            const normalizedArea = normalizeLocationLabel(shop?.location?.area);
-
-            if (!normalizedCity || !normalizedArea) {
-                return;
-            }
-
-            const locationKey = `${normalizeLocationKey(normalizedCity)}|${normalizeLocationKey(normalizedArea)}`;
-            const existing = groupedLocations.get(locationKey);
-
-            if (!existing) {
-                groupedLocations.set(locationKey, {
-                    city: normalizedCity,
-                    area: normalizedArea,
+        const groupedLocations = await Shop.aggregate([
+            {
+                $project: {
+                    city: {
+                        $trim: {
+                            input: { $ifNull: ['$location.city', ''] },
+                        },
+                    },
+                    area: {
+                        $trim: {
+                            input: { $ifNull: ['$location.area', ''] },
+                        },
+                    },
+                },
+            },
+            {
+                $match: {
+                    city: { $ne: '' },
+                    area: { $ne: '' },
+                },
+            },
+            {
+                $addFields: {
+                    cityKey: { $toLower: '$city' },
+                    areaKey: { $toLower: '$area' },
+                },
+            },
+            {
+                $group: {
+                    _id: {
+                        city: '$cityKey',
+                        area: '$areaKey',
+                    },
+                    city: { $first: '$city' },
+                    area: { $first: '$area' },
+                    totalShops: { $sum: 1 },
+                },
+            },
+            {
+                $project: {
+                    _id: 0,
+                    city: 1,
+                    area: 1,
                     totalShops: 1,
-                });
-                return;
-            }
+                },
+            },
+            { $sort: { city: 1, area: 1 } },
+            { $limit: limit },
+        ]);
 
-            existing.totalShops += 1;
-        });
-
-        const locations = [...groupedLocations.values()]
-            .sort((left, right) => {
-                const cityComparison = left.city.localeCompare(right.city, undefined, {
-                    sensitivity: 'base',
-                });
-                if (cityComparison !== 0) {
-                    return cityComparison;
-                }
-                return left.area.localeCompare(right.area, undefined, { sensitivity: 'base' });
-            })
-            .slice(0, limit);
+        const locations = groupedLocations.map((entry) => ({
+            city: normalizeLocationLabel(entry.city),
+            area: normalizeLocationLabel(entry.area),
+            totalShops: Number(entry.totalShops || 0),
+        }));
 
         const cities = [...new Set(locations.map((entry) => entry.city))];
         const areas = [...new Set(locations.map((entry) => entry.area))];
-
-        res.status(200).json({
+        const payload = {
             locations,
             cities,
             areas,
+        };
+
+        locationSuggestionCache.set(cacheKey, {
+            expiresAt: Date.now() + LOCATION_SUGGESTION_CACHE_TTL_MS,
+            payload,
         });
+
+        res.status(200).json(payload);
     } catch (error) {
         next(error);
     }
@@ -190,7 +238,7 @@ export const getShopLocations = async (req, res, next) => {
 // @access  Public
 export const getShops = async (req, res, next) => {
     try {
-        const { city, area, areas, category, keyword } = req.query;
+        const { city, area, areas, category, keyword, sort } = req.query;
         const page = Math.max(Number(req.query.page || 1), 1);
         const limit = Math.min(Math.max(Number(req.query.limit || 12), 1), 50);
         const skip = (page - 1) * limit;
@@ -227,6 +275,8 @@ export const getShops = async (req, res, next) => {
             filters.name = { $regex: escapeRegex(keyword), $options: 'i' };
         }
 
+        const sortClause = resolveShopSort(sort);
+
         const [count, shops] = await Promise.all([
             Shop.countDocuments(filters),
             Shop.find(filters)
@@ -234,7 +284,7 @@ export const getShops = async (req, res, next) => {
                     'owner name category location images mobile mapUrl description allowPriceHide rating numRatings createdAt'
                 )
                 .populate('owner', 'name')
-                .sort({ createdAt: -1 })
+                .sort(sortClause)
                 .skip(skip)
                 .limit(limit)
                 .lean(),
@@ -323,9 +373,9 @@ export const createShop = async (req, res, next) => {
         const normalizedCity = normalizeLocationLabel(city);
         const normalizedArea = normalizeLocationLabel(area);
 
-        if (!name || !category || !normalizedCity || !normalizedArea || !mapUrl) {
+        if (!name || !category || !normalizedCity || !normalizedArea) {
             res.status(400);
-            throw new Error('name, category, city, area and mapUrl are required');
+            throw new Error('name, category, city and area are required');
         }
 
         const normalizedCategory = normalizeCategory(category);
@@ -355,9 +405,10 @@ export const createShop = async (req, res, next) => {
             },
             images: normalizedImages,
             mobile: mobile || '',
-            mapUrl,
+            mapUrl: mapUrl || '',
             description: description || '',
         });
+        clearLocationSuggestionCache();
 
         res.status(201).json(shop);
     } catch (error) {
@@ -420,7 +471,7 @@ export const updateShop = async (req, res, next) => {
                 req.body.address !== undefined ? req.body.address : shop.location.address,
         };
         shop.mobile = req.body.mobile !== undefined ? req.body.mobile : shop.mobile;
-        shop.mapUrl = req.body.mapUrl || shop.mapUrl;
+        shop.mapUrl = req.body.mapUrl !== undefined ? req.body.mapUrl : shop.mapUrl;
         shop.description =
             req.body.description !== undefined ? req.body.description : shop.description;
         const previousAllowPriceHide = Boolean(shop.allowPriceHide);
@@ -430,6 +481,7 @@ export const updateShop = async (req, res, next) => {
         }
 
         const updatedShop = await shop.save();
+        clearLocationSuggestionCache();
 
         if (previousAllowPriceHide && !updatedShop.allowPriceHide) {
             await Product.updateMany(
@@ -449,7 +501,7 @@ export const updateShop = async (req, res, next) => {
     }
 };
 
-// @desc    Rate a shop (1-5) with optional comment
+// @desc    Rate a shop (1-5) with comment
 // @route   POST /api/shops/:id/rate
 // @access  Private
 export const rateShop = async (req, res, next) => {
@@ -467,6 +519,11 @@ export const rateShop = async (req, res, next) => {
             res.status(400);
             throw new Error('rating must be between 1 and 5');
         }
+        const normalizedComment = String(comment || '').trim();
+        if (!normalizedComment) {
+            res.status(400);
+            throw new Error('comment is required');
+        }
 
         const existingRating = await ShopRating.findOne({
             shop: req.params.id,
@@ -475,14 +532,14 @@ export const rateShop = async (req, res, next) => {
 
         if (existingRating) {
             existingRating.rating = numericRating;
-            existingRating.comment = comment || '';
+            existingRating.comment = normalizedComment;
             await existingRating.save();
         } else {
             await ShopRating.create({
                 shop: req.params.id,
                 user: req.user._id,
                 rating: numericRating,
-                comment: comment || '',
+                comment: normalizedComment,
             });
         }
 

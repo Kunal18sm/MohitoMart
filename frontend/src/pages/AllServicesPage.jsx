@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Chip, FormControl, InputLabel, MenuItem, Select } from '@mui/material';
-import KeyboardBackspaceRoundedIcon from '@mui/icons-material/KeyboardBackspaceRounded';
 import MiscellaneousServicesRoundedIcon from '@mui/icons-material/MiscellaneousServicesRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
@@ -11,6 +10,8 @@ import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { formatServicePrice } from '../utils/servicePrice';
 import { buildAreaQueryParam, formatAreaSummary, getAreaFilterState } from '../utils/areaFilters';
+
+const PAGE_SIZE = 20;
 
 const AllServicesPage = () => {
     const { showError } = useFlash();
@@ -28,51 +29,51 @@ const AllServicesPage = () => {
     );
 
     const [selectedCategory, setSelectedCategory] = useState('all');
+    const [keyword, setKeyword] = useState('');
+    const [sortBy, setSortBy] = useState('latest');
     const [categories, setCategories] = useState([]);
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
 
-    const fetchAllServices = async () => {
+    const fetchServicesPage = async (targetPage = 1, { reset = false } = {}) => {
         try {
-            setLoading(true);
+            if (reset) {
+                setLoading(true);
+            } else {
+                setLoadingMore(true);
+            }
 
             const params = {
                 city: areaFilterState.city || undefined,
                 areas: buildAreaQueryParam(areaFilterState.areas),
                 category: selectedCategory !== 'all' ? selectedCategory : undefined,
-                page: 1,
-                limit: 50,
+                keyword: keyword.trim() || undefined,
+                sort: sortBy,
+                page: targetPage,
+                limit: PAGE_SIZE,
             };
 
-            const { data: firstPage } = await api.get('/services', { params });
-            let allServices = firstPage.services || [];
-            const totalPages = Number(firstPage.pages || 1);
+            const { data } = await api.get('/services', { params });
+            const nextServices = Array.isArray(data.services) ? data.services : [];
+            const totalPages = Number(data.pages || 1);
 
-            if (totalPages > 1) {
-                const requests = [];
-                for (let page = 2; page <= totalPages; page += 1) {
-                    requests.push(
-                        api.get('/services', {
-                            params: {
-                                ...params,
-                                page,
-                            },
-                        })
-                    );
-                }
-
-                const responses = await Promise.all(requests);
-                responses.forEach(({ data }) => {
-                    allServices = allServices.concat(data.services || []);
-                });
-            }
-
-            setServices(allServices);
+            setServices((previous) => (reset ? nextServices : previous.concat(nextServices)));
+            setCurrentPage(targetPage);
+            setHasMore(targetPage < totalPages);
         } catch (error) {
-            setServices([]);
+            if (reset) {
+                setServices([]);
+            }
             showError(extractErrorMessage(error, 'Unable to load services'));
         } finally {
-            setLoading(false);
+            if (reset) {
+                setLoading(false);
+            } else {
+                setLoadingMore(false);
+            }
         }
     };
 
@@ -87,12 +88,20 @@ const AllServicesPage = () => {
 
     useEffect(() => {
         fetchServiceCategories();
-        fetchAllServices();
+        fetchServicesPage(1, { reset: true });
     }, []);
 
     const applyFilters = (event) => {
         event.preventDefault();
-        fetchAllServices();
+        fetchServicesPage(1, { reset: true });
+    };
+
+    const loadMore = () => {
+        if (!hasMore || loadingMore) {
+            return;
+        }
+
+        fetchServicesPage(currentPage + 1);
     };
 
     return (
@@ -114,25 +123,12 @@ const AllServicesPage = () => {
                             bgcolor: 'rgba(255,255,255,0.86)',
                         }}
                     />
-                    <Button
-                        component={Link}
-                        to="/"
-                        variant="outlined"
-                        startIcon={<KeyboardBackspaceRoundedIcon />}
-                        sx={{
-                            borderRadius: '999px',
-                            textTransform: 'none',
-                            fontWeight: 700,
-                        }}
-                    >
-                        Back to Home
-                    </Button>
                 </div>
             </div>
 
             <form
                 onSubmit={applyFilters}
-                className="mb-6 grid gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm md:grid-cols-[1fr_auto]"
+                className="mb-4 grid gap-2 rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm md:grid-cols-4"
             >
                 <FormControl size="small">
                     <InputLabel id="service-category-filter-label">Category</InputLabel>
@@ -150,23 +146,43 @@ const AllServicesPage = () => {
                         ))}
                     </Select>
                 </FormControl>
+                <input
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                    placeholder="Search service name"
+                    className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm outline-none focus:border-primary"
+                />
+                <FormControl size="small">
+                    <InputLabel id="service-sort-filter-label">Sort</InputLabel>
+                    <Select
+                        labelId="service-sort-filter-label"
+                        value={sortBy}
+                        label="Sort"
+                        onChange={(event) => setSortBy(event.target.value)}
+                    >
+                        <MenuItem value="latest">Latest</MenuItem>
+                        <MenuItem value="oldest">Oldest</MenuItem>
+                        <MenuItem value="price_asc">Price low to high</MenuItem>
+                        <MenuItem value="price_desc">Price high to low</MenuItem>
+                    </Select>
+                </FormControl>
                 <Button
                     type="submit"
                     variant="contained"
                     startIcon={<TuneRoundedIcon />}
                     sx={{
-                        borderRadius: '10px',
-                        px: 2.8,
+                        borderRadius: '8px',
+                        px: 2,
                         textTransform: 'none',
                         fontWeight: 700,
-                        minHeight: 40,
+                        minHeight: 34,
                         backgroundColor: 'var(--color-dark)',
                     }}
                 >
                     Apply Filters
                 </Button>
             </form>
-            <p className="mb-6 text-xs text-gray-500">
+            <p className="mb-4 text-[11px] text-gray-500">
                 {areaFilterState.city && areaFilterState.areas.length
                     ? `Area filter Home page se sync hai: ${areaSummary}, ${areaFilterState.city}.`
                     : 'Area filter Home page ke Area Feed Selection se sync hota hai.'}
@@ -190,69 +206,90 @@ const AllServicesPage = () => {
             )}
 
             {!loading && services.length > 0 && (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {services.map((service, index) => (
-                        <motion.article
-                            key={service._id}
-                            initial={{ opacity: 0, y: 16 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: index * 0.015, duration: 0.24 }}
-                            className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
-                        >
-                            <img
-                                src={
-                                    service.images?.[0] ||
-                                    'https://via.placeholder.com/700x420?text=Service+Image'
-                                }
-                                alt={service.name}
-                                loading="lazy"
-                                decoding="async"
-                                className="h-44 w-full object-cover"
-                            />
-                            <div className="space-y-2.5 p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <h2 className="line-clamp-1 text-lg font-black text-dark">{service.name}</h2>
-                                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                                        {service.category}
-                                    </span>
-                                </div>
+                <>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {services.map((service, index) => (
+                            <motion.article
+                                key={service._id}
+                                initial={{ opacity: 0, y: 16 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: index * 0.015, duration: 0.24 }}
+                                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+                            >
+                                <img
+                                    src={
+                                        service.images?.[0] ||
+                                        'https://via.placeholder.com/700x420?text=Service+Image'
+                                    }
+                                    alt={service.name}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="h-44 w-full object-cover"
+                                />
+                                <div className="space-y-2.5 p-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <h2 className="line-clamp-1 text-lg font-black text-dark">{service.name}</h2>
+                                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                                            {service.category}
+                                        </span>
+                                    </div>
 
-                                <p className="text-base font-black text-primary">{formatServicePrice(service)}</p>
+                                    <p className="text-base font-black text-primary">{formatServicePrice(service)}</p>
 
-                                <p className="line-clamp-2 text-sm text-gray-600">
-                                    {service.description || 'Service details not added yet.'}
-                                </p>
-
-                                <div className="rounded-xl bg-light p-3 text-sm text-gray-600">
-                                    <p className="line-clamp-1 font-semibold text-dark">
-                                        {service.shop?.name || 'Shop'}
+                                    <p className="line-clamp-2 text-sm text-gray-600">
+                                        {service.description || 'Service details not added yet.'}
                                     </p>
-                                    <p className="line-clamp-1 text-xs">
-                                        {service.shop?.location?.area && service.shop?.location?.city
-                                            ? `${service.shop.location.area}, ${service.shop.location.city}`
-                                            : 'Location not available'}
-                                    </p>
-                                </div>
 
-                                <Button
-                                    component={Link}
-                                    to={`/shop/${service.shop?._id || ''}`}
-                                    disabled={!service.shop?._id}
-                                    variant="outlined"
-                                    startIcon={<StorefrontRoundedIcon />}
-                                    sx={{
-                                        borderRadius: '10px',
-                                        textTransform: 'none',
-                                        fontWeight: 700,
-                                    }}
-                                >
-                                    Open Shop
-                                </Button>
-                            </div>
-                        </motion.article>
-                    ))}
-                </div>
+                                    <div className="rounded-xl bg-light p-3 text-sm text-gray-600">
+                                        <p className="line-clamp-1 font-semibold text-dark">
+                                            {service.shop?.name || 'Shop'}
+                                        </p>
+                                        <p className="line-clamp-1 text-xs">
+                                            {service.shop?.location?.area && service.shop?.location?.city
+                                                ? `${service.shop.location.area}, ${service.shop.location.city}`
+                                                : 'Location not available'}
+                                        </p>
+                                    </div>
+
+                                    <Button
+                                        component={Link}
+                                        to={`/shop/${service.shop?._id || ''}`}
+                                        disabled={!service.shop?._id}
+                                        variant="outlined"
+                                        startIcon={<StorefrontRoundedIcon />}
+                                        sx={{
+                                            borderRadius: '10px',
+                                            textTransform: 'none',
+                                            fontWeight: 700,
+                                        }}
+                                    >
+                                        Open Shop
+                                    </Button>
+                                </div>
+                            </motion.article>
+                        ))}
+                    </div>
+
+                    {hasMore && (
+                        <div className="mt-6 flex justify-center">
+                            <Button
+                                type="button"
+                                onClick={loadMore}
+                                disabled={loadingMore}
+                                variant="outlined"
+                                sx={{
+                                    borderRadius: '999px',
+                                    px: 3,
+                                    textTransform: 'none',
+                                    fontWeight: 700,
+                                }}
+                            >
+                                {loadingMore ? 'Loading...' : 'Load more services'}
+                            </Button>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

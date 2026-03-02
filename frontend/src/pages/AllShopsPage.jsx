@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Chip, FormControl, InputLabel, MenuItem, Select } from '@mui/material';
-import KeyboardBackspaceRoundedIcon from '@mui/icons-material/KeyboardBackspaceRounded';
 import StoreMallDirectoryRoundedIcon from '@mui/icons-material/StoreMallDirectoryRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import { motion } from 'framer-motion';
@@ -10,6 +9,8 @@ import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { filterCategoriesWithLocalImages } from '../utils/categoryImage';
 import { buildAreaQueryParam, formatAreaSummary, getAreaFilterState } from '../utils/areaFilters';
+
+const PAGE_SIZE = 20;
 
 const AllShopsPage = () => {
     const { showError } = useFlash();
@@ -34,50 +35,51 @@ const AllShopsPage = () => {
     }, [areaFilterState.areas.length, areaFilterState.city, areaSummary]);
 
     const [selectedCategory, setSelectedCategory] = useState('all');
+    const [keyword, setKeyword] = useState('');
+    const [sortBy, setSortBy] = useState('latest');
     const [categories, setCategories] = useState([]);
     const [shops, setShops] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
 
-    const fetchAllShops = async () => {
+    const fetchShopsPage = async (targetPage = 1, { reset = false } = {}) => {
         try {
-            setLoading(true);
+            if (reset) {
+                setLoading(true);
+            } else {
+                setLoadingMore(true);
+            }
+
             const params = {
                 city: areaFilterState.city || undefined,
                 areas: buildAreaQueryParam(areaFilterState.areas),
                 category: selectedCategory !== 'all' ? selectedCategory : undefined,
-                page: 1,
-                limit: 50,
+                keyword: keyword.trim() || undefined,
+                sort: sortBy,
+                page: targetPage,
+                limit: PAGE_SIZE,
             };
 
-            const { data: firstPage } = await api.get('/shops', { params });
-            let allShops = firstPage.shops || [];
-            const totalPages = Number(firstPage.pages || 1);
+            const { data } = await api.get('/shops', { params });
+            const nextShops = Array.isArray(data.shops) ? data.shops : [];
+            const totalPages = Number(data.pages || 1);
 
-            if (totalPages > 1) {
-                const requests = [];
-                for (let page = 2; page <= totalPages; page += 1) {
-                    requests.push(
-                        api.get('/shops', {
-                            params: {
-                                ...params,
-                                page,
-                            },
-                        })
-                    );
-                }
-
-                const responses = await Promise.all(requests);
-                responses.forEach(({ data }) => {
-                    allShops = allShops.concat(data.shops || []);
-                });
-            }
-
-            setShops(allShops);
+            setShops((previous) => (reset ? nextShops : previous.concat(nextShops)));
+            setCurrentPage(targetPage);
+            setHasMore(targetPage < totalPages);
         } catch (error) {
-            setShops([]);
+            if (reset) {
+                setShops([]);
+            }
             showError(extractErrorMessage(error, 'Unable to load listed shops'));
         } finally {
-            setLoading(false);
+            if (reset) {
+                setLoading(false);
+            } else {
+                setLoadingMore(false);
+            }
         }
     };
 
@@ -92,12 +94,20 @@ const AllShopsPage = () => {
 
     useEffect(() => {
         fetchCategories();
-        fetchAllShops();
+        fetchShopsPage(1, { reset: true });
     }, []);
 
     const applyLocation = (event) => {
         event.preventDefault();
-        fetchAllShops();
+        fetchShopsPage(1, { reset: true });
+    };
+
+    const loadMore = () => {
+        if (!hasMore || loadingMore) {
+            return;
+        }
+
+        fetchShopsPage(currentPage + 1);
     };
 
     return (
@@ -123,25 +133,12 @@ const AllShopsPage = () => {
                             bgcolor: 'rgba(255,255,255,0.86)',
                         }}
                     />
-                    <Button
-                        component={Link}
-                        to="/"
-                        variant="outlined"
-                        startIcon={<KeyboardBackspaceRoundedIcon />}
-                        sx={{
-                            borderRadius: '999px',
-                            textTransform: 'none',
-                            fontWeight: 700,
-                        }}
-                    >
-                        Back to Home
-                    </Button>
                 </div>
             </div>
 
             <form
                 onSubmit={applyLocation}
-                className="mb-6 grid gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm md:grid-cols-[1fr_auto]"
+                className="mb-4 grid gap-2 rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm md:grid-cols-4"
             >
                 <FormControl size="small">
                     <InputLabel id="shop-category-filter-label">Category</InputLabel>
@@ -159,23 +156,43 @@ const AllShopsPage = () => {
                         ))}
                     </Select>
                 </FormControl>
+                <input
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                    placeholder="Search shop name"
+                    className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm outline-none focus:border-primary"
+                />
+                <FormControl size="small">
+                    <InputLabel id="shop-sort-filter-label">Sort</InputLabel>
+                    <Select
+                        labelId="shop-sort-filter-label"
+                        value={sortBy}
+                        label="Sort"
+                        onChange={(event) => setSortBy(event.target.value)}
+                    >
+                        <MenuItem value="latest">Latest</MenuItem>
+                        <MenuItem value="oldest">Oldest</MenuItem>
+                        <MenuItem value="rating_desc">Top rated</MenuItem>
+                        <MenuItem value="name_asc">Name A-Z</MenuItem>
+                    </Select>
+                </FormControl>
                 <Button
                     type="submit"
                     variant="contained"
                     startIcon={<TuneRoundedIcon />}
                     sx={{
-                        borderRadius: '10px',
-                        px: 2.6,
+                        borderRadius: '8px',
+                        px: 2,
                         textTransform: 'none',
                         fontWeight: 700,
-                        minHeight: 40,
+                        minHeight: 34,
                         backgroundColor: 'var(--color-dark)',
                     }}
                 >
                     Apply
                 </Button>
             </form>
-            <p className="mb-6 text-xs text-gray-500">
+            <p className="mb-4 text-[11px] text-gray-500">
                 Area filter Home page ke Area Feed Selection se sync hota hai.
             </p>
 
@@ -199,41 +216,62 @@ const AllShopsPage = () => {
             )}
 
             {!loading && shops.length > 0 && (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                    {shops.map((shop, index) => (
-                        <motion.div
-                            key={shop._id}
-                            initial={{ opacity: 0, y: 16 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: index * 0.015, duration: 0.24 }}
-                        >
-                            <Link
-                                to={`/shop/${shop._id}`}
-                                className="group block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
+                <>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                        {shops.map((shop, index) => (
+                            <motion.div
+                                key={shop._id}
+                                initial={{ opacity: 0, y: 16 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: index * 0.015, duration: 0.24 }}
                             >
-                                <img
-                                    src={
-                                        shop.images?.[0] ||
-                                        'https://via.placeholder.com/500x300?text=Shop+Image'
-                                    }
-                                    alt={shop.name}
-                                    loading="lazy"
-                                    decoding="async"
-                                    className="h-32 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-36"
-                                />
-                                <div className="space-y-1.5 p-3">
-                                    <h2 className="line-clamp-1 text-sm font-black text-dark sm:text-base">
-                                        {shop.name}
-                                    </h2>
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                        {shop.category}
-                                    </p>
-                                </div>
-                            </Link>
-                        </motion.div>
-                    ))}
-                </div>
+                                <Link
+                                    to={`/shop/${shop._id}`}
+                                    className="group block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
+                                >
+                                    <img
+                                        src={
+                                            shop.images?.[0] ||
+                                            'https://via.placeholder.com/500x300?text=Shop+Image'
+                                        }
+                                        alt={shop.name}
+                                        loading="lazy"
+                                        decoding="async"
+                                        className="h-32 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-36"
+                                    />
+                                    <div className="space-y-1.5 p-3">
+                                        <h2 className="line-clamp-1 text-sm font-black text-dark sm:text-base">
+                                            {shop.name}
+                                        </h2>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            {shop.category}
+                                        </p>
+                                    </div>
+                                </Link>
+                            </motion.div>
+                        ))}
+                    </div>
+
+                    {hasMore && (
+                        <div className="mt-6 flex justify-center">
+                            <Button
+                                type="button"
+                                onClick={loadMore}
+                                disabled={loadingMore}
+                                variant="outlined"
+                                sx={{
+                                    borderRadius: '999px',
+                                    px: 3,
+                                    textTransform: 'none',
+                                    fontWeight: 700,
+                                }}
+                            >
+                                {loadingMore ? 'Loading...' : 'Load more shops'}
+                            </Button>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

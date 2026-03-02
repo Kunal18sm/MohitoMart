@@ -2,6 +2,10 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
 const getTokenFromRequest = (req) => {
+    if (req.cookies?.mm_session) {
+        return req.cookies.mm_session;
+    }
+
     if (req.cookies?.jwt) {
         return req.cookies.jwt;
     }
@@ -24,7 +28,9 @@ const protect = async (req, res, next) => {
     if (token) {
         try {
             const decoded = decodeToken(token);
-            req.user = await User.findById(decoded.userId).select('_id name email role location');
+            req.user = await User.findById(decoded.userId).select(
+                '_id name email role location onboardingCompleted locationPermissionGranted'
+            );
 
             if (!req.user) {
                 res.status(401);

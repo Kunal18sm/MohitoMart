@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const Footer = () => {
+    const { t } = useTranslation();
+
     return (
         <footer className="mt-8 border-t border-gray-200 bg-white py-5 text-gray-600">
             <div className="container mx-auto flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between md:px-8">
@@ -9,13 +12,13 @@ const Footer = () => {
                 </h2>
                 <div className="flex flex-wrap items-center gap-4 text-sm font-medium">
                     <Link to="/" className="transition hover:text-primary">
-                        Home
+                        {t('home') || 'Home'}
                     </Link>
                     <Link to="/services/all" className="transition hover:text-primary">
-                        Services
+                        {t('services') || 'Services'}
                     </Link>
                     <Link to="/profile" className="transition hover:text-primary">
-                        Profile
+                        {t('profile') || 'Profile'}
                     </Link>
                 </div>
             </div>
