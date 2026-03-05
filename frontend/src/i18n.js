@@ -20,8 +20,13 @@ i18n
         resources,
         lng: savedLanguage,
         fallbackLng: 'en',
+        returnNull: false,
+        returnEmptyString: false,
         interpolation: {
             escapeValue: false,
+        },
+        react: {
+            useSuspense: false,
         },
     });
 

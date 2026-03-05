@@ -1,11 +1,10 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import FlashBanner from './components/FlashBanner';
 import Footer from './components/Footer';
 import GlobalSavingOverlay from './components/GlobalSavingOverlay';
 import InstallAppPrompt from './components/InstallAppPrompt';
-import OnboardingOverlay from './components/OnboardingOverlay';
 import BottomNav from './components/BottomNav';
 import RouteGuard from './components/RouteGuard';
 
@@ -29,6 +28,11 @@ const AdminProductEditPage = lazy(() => import('./pages/AdminProductEditPage'));
 const AllCategoriesPage = lazy(() => import('./pages/AllCategoriesPage'));
 const AllShopsPage = lazy(() => import('./pages/AllShopsPage'));
 const AllServicesPage = lazy(() => import('./pages/AllServicesPage'));
+const AboutUsPage = lazy(() => import('./pages/AboutUsPage'));
+const TermsConditionsPage = lazy(() => import('./pages/TermsConditionsPage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const ContactUsPage = lazy(() => import('./pages/ContactUsPage'));
+const OnboardingOverlay = lazy(() => import('./components/OnboardingOverlay'));
 const CSRF_STORAGE_KEY = 'mm_csrf_token';
 
 const PageFallback = () => (
@@ -73,10 +77,19 @@ const resolveOnboardingCompleted = (payload = {}) => {
 };
 
 function App() {
-    const [sessionBootstrapped, setSessionBootstrapped] = useState(false);
+    const [sessionBootstrapped, setSessionBootstrapped] = useState(
+        () => !Boolean(localStorage.getItem('authToken'))
+    );
+    const location = useLocation();
+    const showFooter = location.pathname === '/' || location.pathname === '/profile';
 
     useEffect(() => {
         let mounted = true;
+        const timeoutId = window.setTimeout(() => {
+            if (mounted) {
+                setSessionBootstrapped(true);
+            }
+        }, 1200);
 
         const bootstrapSession = async () => {
             try {
@@ -139,6 +152,7 @@ function App() {
                 // Keep existing local session hints on transient/network failures.
             } finally {
                 if (mounted) {
+                    window.clearTimeout(timeoutId);
                     setSessionBootstrapped(true);
                 }
             }
@@ -146,6 +160,7 @@ function App() {
 
         bootstrapSession();
         return () => {
+            window.clearTimeout(timeoutId);
             mounted = false;
         };
     }, []);
@@ -164,7 +179,9 @@ function App() {
             <FlashBanner />
             <GlobalSavingOverlay />
             <InstallAppPrompt />
-            <OnboardingOverlay />
+            <Suspense fallback={null}>
+                <OnboardingOverlay />
+            </Suspense>
 
             <main className="relative z-10 flex-grow">
                 <Suspense fallback={<PageFallback />}>
@@ -276,11 +293,18 @@ function App() {
                         <Route path="/categories" element={<AllCategoriesPage />} />
                         <Route path="/shops/all" element={<AllShopsPage />} />
                         <Route path="/services/all" element={<AllServicesPage />} />
+                        <Route path="/about-us" element={<AboutUsPage />} />
+                        <Route
+                            path="/terms-and-conditions"
+                            element={<TermsConditionsPage />}
+                        />
+                        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                        <Route path="/contact-us" element={<ContactUsPage />} />
                     </Routes>
                 </Suspense>
             </main>
 
-            <Footer />
+            {showFooter ? <Footer /> : null}
             <BottomNav />
         </div>
     );

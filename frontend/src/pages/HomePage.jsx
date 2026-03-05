@@ -1,12 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Button, Chip } from '@mui/material';
-import AddBoxRoundedIcon from '@mui/icons-material/AddBoxRounded';
-import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
-import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
-import WindowRoundedIcon from '@mui/icons-material/WindowRounded';
-import MiscellaneousServicesRoundedIcon from '@mui/icons-material/MiscellaneousServicesRounded';
 import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard';
 import ShopCard from '../components/ShopCard';
@@ -18,6 +12,7 @@ import { useLocationSuggestions } from '../utils/locationSuggestions';
 import {
     buildAreaQueryParam,
     buildAreasFromSlots,
+    fillAreaSlotsWithNearby,
     formatAreaSummary,
     getAreaFilterState,
     persistAreaFilterState,
@@ -53,6 +48,67 @@ const sectionMotion = {
     transition: { duration: 0.45, ease: 'easeOut' },
 };
 
+const HOME_FEED_PAGE_SIZE = 20;
+
+const toProductIdKey = (product = {}) => String(product?._id || '');
+
+const mergeProductsById = (existingProducts = [], incomingProducts = []) => {
+    const merged = [...existingProducts];
+    const seenProductIds = new Set(existingProducts.map((entry) => toProductIdKey(entry)).filter(Boolean));
+
+    incomingProducts.forEach((entry) => {
+        const key = toProductIdKey(entry);
+        if (!key || seenProductIds.has(key)) {
+            return;
+        }
+
+        seenProductIds.add(key);
+        merged.push(entry);
+    });
+
+    return merged;
+};
+
+const toAreaKey = (value) => String(value || '').trim().toLowerCase();
+
+const prioritizeNearbyAreas = (primaryArea, options = []) => {
+    const uniqueOptions = [];
+    const seenKeys = new Set();
+
+    options.forEach((entry) => {
+        const normalized = String(entry || '').trim();
+        const key = toAreaKey(normalized);
+        if (!key || seenKeys.has(key)) {
+            return;
+        }
+
+        seenKeys.add(key);
+        uniqueOptions.push(normalized);
+    });
+
+    const primaryKey = toAreaKey(primaryArea);
+    const primaryIndex = uniqueOptions.findIndex((entry) => toAreaKey(entry) === primaryKey);
+
+    if (primaryIndex < 0) {
+        return uniqueOptions;
+    }
+
+    const prioritized = [];
+    for (let offset = 1; offset < uniqueOptions.length; offset += 1) {
+        const rightIndex = primaryIndex + offset;
+        if (rightIndex < uniqueOptions.length) {
+            prioritized.push(uniqueOptions[rightIndex]);
+        }
+
+        const leftIndex = primaryIndex - offset;
+        if (leftIndex >= 0) {
+            prioritized.push(uniqueOptions[leftIndex]);
+        }
+    }
+
+    return prioritized;
+};
+
 const HomePage = () => {
     const { t } = useTranslation();
     const { showError } = useFlash();
@@ -78,7 +134,7 @@ const HomePage = () => {
     const [bannerImages, setBannerImages] = useState([]);
     const [categories, setCategories] = useState([]);
     const [followedProducts, setFollowedProducts] = useState([]);
-    const [randomProducts, setRandomProducts] = useState([]);
+    const [feedProducts, setFeedProducts] = useState([]);
     const [randomServices, setRandomServices] = useState([]);
     const [recentlyViewedProducts, setRecentlyViewedProducts] = useState([]);
     const [topRatedShops, setTopRatedShops] = useState([]);
@@ -90,16 +146,25 @@ const HomePage = () => {
     ]);
     const [activeAreas, setActiveAreas] = useState(() => initialAreaFilterState.areas);
     const [loadingFollowed, setLoadingFollowed] = useState(false);
-    const [loadingRandom, setLoadingRandom] = useState(false);
+    const [loadingFeed, setLoadingFeed] = useState(false);
+    const [loadingMoreFeed, setLoadingMoreFeed] = useState(false);
     const [loadingRandomServices, setLoadingRandomServices] = useState(false);
     const [loadingRecentlyViewed, setLoadingRecentlyViewed] = useState(false);
     const [loadingTopRatedShops, setLoadingTopRatedShops] = useState(false);
     const [loadingLatestProducts, setLoadingLatestProducts] = useState(false);
+    const [feedCurrentPage, setFeedCurrentPage] = useState(1);
+    const [hasMoreFeed, setHasMoreFeed] = useState(false);
     const { getAreaOptionsByCity } = useLocationSuggestions();
+    const feedLoadTriggerRef = useRef(null);
+    const feedRequestIdRef = useRef(0);
 
     const nearbyAreaOptions = useMemo(
         () => getAreaOptionsByCity(selectedLocation.city || ''),
         [getAreaOptionsByCity, selectedLocation.city]
+    );
+    const prioritizedNearbyAreaOptions = useMemo(
+        () => prioritizeNearbyAreas(selectedLocation.area, nearbyAreaOptions),
+        [nearbyAreaOptions, selectedLocation.area]
     );
     const areaSummary = useMemo(() => formatAreaSummary(activeAreas), [activeAreas]);
     const activeAreasQuery = useMemo(() => buildAreaQueryParam(activeAreas), [activeAreas]);
@@ -125,9 +190,14 @@ const HomePage = () => {
 
     useEffect(() => {
         const nextAreaFilterState = getAreaFilterState(selectedLocation);
-        const nextAreas = nextAreaFilterState.areas;
+        const nextAreas = fillAreaSlotsWithNearby(
+            selectedLocation,
+            nextAreaFilterState.areas.slice(1),
+            prioritizedNearbyAreaOptions,
+            3
+        );
         const nextSlots = [
-            nextAreaFilterState.primaryArea || '',
+            nextAreas[0] || '',
             nextAreas[1] || '',
             nextAreas[2] || '',
         ];
@@ -136,7 +206,11 @@ const HomePage = () => {
         setAreaSlots((previous) =>
             previous.join('|') === nextSlots.join('|') ? previous : nextSlots
         );
-    }, [selectedLocation.area, selectedLocation.city]);
+
+        if (!areAreasEqual(nextAreaFilterState.areas, nextAreas)) {
+            persistAreaFilterState(selectedLocation, nextAreas);
+        }
+    }, [prioritizedNearbyAreaOptions, selectedLocation.area, selectedLocation.city]);
 
     useEffect(() => {
         if (bannerImages.length <= 1) {
@@ -198,24 +272,78 @@ const HomePage = () => {
         }
     };
 
-    const fetchRandomProducts = async (areas = activeAreas) => {
-        try {
-            setLoadingRandom(true);
-            const { data } = await api.get('/products/random', {
-                params: {
-                    limit: 16,
-                    city: selectedLocation.city || undefined,
-                    areas: buildAreaQueryParam(areas),
-                },
-            });
-            setRandomProducts(data.products || []);
-        } catch (error) {
-            setRandomProducts([]);
-            showError(extractErrorMessage(error, 'Unable to load random products'));
-        } finally {
-            setLoadingRandom(false);
+    const fetchFeedProductsPage = useCallback(
+        async (targetPage = 1, { reset = false, areas = activeAreas } = {}) => {
+            const requestId = feedRequestIdRef.current + 1;
+            feedRequestIdRef.current = requestId;
+
+            try {
+                if (reset) {
+                    setLoadingFeed(true);
+                    setLoadingMoreFeed(false);
+                } else {
+                    setLoadingMoreFeed(true);
+                }
+
+                const { data } = await api.get('/products', {
+                    params: {
+                        page: targetPage,
+                        limit: HOME_FEED_PAGE_SIZE,
+                        sort: 'latest',
+                        city: selectedLocation.city || undefined,
+                        areas: buildAreaQueryParam(areas),
+                    },
+                });
+
+                if (requestId !== feedRequestIdRef.current) {
+                    return;
+                }
+
+                const nextProducts = Array.isArray(data.products) ? data.products : [];
+                const totalPages = Math.max(Number(data.pages || 0), 0);
+
+                setFeedProducts((previous) =>
+                    reset ? nextProducts : mergeProductsById(previous, nextProducts)
+                );
+                setFeedCurrentPage(targetPage);
+                setHasMoreFeed(targetPage < totalPages);
+            } catch (error) {
+                if (requestId !== feedRequestIdRef.current) {
+                    return;
+                }
+
+                if (reset) {
+                    setFeedProducts([]);
+                    setFeedCurrentPage(1);
+                }
+                setHasMoreFeed(false);
+                showError(extractErrorMessage(error, 'Unable to load nearby products'));
+            } finally {
+                if (requestId === feedRequestIdRef.current) {
+                    setLoadingFeed(false);
+                    setLoadingMoreFeed(false);
+                }
+            }
+        },
+        [activeAreas, selectedLocation.city, showError]
+    );
+
+    const loadMoreFeedProducts = useCallback(() => {
+        if (!hasMoreFeed || loadingFeed || loadingMoreFeed) {
+            return;
         }
-    };
+
+        fetchFeedProductsPage(feedCurrentPage + 1, {
+            areas: activeAreas,
+        });
+    }, [
+        activeAreas,
+        feedCurrentPage,
+        fetchFeedProductsPage,
+        hasMoreFeed,
+        loadingFeed,
+        loadingMoreFeed,
+    ]);
 
     const fetchRecentlyViewedProducts = async (areas = activeAreas) => {
         if (!localStorage.getItem('authToken')) {
@@ -306,9 +434,42 @@ const HomePage = () => {
         fetchRecentlyViewedProducts(activeAreas);
         fetchTopRatedShops(activeAreas);
         fetchLatestProducts(activeAreas);
-        fetchRandomProducts(activeAreas);
+        fetchFeedProductsPage(1, {
+            reset: true,
+            areas: activeAreas,
+        });
         fetchRandomServices(activeAreas);
-    }, [selectedLocation.city, activeAreasQuery]);
+    }, [activeAreas, activeAreasQuery, fetchFeedProductsPage, selectedLocation.city]);
+
+    useEffect(() => {
+        if (!hasMoreFeed || loadingFeed || loadingMoreFeed) {
+            return undefined;
+        }
+
+        const triggerElement = feedLoadTriggerRef.current;
+        if (!triggerElement) {
+            return undefined;
+        }
+
+        const observer = new IntersectionObserver(
+            (entries, attachedObserver) => {
+                if (!entries.some((entry) => entry.isIntersecting)) {
+                    return;
+                }
+
+                attachedObserver.disconnect();
+                loadMoreFeedProducts();
+            },
+            {
+                root: null,
+                rootMargin: '500px 0px',
+                threshold: 0.01,
+            }
+        );
+
+        observer.observe(triggerElement);
+        return () => observer.disconnect();
+    }, [hasMoreFeed, loadMoreFeedProducts, loadingFeed, loadingMoreFeed, feedProducts.length]);
 
     const updateAreaSlot = (index, value) => {
         setAreaSlots((previous) => {
@@ -319,8 +480,14 @@ const HomePage = () => {
     };
 
     const applyAreaFilters = () => {
-        const nextAreas = buildAreasFromSlots(selectedLocation, [areaSlots[1], areaSlots[2]]);
-        const primaryArea = initialAreaFilterState.primaryArea || nextAreas[0] || '';
+        const manuallySelectedAreas = buildAreasFromSlots(selectedLocation, [areaSlots[1], areaSlots[2]]);
+        const nextAreas = fillAreaSlotsWithNearby(
+            selectedLocation,
+            manuallySelectedAreas.slice(1),
+            prioritizedNearbyAreaOptions,
+            3
+        );
+        const primaryArea = nextAreas[0] || initialAreaFilterState.primaryArea || '';
 
         setActiveAreas(nextAreas);
         setAreaSlots([primaryArea, nextAreas[1] || '', nextAreas[2] || '']);
@@ -364,7 +531,7 @@ const HomePage = () => {
                         </>
                     ) : (
                         <div className="flex aspect-[16/9] items-center justify-center text-sm font-semibold text-gray-500">
-                            Nothing to show
+                            {t('nothing_to_show') || 'Nothing to show'}
                         </div>
                     )}
                 </div>
@@ -372,27 +539,19 @@ const HomePage = () => {
 
             <motion.section {...sectionMotion} className="container mx-auto px-4 pb-2">
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                    Select more areas near you
+                    {t('select_more_areas_near_you') || 'Select more areas near you'}
                 </p>
                 <div className="rounded-xl border border-gray-200 bg-white/90 p-2 shadow-sm">
                     <div className="flex items-center gap-1.5">
                         <div className="hidden sm:block">
-                            <Chip
-                                size="small"
-                                label={`Area ${activeAreas.length || 0}/3`}
-                                sx={{
-                                    borderRadius: '999px',
-                                    fontWeight: 700,
-                                    color: 'var(--color-dark)',
-                                    bgcolor: 'rgba(255,255,255,0.92)',
-                                    border: '1px solid rgba(100,116,139,0.25)',
-                                }}
-                            />
+                            <span className="inline-flex items-center rounded-full border border-slate-300/70 bg-white/90 px-2.5 py-1 text-[11px] font-bold text-dark">
+                                {`${t('area') || 'Area'} ${activeAreas.length || 0}/3`}
+                            </span>
                         </div>
 
                         <div className="min-w-0 flex-[0.9]">
                             <input
-                                value={areaSlots[0] || 'Not set'}
+                                value={areaSlots[0] || (t('not_set') || 'Not set')}
                                 disabled
                                 className="h-[34px] w-full rounded-md border border-gray-200 bg-gray-100 px-2.5 text-[11px] font-medium text-gray-600"
                             />
@@ -420,24 +579,14 @@ const HomePage = () => {
                             />
                         </div>
 
-                        <Button
+                        <button
                             onClick={applyAreaFilters}
-                            variant="contained"
-                            sx={{
-                                borderRadius: '10px',
-                                px: { xs: 1.1, sm: 1.6 },
-                                textTransform: 'none',
-                                fontWeight: 700,
-                                minHeight: 34,
-                                minWidth: 'auto',
-                                whiteSpace: 'nowrap',
-                                backgroundColor: 'var(--color-dark)',
-                                flexShrink: 0,
-                            }}
+                            type="button"
+                            className="h-[34px] shrink-0 whitespace-nowrap rounded-[10px] bg-dark px-3 text-xs font-bold text-white transition hover:bg-primary-dark sm:px-4 sm:text-sm"
                         >
-                            <span className="sm:hidden">Go</span>
-                            <span className="hidden sm:inline">Apply</span>
-                        </Button>
+                            <span className="sm:hidden">{t('go') || 'Go'}</span>
+                            <span className="hidden sm:inline">{t('apply') || 'Apply'}</span>
+                        </button>
                     </div>
                 </div>
             </motion.section>
@@ -445,50 +594,24 @@ const HomePage = () => {
             <motion.section {...sectionMotion} className="container mx-auto px-4 py-4">
                 {isShopOwnerUser && (
                     <div className="mb-8 flex flex-wrap items-center gap-2">
-                        <Button
-                            component={Link}
+                        <Link
                             to="/owner/products/new"
-                            startIcon={<AddBoxRoundedIcon />}
-                            sx={{
-                                borderRadius: '14px',
-                                px: 1.7,
-                                py: 0.9,
-                                textTransform: 'none',
-                                fontWeight: 800,
-                                whiteSpace: 'nowrap',
-                                color: '#fff',
-                                background: 'linear-gradient(135deg, var(--color-dark), #1f2937)',
-                                boxShadow: '0 8px 22px rgba(15,23,42,0.22)',
-                                '&:hover': {
-                                    background: 'linear-gradient(135deg, #0f172a, #111827)',
-                                },
-                            }}
+                            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[14px] bg-gradient-to-br from-dark to-slate-800 px-4 py-2 text-sm font-extrabold text-white shadow-[0_8px_22px_rgba(15,23,42,0.22)] transition hover:from-slate-900 hover:to-gray-900"
                         >
-                            Add Item
-                        </Button>
-                        <Button
-                            component={Link}
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14m-7-7h14" />
+                            </svg>
+                            {t('add_item') || 'Add Item'}
+                        </Link>
+                        <Link
                             to="/owner/products"
-                            startIcon={<Inventory2RoundedIcon />}
-                            sx={{
-                                borderRadius: '14px',
-                                px: 1.7,
-                                py: 0.9,
-                                textTransform: 'none',
-                                fontWeight: 800,
-                                whiteSpace: 'nowrap',
-                                color: 'var(--color-dark)',
-                                border: '1px solid rgba(15,23,42,0.14)',
-                                backgroundColor: 'rgba(255,255,255,0.96)',
-                                boxShadow: '0 8px 18px rgba(15,23,42,0.08)',
-                                '&:hover': {
-                                    backgroundColor: 'rgba(255,255,255,1)',
-                                    border: '1px solid rgba(15,23,42,0.2)',
-                                },
-                            }}
+                            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[14px] border border-dark/20 bg-white/95 px-4 py-2 text-sm font-extrabold text-dark shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition hover:border-dark/30"
                         >
-                            All Products
-                        </Button>
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16" />
+                            </svg>
+                            {t('all_products') || 'All Products'}
+                        </Link>
                     </div>
                 )}
                 <div className="mb-4">
@@ -500,50 +623,28 @@ const HomePage = () => {
                             to="/categories"
                             className="shrink-0 px-1 text-xs font-semibold text-primary hover:underline sm:text-sm"
                         >
-                            All
+                            {t('all') || 'All'}
                         </Link>
                     </div>
                     <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto">
-                        <Button
-                            component={Link}
+                        <Link
                             to="/shops/all"
-                            size="small"
-                            startIcon={<StorefrontRoundedIcon />}
-                            sx={{
-                                borderRadius: '999px',
-                                px: 1.35,
-                                textTransform: 'none',
-                                fontWeight: 700,
-                                fontSize: '0.76rem',
-                                whiteSpace: 'nowrap',
-                                minWidth: 'auto',
-                                color: 'var(--color-dark)',
-                                border: '1px solid rgba(15,23,42,0.16)',
-                                backgroundColor: 'rgba(255,255,255,0.85)',
-                            }}
+                            className="inline-flex items-center gap-1 rounded-full border border-dark/20 bg-white/85 px-3 py-1.5 text-xs font-bold text-dark transition hover:bg-white"
                         >
-                            All shops
-                        </Button>
-                        <Button
-                            component={Link}
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18l-1.2 9.2A2 2 0 0 1 17.8 21H6.2a2 2 0 0 1-2-1.8L3 10Zm2-6h14l2 6H3l2-6Z" />
+                            </svg>
+                            {t('all_shops') || 'All shops'}
+                        </Link>
+                        <Link
                             to="/services/all"
-                            size="small"
-                            startIcon={<MiscellaneousServicesRoundedIcon />}
-                            sx={{
-                                borderRadius: '999px',
-                                px: 1.35,
-                                textTransform: 'none',
-                                fontWeight: 700,
-                                fontSize: '0.76rem',
-                                whiteSpace: 'nowrap',
-                                minWidth: 'auto',
-                                color: 'var(--color-dark)',
-                                border: '1px solid rgba(15,23,42,0.16)',
-                                backgroundColor: 'rgba(255,255,255,0.85)',
-                            }}
+                            className="inline-flex items-center gap-1 rounded-full border border-dark/20 bg-white/85 px-3 py-1.5 text-xs font-bold text-dark transition hover:bg-white"
                         >
-                            All services
-                        </Button>
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3h2v4h-2zM4.9 6.3 6.3 4.9l2.8 2.8-1.4 1.4ZM3 11h4v2H3zm14 1a5 5 0 1 1-10 0 5 5 0 0 1 10 0Zm2-1h2v2h-2zm-4 8h2v2h-2zM6.3 19.1 4.9 17.7l2.8-2.8 1.4 1.4Z" />
+                            </svg>
+                            {t('all_services') || 'All services'}
+                        </Link>
                     </div>
                 </div>
                 <div className="flex flex-nowrap gap-3 overflow-x-auto overflow-y-hidden pb-2">
@@ -588,13 +689,13 @@ const HomePage = () => {
                         <div>
                             <div className="inline-flex items-center gap-2 mb-2 px-3 py-1 rounded-full bg-primary/20 text-primary-dark text-xs font-bold uppercase tracking-widest">
                                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z" /></svg>
-                                Your Feed
+                                {t('your_feed') || 'Your Feed'}
                             </div>
-                            <h2 className="text-2xl font-black text-dark sm:text-3xl">Followed Shops Updates</h2>
+                            <h2 className="text-2xl font-black text-dark sm:text-3xl">{t('followed_shops_updates') || 'Followed Shops Updates'}</h2>
                         </div>
                         {!localStorage.getItem('authToken') && (
                             <Link to="/auth" className="text-sm font-semibold text-primary hover:underline bg-white/80 backdrop-blur px-4 py-2 rounded-xl shadow-sm">
-                                Login to see followed feed
+                                {t('login_to_see_followed_feed') || 'Login to see followed feed'}
                             </Link>
                         )}
                     </div>
@@ -613,7 +714,7 @@ const HomePage = () => {
 
                         {!loadingFollowed && followedProducts.length === 0 && (
                             <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
-                                Followed products available nahi hain. Shops follow karo to yahan products dikhenge.
+                                {t('no_followed_products') || 'No products are available from followed shops yet. Follow shops to see their products here.'}
                             </p>
                         )}
 
@@ -636,11 +737,11 @@ const HomePage = () => {
             <motion.section {...sectionMotion} className="container mx-auto px-4 py-4 md:py-6">
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
-                        <h2 className="text-xl font-black text-dark sm:text-2xl">Recently Viewed</h2>
+                        <h2 className="text-xl font-black text-dark sm:text-2xl">{t('recently_viewed') || 'Recently Viewed'}</h2>
                     </div>
                     {!localStorage.getItem('authToken') && (
                         <Link to="/auth" className="text-sm font-semibold text-primary hover:underline">
-                            Login to build your viewed list
+                            {t('login_to_build_viewed_list') || 'Login to build your viewed list'}
                         </Link>
                     )}
                 </div>
@@ -659,7 +760,7 @@ const HomePage = () => {
                     localStorage.getItem('authToken') &&
                     recentlyViewedProducts.length === 0 && (
                         <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
-                            Aapke recently viewed products abhi empty hain.
+                            {t('recently_viewed_empty') || 'Your recently viewed products list is currently empty.'}
                         </p>
                     )}
 
@@ -681,12 +782,12 @@ const HomePage = () => {
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
                         <h2 className="text-xl font-black text-dark sm:text-2xl">
-                            Top Rated Shops Near You
+                            {t('top_rated_shops_near_you') || 'Top Rated Shops Near You'}
                         </h2>
                         <p className="text-sm text-gray-500">
                             {selectedLocation.city && activeAreas.length
-                                ? `Sorted by rating in ${areaSummary}, ${selectedLocation.city}`
-                                : 'Sorted by best ratings across all shops'}
+                                ? `${t('sorted_by_rating_in') || 'Sorted by rating in'} ${areaSummary}, ${selectedLocation.city}`
+                                : t('sorted_by_best_ratings') || 'Sorted by best ratings across all shops'}
                         </p>
                     </div>
                 </div>
@@ -703,7 +804,7 @@ const HomePage = () => {
 
                 {!loadingTopRatedShops && topRatedShops.length === 0 && (
                     <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
-                        Nearby top-rated shops abhi available nahi hain.
+                        {t('nearby_top_rated_shops_not_available') || 'Nearby top-rated shops are not available right now.'}
                     </p>
                 )}
 
@@ -726,7 +827,7 @@ const HomePage = () => {
                     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                         <div>
                             <h2 className="text-xl font-black text-dark sm:text-2xl">
-                                Services Near You
+                                {t('services_near_you') || 'Services Near You'}
                             </h2>
 
                         </div>
@@ -761,10 +862,10 @@ const HomePage = () => {
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
                         <h2 className="text-xl font-black text-dark sm:text-2xl">
-                            Newly Added Products
+                            {t('newly_added_products') || 'Newly Added Products'}
                         </h2>
                         <p className="text-sm text-gray-500">
-                            Fresh listings from nearby shops.
+                            {t('fresh_listings_nearby') || 'Fresh listings from nearby shops.'}
                         </p>
                     </div>
                 </div>
@@ -779,7 +880,7 @@ const HomePage = () => {
 
                 {!loadingLatestProducts && latestProducts.length === 0 && (
                     <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
-                        Newly added products abhi available nahi hain.
+                        {t('newly_added_products_not_available') || 'Newly added products are not available right now.'}
                     </p>
                 )}
 
@@ -796,29 +897,25 @@ const HomePage = () => {
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
                         <h2 className="text-xl font-black text-dark sm:text-2xl">
-                            Available in your nearby shops
+                            {t('available_in_nearby_shops') || 'Available in your nearby shops'}
                         </h2>
                         <p className="text-sm text-gray-500">
                             {selectedLocation.city && activeAreas.length
-                                ? `Showing for ${areaSummary}, ${selectedLocation.city}`
-                                : 'Showing products from all available shops'}
+                                ? `${t('showing_for') || 'Showing for'} ${areaSummary}, ${selectedLocation.city}`
+                                : t('showing_products_all_shops') || 'Showing products from all available shops'}
                         </p>
                     </div>
-                    <Chip
-                        size="small"
-                        icon={<WindowRoundedIcon style={{ fontSize: 14 }} />}
-                        label={selectedLocation.city && activeAreas.length ? `${activeAreas.length}-area feed` : 'All-city feed'}
-                        sx={{
-                            borderRadius: '999px',
-                            fontWeight: 700,
-                            color: 'var(--color-dark)',
-                            bgcolor: 'rgba(255,255,255,0.85)',
-                            border: '1px solid rgba(100,116,139,0.25)',
-                        }}
-                    />
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-300/70 bg-white/85 px-2.5 py-1 text-xs font-bold text-dark">
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h7v7H4zM13 5h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />
+                        </svg>
+                        {selectedLocation.city && activeAreas.length
+                            ? `${activeAreas.length}-${t('area_feed') || 'area feed'}`
+                            : t('all_city_feed') || 'All-city feed'}
+                    </span>
                 </div>
 
-                {loadingRandom && (
+                {loadingFeed && (
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                         {[...Array(8)].map((_, index) => (
                             <Skeleton key={index} type="product" />
@@ -826,18 +923,54 @@ const HomePage = () => {
                     </div>
                 )}
 
-                {!loadingRandom && randomProducts.length === 0 && (
+                {!loadingFeed && feedProducts.length === 0 && (
                     <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
-                        Random products available nahi hain.
+                        {t('nearby_products_not_available') || 'Nearby products are not available right now.'}
                     </p>
                 )}
 
-                {!loadingRandom && randomProducts.length > 0 && (
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                        {randomProducts.map((product) => (
-                            <ProductCard key={product._id} product={product} desktopTall />
-                        ))}
-                    </div>
+                {!loadingFeed && feedProducts.length > 0 && (
+                    <>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                            {feedProducts.map((product) => (
+                                <ProductCard key={product._id} product={product} desktopTall />
+                            ))}
+                        </div>
+
+                        {loadingMoreFeed && (
+                            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                                {[...Array(5)].map((_, index) => (
+                                    <Skeleton key={`feed-loading-${index}`} type="product" />
+                                ))}
+                            </div>
+                        )}
+
+                        <div
+                            ref={feedLoadTriggerRef}
+                            className="h-8"
+                            aria-hidden="true"
+                        />
+
+                        {hasMoreFeed && !loadingMoreFeed && (
+                            <p className="text-center text-xs font-medium text-gray-500">
+                                {t('scroll_to_load_more_products') || 'Scroll to load more products'}
+                            </p>
+                        )}
+
+                        {!hasMoreFeed && !loadingMoreFeed && (
+                            <p className="text-center text-xs font-medium text-gray-500">
+                                {t('end_of_feed') || 'You have reached the end of this feed.'}
+                            </p>
+                        )}
+                    </>
+                )}
+
+                {loadingFeed && (
+                    <div
+                        ref={feedLoadTriggerRef}
+                        className="h-8"
+                        aria-hidden="true"
+                    />
                 )}
             </motion.section>
         </div>

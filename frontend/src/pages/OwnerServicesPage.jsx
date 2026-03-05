@@ -148,13 +148,13 @@ const OwnerServicesPage = () => {
             <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 className="text-3xl font-black text-dark sm:text-4xl">Services Manager</h1>
-                    <p className="text-sm text-gray-500">Apni services ki pricing aur details yahan manage karein.</p>
+                    <p className="text-sm text-gray-500">Manage your service pricing and details here.</p>
                 </div>
             </div>
 
             {shops.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-6">
-                    <p className="text-gray-600">Pehle shop profile create karein, phir services add kar payenge.</p>
+                    <p className="text-gray-600">Create your shop profile first, then you can add services.</p>
                     <Link
                         to="/owner/shop"
                         className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white"
@@ -184,7 +184,7 @@ const OwnerServicesPage = () => {
 
                         {services.length === 0 && (
                             <p className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500">
-                                Is shop me abhi tak koi service add nahi hui.
+                                No services have been added to this shop yet.
                             </p>
                         )}
 

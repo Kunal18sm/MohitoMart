@@ -20,10 +20,22 @@ const Footer = () => {
                     <Link to="/profile" className="transition hover:text-primary">
                         {t('profile') || 'Profile'}
                     </Link>
+                    <Link to="/about-us" className="transition hover:text-primary">
+                        {t('about_us') || 'About Us'}
+                    </Link>
+                    <Link to="/terms-and-conditions" className="transition hover:text-primary">
+                        {t('terms_and_conditions') || 'Terms'}
+                    </Link>
+                    <Link to="/privacy-policy" className="transition hover:text-primary">
+                        {t('privacy_policy') || 'Privacy'}
+                    </Link>
+                    <Link to="/contact-us" className="transition hover:text-primary">
+                        {t('contact_us') || 'Contact'}
+                    </Link>
                 </div>
             </div>
             <div className="container mx-auto border-t border-gray-100 px-4 pt-3 text-xs text-gray-500 md:px-8">
-                &copy; {new Date().getFullYear()} Mohito Mart. All Rights Reserved.
+                &copy; {new Date().getFullYear()} Mohito Mart. {t('all_rights_reserved') || 'All Rights Reserved.'}
             </div>
         </footer>
     );

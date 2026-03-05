@@ -141,7 +141,7 @@ const OwnerProductsPage = () => {
 
             {shops.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-6">
-                    <p className="text-gray-600">Pehle shop profile create karein, phir items add kar payenge.</p>
+                    <p className="text-gray-600">Create your shop profile first, then you can add items.</p>
                     <Link
                         to="/owner/shop"
                         className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white"
@@ -168,7 +168,7 @@ const OwnerProductsPage = () => {
 
                         {products.length === 0 && (
                             <p className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500">
-                                Is shop me abhi tak koi product add nahi hua.
+                                No products have been added to this shop yet.
                             </p>
                         )}
 

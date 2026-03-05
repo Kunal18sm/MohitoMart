@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Button, Chip, FormControl, InputLabel, MenuItem, Select } from '@mui/material';
-import StoreMallDirectoryRoundedIcon from '@mui/icons-material/StoreMallDirectoryRounded';
-import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
@@ -11,8 +9,25 @@ import { filterCategoriesWithLocalImages } from '../utils/categoryImage';
 import { buildAreaQueryParam, formatAreaSummary, getAreaFilterState } from '../utils/areaFilters';
 
 const PAGE_SIZE = 20;
+const mergeUniqueShops = (existingShops = [], incomingShops = []) => {
+    const mergedShops = [...existingShops];
+    const seenShopIds = new Set(existingShops.map((entry) => String(entry?._id || '')).filter(Boolean));
+
+    incomingShops.forEach((entry) => {
+        const shopId = String(entry?._id || '');
+        if (!shopId || seenShopIds.has(shopId)) {
+            return;
+        }
+
+        seenShopIds.add(shopId);
+        mergedShops.push(entry);
+    });
+
+    return mergedShops;
+};
 
 const AllShopsPage = () => {
+    const { t } = useTranslation();
     const { showError } = useFlash();
     const storedLocation = useMemo(
         () => JSON.parse(localStorage.getItem('selectedLocation') || '{}'),
@@ -28,11 +43,11 @@ const AllShopsPage = () => {
     );
     const locationBadgeLabel = useMemo(() => {
         if (!areaFilterState.city || !areaFilterState.areas.length) {
-            return 'All locations';
+            return t('all_locations') || 'All locations';
         }
 
         return `${areaSummary}, ${areaFilterState.city}`;
-    }, [areaFilterState.areas.length, areaFilterState.city, areaSummary]);
+    }, [areaFilterState.areas.length, areaFilterState.city, areaSummary, t]);
 
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [keyword, setKeyword] = useState('');
@@ -43,54 +58,82 @@ const AllShopsPage = () => {
     const [loadingMore, setLoadingMore] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
+    const requestIdRef = useRef(0);
 
-    const fetchShopsPage = async (targetPage = 1, { reset = false } = {}) => {
-        try {
-            if (reset) {
-                setLoading(true);
-            } else {
-                setLoadingMore(true);
+    const fetchShopsPage = useCallback(
+        async (targetPage = 1, { reset = false } = {}) => {
+            const requestId = requestIdRef.current + 1;
+            requestIdRef.current = requestId;
+
+            try {
+                if (reset) {
+                    setLoading(true);
+                    setLoadingMore(false);
+                } else {
+                    setLoadingMore(true);
+                }
+
+                const params = {
+                    city: areaFilterState.city || undefined,
+                    areas: buildAreaQueryParam(areaFilterState.areas),
+                    category: selectedCategory !== 'all' ? selectedCategory : undefined,
+                    keyword: keyword.trim() || undefined,
+                    sort: sortBy,
+                    page: targetPage,
+                    limit: PAGE_SIZE,
+                };
+
+                const { data } = await api.get('/shops', { params });
+                if (requestId !== requestIdRef.current) {
+                    return;
+                }
+
+                const nextShops = Array.isArray(data.shops) ? data.shops : [];
+                const totalPages = Number(data.pages || 1);
+
+                setShops((previous) =>
+                    reset ? nextShops : mergeUniqueShops(previous, nextShops)
+                );
+                setCurrentPage(targetPage);
+                setHasMore(targetPage < totalPages);
+            } catch (error) {
+                if (requestId !== requestIdRef.current) {
+                    return;
+                }
+
+                if (reset) {
+                    setShops([]);
+                }
+                showError(extractErrorMessage(error, t('unable_load_listed_shops') || 'Unable to load listed shops'));
+            } finally {
+                if (requestId === requestIdRef.current) {
+                    if (reset) {
+                        setLoading(false);
+                    } else {
+                        setLoadingMore(false);
+                    }
+                }
             }
+        },
+        [
+            areaFilterState.areas,
+            areaFilterState.city,
+            keyword,
+            selectedCategory,
+            showError,
+            sortBy,
+            t,
+        ]
+    );
 
-            const params = {
-                city: areaFilterState.city || undefined,
-                areas: buildAreaQueryParam(areaFilterState.areas),
-                category: selectedCategory !== 'all' ? selectedCategory : undefined,
-                keyword: keyword.trim() || undefined,
-                sort: sortBy,
-                page: targetPage,
-                limit: PAGE_SIZE,
-            };
-
-            const { data } = await api.get('/shops', { params });
-            const nextShops = Array.isArray(data.shops) ? data.shops : [];
-            const totalPages = Number(data.pages || 1);
-
-            setShops((previous) => (reset ? nextShops : previous.concat(nextShops)));
-            setCurrentPage(targetPage);
-            setHasMore(targetPage < totalPages);
-        } catch (error) {
-            if (reset) {
-                setShops([]);
-            }
-            showError(extractErrorMessage(error, 'Unable to load listed shops'));
-        } finally {
-            if (reset) {
-                setLoading(false);
-            } else {
-                setLoadingMore(false);
-            }
-        }
-    };
-
-    const fetchCategories = async () => {
+    const fetchCategories = useCallback(async () => {
         try {
             const { data } = await api.get('/shops/categories');
             setCategories(filterCategoriesWithLocalImages(data.categories || []));
         } catch (error) {
             setCategories([]);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchCategories();
@@ -114,25 +157,18 @@ const AllShopsPage = () => {
         <div className="container mx-auto px-4 py-8 md:py-10">
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <p className="mb-2 text-sm text-gray-500">Browse all listed shops</p>
-                    <h1 className="text-3xl font-black text-dark sm:text-4xl">All Listed Shops</h1>
+                    <p className="mb-2 text-sm text-gray-500">{t('browse_all_listed_shops') || 'Browse all listed shops'}</p>
+                    <h1 className="text-3xl font-black text-dark sm:text-4xl">{t('all_listed_shops') || 'All Listed Shops'}</h1>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <Chip
-                        size="small"
-                        icon={<StoreMallDirectoryRoundedIcon style={{ fontSize: 15 }} />}
-                        label={
-                            selectedCategory === 'all'
-                                ? locationBadgeLabel
-                                : `${selectedCategory} | ${locationBadgeLabel}`
-                        }
-                        sx={{
-                            borderRadius: '999px',
-                            fontWeight: 700,
-                            border: '1px solid rgba(148,163,184,0.3)',
-                            bgcolor: 'rgba(255,255,255,0.86)',
-                        }}
-                    />
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-300/70 bg-white/90 px-2.5 py-1 text-xs font-bold text-dark">
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18l-1.2 9.2A2 2 0 0 1 17.8 21H6.2a2 2 0 0 1-2-1.8L3 10Zm2-6h14l2 6H3l2-6Z" />
+                        </svg>
+                        {selectedCategory === 'all'
+                            ? locationBadgeLabel
+                            : `${selectedCategory} | ${locationBadgeLabel}`}
+                    </span>
                 </div>
             </div>
 
@@ -140,60 +176,46 @@ const AllShopsPage = () => {
                 onSubmit={applyLocation}
                 className="mb-4 grid gap-2 rounded-xl border border-gray-200 bg-white p-2.5 shadow-sm md:grid-cols-4"
             >
-                <FormControl size="small">
-                    <InputLabel id="shop-category-filter-label">Category</InputLabel>
-                    <Select
-                        labelId="shop-category-filter-label"
-                        value={selectedCategory}
-                        label="Category"
-                        onChange={(event) => setSelectedCategory(event.target.value)}
-                    >
-                        <MenuItem value="all">All</MenuItem>
-                        {categories.map((category) => (
-                            <MenuItem value={category} key={category}>
-                                {category}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+                <select
+                    value={selectedCategory}
+                    onChange={(event) => setSelectedCategory(event.target.value)}
+                    className="rounded-md border border-gray-200 px-2.5 py-2 text-sm outline-none focus:border-primary"
+                >
+                    <option value="all">{t('all') || 'All'}</option>
+                    {categories.map((category) => (
+                        <option value={category} key={category}>
+                            {category}
+                        </option>
+                    ))}
+                </select>
                 <input
                     value={keyword}
                     onChange={(event) => setKeyword(event.target.value)}
-                    placeholder="Search shop name"
+                    placeholder={t('search_shop_name') || 'Search shop name'}
                     className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm outline-none focus:border-primary"
                 />
-                <FormControl size="small">
-                    <InputLabel id="shop-sort-filter-label">Sort</InputLabel>
-                    <Select
-                        labelId="shop-sort-filter-label"
-                        value={sortBy}
-                        label="Sort"
-                        onChange={(event) => setSortBy(event.target.value)}
-                    >
-                        <MenuItem value="latest">Latest</MenuItem>
-                        <MenuItem value="oldest">Oldest</MenuItem>
-                        <MenuItem value="rating_desc">Top rated</MenuItem>
-                        <MenuItem value="name_asc">Name A-Z</MenuItem>
-                    </Select>
-                </FormControl>
-                <Button
-                    type="submit"
-                    variant="contained"
-                    startIcon={<TuneRoundedIcon />}
-                    sx={{
-                        borderRadius: '8px',
-                        px: 2,
-                        textTransform: 'none',
-                        fontWeight: 700,
-                        minHeight: 34,
-                        backgroundColor: 'var(--color-dark)',
-                    }}
+                <select
+                    value={sortBy}
+                    onChange={(event) => setSortBy(event.target.value)}
+                    className="rounded-md border border-gray-200 px-2.5 py-2 text-sm outline-none focus:border-primary"
                 >
-                    Apply
-                </Button>
+                    <option value="latest">{t('latest') || 'Latest'}</option>
+                    <option value="oldest">{t('oldest') || 'Oldest'}</option>
+                    <option value="rating_desc">{t('top_rated') || 'Top rated'}</option>
+                    <option value="name_asc">{t('name_a_to_z') || 'Name A-Z'}</option>
+                </select>
+                <button
+                    type="submit"
+                    className="inline-flex min-h-[34px] items-center justify-center gap-1.5 rounded-md bg-dark px-4 text-sm font-bold text-white transition hover:bg-primary-dark"
+                >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m4 21 6-6m0 0 2.4 2.4M10 15V3m10 0v18m0 0-2.4-2.4M20 21l-6-6" />
+                    </svg>
+                    {t('apply') || 'Apply'}
+                </button>
             </form>
             <p className="mb-4 text-[11px] text-gray-500">
-                Area filter Home page ke Area Feed Selection se sync hota hai.
+                {t('area_filter_sync_home') || 'Area filter is synced with the Home page area feed selection.'}
             </p>
 
             {loading && (
@@ -210,8 +232,8 @@ const AllShopsPage = () => {
             {!loading && shops.length === 0 && (
                 <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
                     {selectedCategory === 'all'
-                        ? 'Is location ke liye abhi koi shop listed nahi hai.'
-                        : `Is location me "${selectedCategory}" category ki koi shop listed nahi hai.`}
+                        ? t('no_shop_for_location') || 'No shop is currently listed for this location.'
+                        : `${t('no_shop_for_category_prefix') || 'No'} "${selectedCategory}" ${t('no_shop_for_category_suffix') || 'shop is listed in this location.'}`}
                 </p>
             )}
 
@@ -255,20 +277,14 @@ const AllShopsPage = () => {
 
                     {hasMore && (
                         <div className="mt-6 flex justify-center">
-                            <Button
+                            <button
                                 type="button"
                                 onClick={loadMore}
                                 disabled={loadingMore}
-                                variant="outlined"
-                                sx={{
-                                    borderRadius: '999px',
-                                    px: 3,
-                                    textTransform: 'none',
-                                    fontWeight: 700,
-                                }}
+                                className="rounded-full border border-slate-300 px-5 py-2 text-sm font-bold text-dark transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-70"
                             >
-                                {loadingMore ? 'Loading...' : 'Load more shops'}
-                            </Button>
+                                {loadingMore ? (t('loading') || 'Loading...') : (t('load_more_shops') || 'Load more shops')}
+                            </button>
                         </div>
                     )}
                 </>

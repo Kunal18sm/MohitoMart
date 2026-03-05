@@ -196,7 +196,7 @@ const OwnerAddServicePage = () => {
         return (
             <div className="container mx-auto px-4 py-10">
                 <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-6">
-                    <p className="text-gray-600">Pehle shop profile create karein, phir services add kar payenge.</p>
+                    <p className="text-gray-600">Create your shop profile first, then you can add services.</p>
                     <Link
                         to="/owner/shop"
                         className="mt-4 inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white"

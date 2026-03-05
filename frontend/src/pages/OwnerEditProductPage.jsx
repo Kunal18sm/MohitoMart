@@ -241,8 +241,8 @@ const OwnerEditProductPage = () => {
                                 />
                             </label>
                             <p className="mt-1 text-xs text-gray-500">
-                                ON par customer ko exact price nahi dikhega, sirf range jaise &lt;500 ya &lt;1000
-                                dikhega.
+                                When enabled, customers will not see the exact price and will only see a range such
+                                as &lt;500 or &lt;1000.
                             </p>
                         </div>
                     )}

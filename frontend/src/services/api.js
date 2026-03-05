@@ -84,9 +84,55 @@ const api = axios.create({
     withCredentials: true,
 });
 
+const CACHE_TTL = 3 * 60 * 1000; // 3 minutes
+const MAX_CACHE_ENTRIES = 120;
+const apiCache = new Map();
+const pendingGetRequests = new Map();
+
+const isCacheable = (url) => {
+    if (!url) return false;
+    return (
+        url.includes('/random') ||
+        url.includes('/latest') ||
+        url.includes('/categories') ||
+        url.includes('/feed/followed/random') ||
+        url.includes('/shops/locations') ||
+        url.includes('/banners/home')
+    );
+};
+
+const buildCacheKey = (url, params = {}) => {
+    const normalizedParams = Object.entries(params)
+        .filter(([, value]) => value !== undefined && value !== null && value !== '')
+        .sort(([left], [right]) => String(left).localeCompare(String(right)))
+        .map(([key, value]) => [key, Array.isArray(value) ? value.join(',') : value]);
+
+    return `${url}?${new URLSearchParams(normalizedParams).toString()}`;
+};
+
+const clearApiCache = () => {
+    apiCache.clear();
+    pendingGetRequests.clear();
+};
+
+const pruneApiCache = () => {
+    if (apiCache.size <= MAX_CACHE_ENTRIES) {
+        return;
+    }
+
+    const entries = [...apiCache.entries()].sort(
+        (left, right) => Number(left[1]?.timestamp || 0) - Number(right[1]?.timestamp || 0)
+    );
+    const removableCount = Math.max(0, entries.length - MAX_CACHE_ENTRIES);
+    for (let index = 0; index < removableCount; index += 1) {
+        apiCache.delete(entries[index][0]);
+    }
+};
+
 api.interceptors.request.use((config) => {
     const method = String(config.method || 'get').toLowerCase();
     if (MUTATION_METHODS.has(method)) {
+        clearApiCache();
         config.__trackMutation = true;
         pendingMutationCount += 1;
         emitMutationState();
@@ -163,31 +209,36 @@ api.interceptors.response.use(
     }
 );
 
-const CACHE_TTL = 3 * 60 * 1000; // 3 minutes
-const apiCache = new Map();
-
-const isCacheable = (url) => {
-    if (!url) return false;
-    return url.includes('/random') ||
-        url.includes('/latest') ||
-        url.includes('/categories') ||
-        url.includes('/feed/followed/random');
-};
-
 const originalGet = api.get;
 api.get = async (url, config = {}) => {
-    if (isCacheable(url)) {
-        const cacheKey = `${url}?${new URLSearchParams(config.params || {}).toString()}`;
+    const cacheEnabled = config.cache !== false;
+    if (cacheEnabled && isCacheable(url)) {
+        const cacheKey = buildCacheKey(url, config.params || {});
         const cachedEntry = apiCache.get(cacheKey);
 
         if (cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL) {
             return Promise.resolve(cachedEntry.data);
         }
 
+        if (pendingGetRequests.has(cacheKey)) {
+            return pendingGetRequests.get(cacheKey);
+        }
+
         try {
-            const response = await originalGet(url, config);
-            apiCache.set(cacheKey, { data: response, timestamp: Date.now() });
-            return response;
+            const requestPromise = originalGet(url, config)
+                .then((response) => {
+                    apiCache.set(cacheKey, { data: response, timestamp: Date.now() });
+                    pruneApiCache();
+                    pendingGetRequests.delete(cacheKey);
+                    return response;
+                })
+                .catch((error) => {
+                    pendingGetRequests.delete(cacheKey);
+                    throw error;
+                });
+
+            pendingGetRequests.set(cacheKey, requestPromise);
+            return requestPromise;
         } catch (error) {
             throw error;
         }

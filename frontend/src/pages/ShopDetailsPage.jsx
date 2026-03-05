@@ -297,7 +297,7 @@ const ShopDetailsPage = () => {
                 <h2 className="mb-4 text-3xl font-black text-dark">Shop Products</h2>
                 {products.length === 0 && (
                     <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
-                        Is shop ne abhi tak koi product add nahi kiya.
+                        This shop has not added any products yet.
                     </p>
                 )}
                 {products.length > 0 && (
@@ -313,7 +313,7 @@ const ShopDetailsPage = () => {
                 <h2 className="mb-4 text-3xl font-black text-dark">Shop Services</h2>
                 {services.length === 0 && (
                     <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
-                        Is shop ne abhi tak koi service add nahi ki.
+                        This shop has not added any services yet.
                     </p>
                 )}
                 {services.length > 0 && (

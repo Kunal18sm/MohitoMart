@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import ProductCard from '../components/ProductCard';
 import Skeleton from '../components/Skeleton';
 import SuggestionInput from '../components/SuggestionInput';
@@ -7,9 +8,28 @@ import api from '../services/api';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
 
 const PAGE_SIZE = 20;
+const mergeUniqueProducts = (existingProducts = [], incomingProducts = []) => {
+    const mergedProducts = [...existingProducts];
+    const seenProductIds = new Set(
+        existingProducts.map((entry) => String(entry?._id || '')).filter(Boolean)
+    );
+
+    incomingProducts.forEach((entry) => {
+        const productId = String(entry?._id || '');
+        if (!productId || seenProductIds.has(productId)) {
+            return;
+        }
+
+        seenProductIds.add(productId);
+        mergedProducts.push(entry);
+    });
+
+    return mergedProducts;
+};
 
 const CategoryPage = () => {
     const { id } = useParams();
+    const { t } = useTranslation();
 
     const savedLocation = useMemo(
         () => JSON.parse(localStorage.getItem('selectedLocation') || '{}'),
@@ -26,6 +46,7 @@ const CategoryPage = () => {
     const [error, setError] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
+    const requestIdRef = useRef(0);
     const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
     const areaOptions = useMemo(
         () => getAreaOptionsByCity(city),
@@ -34,45 +55,64 @@ const CategoryPage = () => {
 
     const categoryName = decodeURIComponent(id || '');
 
-    const fetchCategoryProducts = async (targetPage = 1, { reset = false } = {}) => {
-        try {
-            if (reset) {
-                setLoading(true);
-            } else {
-                setLoadingMore(true);
-            }
-            setError('');
-            const { data } = await api.get('/products', {
-                params: {
-                    category: categoryName,
-                    keyword: keyword.trim() || undefined,
-                    sort: sortBy,
-                    city: city || undefined,
-                    area: area || undefined,
-                    page: targetPage,
-                    limit: PAGE_SIZE,
-                },
-            });
+    const fetchCategoryProducts = useCallback(
+        async (targetPage = 1, { reset = false } = {}) => {
+            const requestId = requestIdRef.current + 1;
+            requestIdRef.current = requestId;
 
-            const nextProducts = Array.isArray(data.products) ? data.products : [];
-            const totalPages = Number(data.pages || 1);
+            try {
+                if (reset) {
+                    setLoading(true);
+                    setLoadingMore(false);
+                } else {
+                    setLoadingMore(true);
+                }
+                setError('');
+                const { data } = await api.get('/products', {
+                    params: {
+                        category: categoryName,
+                        keyword: keyword.trim() || undefined,
+                        sort: sortBy,
+                        city: city || undefined,
+                        area: area || undefined,
+                        page: targetPage,
+                        limit: PAGE_SIZE,
+                    },
+                });
 
-            setProducts((previous) => (reset ? nextProducts : previous.concat(nextProducts)));
-            setCurrentPage(targetPage);
-            setHasMore(targetPage < totalPages);
-        } catch (err) {
-            if (reset) {
-                setProducts([]);
+                if (requestId !== requestIdRef.current) {
+                    return;
+                }
+
+                const nextProducts = Array.isArray(data.products) ? data.products : [];
+                const totalPages = Number(data.pages || 1);
+
+                setProducts((previous) =>
+                    reset ? nextProducts : mergeUniqueProducts(previous, nextProducts)
+                );
+                setCurrentPage(targetPage);
+                setHasMore(targetPage < totalPages);
+            } catch (err) {
+                if (requestId !== requestIdRef.current) {
+                    return;
+                }
+
+                if (reset) {
+                    setProducts([]);
+                }
+                setError(err.response?.data?.message || t('unable_fetch_category_products') || 'Unable to fetch category products');
+            } finally {
+                if (requestId === requestIdRef.current) {
+                    if (reset) {
+                        setLoading(false);
+                    } else {
+                        setLoadingMore(false);
+                    }
+                }
             }
-            setError(err.response?.data?.message || 'Unable to fetch category products');
-        } finally {
-            if (reset) {
-                setLoading(false);
-            } else {
-                setLoadingMore(false);
-            }
-        }
-    };
+        },
+        [area, categoryName, city, keyword, sortBy, t]
+    );
 
     useEffect(() => {
         fetchCategoryProducts(1, { reset: true });
@@ -96,15 +136,15 @@ const CategoryPage = () => {
             <div className="mb-4">
                 <p className="mb-2 text-sm text-gray-500">
                     <Link to="/" className="hover:underline">
-                        Home
+                        {t('home') || 'Home'}
                     </Link>{' '}
-                    / Category
+                    / {t('category') || 'Category'}
                 </p>
                 <h1 className="text-3xl font-black text-dark sm:text-4xl">
                     {categoryName.replace(/\b\w/g, (char) => char.toUpperCase())}
                 </h1>
                 <p className="text-gray-500">
-                    {area && city ? `${area}, ${city}` : 'All locations'}
+                    {area && city ? `${area}, ${city}` : t('all_locations') || 'All locations'}
                 </p>
             </div>
 
@@ -116,21 +156,21 @@ const CategoryPage = () => {
                     <SuggestionInput
                         value={city}
                         onChange={setCity}
-                        placeholder="City"
+                        placeholder={t('city') || 'City'}
                         className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
                         options={cityOptions}
                     />
                     <SuggestionInput
                         value={area}
                         onChange={setArea}
-                        placeholder="Area"
+                        placeholder={t('area') || 'Area'}
                         className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
                         options={areaOptions}
                     />
                     <input
                         value={keyword}
                         onChange={(event) => setKeyword(event.target.value)}
-                        placeholder="Search product"
+                        placeholder={t('search_product') || 'Search product'}
                         className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                     <select
@@ -138,17 +178,17 @@ const CategoryPage = () => {
                         onChange={(event) => setSortBy(event.target.value)}
                         className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
                     >
-                        <option value="latest">Latest</option>
-                        <option value="oldest">Oldest</option>
-                        <option value="price_asc">Price low to high</option>
-                        <option value="price_desc">Price high to low</option>
-                        <option value="views_desc">Most viewed</option>
+                        <option value="latest">{t('latest') || 'Latest'}</option>
+                        <option value="oldest">{t('oldest') || 'Oldest'}</option>
+                        <option value="price_asc">{t('price_low_to_high') || 'Price low to high'}</option>
+                        <option value="price_desc">{t('price_high_to_low') || 'Price high to low'}</option>
+                        <option value="views_desc">{t('most_viewed') || 'Most viewed'}</option>
                     </select>
                     <button
                         type="submit"
                         className="rounded-lg bg-dark px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary"
                     >
-                        Apply location
+                        {t('apply_location') || 'Apply location'}
                     </button>
                 </form>
             </div>
@@ -165,7 +205,7 @@ const CategoryPage = () => {
 
             {!loading && products.length === 0 && (
                 <p className="rounded-xl border border-dashed border-gray-300 p-6 text-gray-500">
-                    Is category me selected location ke liye koi product available nahi hai.
+                    {t('no_products_for_category_location') || 'No product is available for this category in the selected location.'}
                 </p>
             )}
 
@@ -185,7 +225,7 @@ const CategoryPage = () => {
                                 disabled={loadingMore}
                                 className="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
                             >
-                                {loadingMore ? 'Loading...' : 'Load more'}
+                                {loadingMore ? (t('loading') || 'Loading...') : (t('load_more') || 'Load more')}
                             </button>
                         </div>
                     )}

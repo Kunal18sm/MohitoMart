@@ -19,6 +19,7 @@ export const SHOP_CATEGORIES = [
     'Meat & Seafood',
     'Sweets & Namkeen',
     'Beverages',
+    'Restaurant',
     'Pharmacy',
     'Medical Supplies',
     'Optical',

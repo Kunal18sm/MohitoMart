@@ -70,6 +70,33 @@ export const getAreaFilterState = (selectedLocation = {}) => {
 export const buildAreasFromSlots = (selectedLocation = {}, extraAreas = []) =>
     asUniqueAreas([selectedLocation.area, ...extraAreas]).slice(0, 3);
 
+export const fillAreaSlotsWithNearby = (
+    selectedLocation = {},
+    existingAreas = [],
+    nearbyAreas = [],
+    maxAreas = 3
+) => {
+    const limit = Math.min(Math.max(Number(maxAreas || 3), 1), 3);
+    const areas = asUniqueAreas([selectedLocation.area, ...existingAreas]);
+    const usedKeys = new Set(areas.map((entry) => normalizeKey(entry)));
+
+    asUniqueAreas(nearbyAreas).forEach((area) => {
+        if (areas.length >= limit) {
+            return;
+        }
+
+        const key = normalizeKey(area);
+        if (!key || usedKeys.has(key)) {
+            return;
+        }
+
+        usedKeys.add(key);
+        areas.push(area);
+    });
+
+    return areas.slice(0, limit);
+};
+
 export const persistAreaFilterState = (selectedLocation = {}, areas = []) => {
     if (typeof window === 'undefined') {
         return;

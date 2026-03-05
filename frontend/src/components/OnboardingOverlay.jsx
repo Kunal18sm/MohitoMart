@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { detectDeviceLocation } from '../utils/deviceLocation';
@@ -189,20 +189,20 @@ const OnboardingOverlay = () => {
                     {step === 1 && (
                         <div className="p-8 text-center">
                             <h2 className="mb-6 text-2xl font-bold text-dark">{t('select_language') || 'Language'}</h2>
-                            <p className="mb-8 text-app-muted">Choose your preferred language / अपनी पसंदीदा भाषा चुनें</p>
+                            <p className="mb-8 text-app-muted">{t('choose_preferred_language') || 'Choose your preferred language.'}</p>
 
                             <div className="flex flex-col gap-4">
                                 <button
                                     onClick={() => handleLanguageSelect('en')}
                                     className="flex items-center justify-center rounded-xl bg-primary px-6 py-4 font-semibold text-white transition-transform hover:scale-105 active:scale-95"
                                 >
-                                    English
+                                    {t('english') || 'English'}
                                 </button>
                                 <button
                                     onClick={() => handleLanguageSelect('hi')}
                                     className="flex items-center justify-center rounded-xl bg-primary px-6 py-4 font-semibold text-white transition-transform hover:scale-105 active:scale-95"
                                 >
-                                    हिन्दी (Hindi)
+                                    {t('hindi') || 'Hindi'}
                                 </button>
                             </div>
                         </div>
@@ -253,23 +253,23 @@ const OnboardingOverlay = () => {
 
                                 <div className="mt-2 grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="text-xs font-semibold text-gray-500 mb-1 block">City</label>
+                                        <label className="text-xs font-semibold text-gray-500 mb-1 block">{t('city') || 'City'}</label>
                                         <SuggestionInput
                                             value={city}
                                             options={cityOptions}
                                             onChange={setCity}
                                             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-primary"
-                                            placeholder="Enter city"
+                                            placeholder={t('city') || 'City'}
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-xs font-semibold text-gray-500 mb-1 block">Area</label>
+                                        <label className="text-xs font-semibold text-gray-500 mb-1 block">{t('area') || 'Area'}</label>
                                         <SuggestionInput
                                             value={area}
                                             options={areaOptions}
                                             onChange={setArea}
                                             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-primary"
-                                            placeholder="Enter area"
+                                            placeholder={t('area') || 'Area'}
                                         />
                                     </div>
                                 </div>
@@ -301,3 +301,4 @@ const OnboardingOverlay = () => {
 };
 
 export default OnboardingOverlay;
+
