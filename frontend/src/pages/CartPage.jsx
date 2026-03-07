@@ -5,6 +5,7 @@ import api from '../services/api';
 import { useFlash } from '../context/FlashContext';
 import { extractErrorMessage } from '../utils/errorUtils';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const CartPage = () => {
     const navigate = useNavigate();
@@ -151,10 +152,11 @@ const CartPage = () => {
                         >
                             <Link to={`/product/${item.product}`} className="overflow-hidden rounded-xl bg-light">
                                 <img
-                                    src={item.image || 'https://via.placeholder.com/400x400?text=Product'}
+                                    src={resolveImageSource(item.image, 'product')}
                                     alt={item.name}
                                     loading="lazy"
                                     decoding="async"
+                                    onError={(event) => applyImageFallback(event, 'product')}
                                     className="h-28 w-full object-cover sm:h-32"
                                 />
                             </Link>

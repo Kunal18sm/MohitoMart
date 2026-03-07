@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
@@ -70,15 +69,8 @@ const AllCategoriesPage = () => {
 
             {!loading && categories.length > 0 && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                    {categories.map((category, index) => (
-                        <motion.div
-                            key={category}
-                            className="h-full"
-                            initial={{ opacity: 0, y: 16 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: index * 0.02, duration: 0.25 }}
-                        >
+                    {categories.map((category) => (
+                        <div key={category} className="h-full">
                             <Link
                                 to={`/category/${encodeURIComponent(category.toLowerCase())}`}
                                 className="block h-full rounded-[18px] border border-slate-300/50 bg-gradient-to-b from-white to-slate-50 p-1.5 transition hover:-translate-y-0.5 hover:shadow-sm"
@@ -89,12 +81,7 @@ const AllCategoriesPage = () => {
                                         alt={category}
                                         loading="lazy"
                                         decoding="async"
-                                        onError={(event) =>
-                                            handleCategoryImageError(event, category, {
-                                                width: 640,
-                                                height: 420,
-                                            })
-                                        }
+                                        onError={handleCategoryImageError}
                                         className="h-full w-full object-cover"
                                     />
                                 </div>
@@ -102,7 +89,7 @@ const AllCategoriesPage = () => {
                                     {category}
                                 </p>
                             </Link>
-                        </motion.div>
+                        </div>
                     ))}
                 </div>
             )}

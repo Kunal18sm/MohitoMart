@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { filterCategoriesWithLocalImages } from '../utils/categoryImage';
 import { buildAreaQueryParam, formatAreaSummary, getAreaFilterState } from '../utils/areaFilters';
+import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const PAGE_SIZE = 20;
 const mergeUniqueShops = (existingShops = [], incomingShops = []) => {
@@ -179,6 +179,7 @@ const AllShopsPage = () => {
                 <select
                     value={selectedCategory}
                     onChange={(event) => setSelectedCategory(event.target.value)}
+                    aria-label={t('shop_category_filter') || 'Filter shops by category'}
                     className="rounded-md border border-gray-200 px-2.5 py-2 text-sm outline-none focus:border-primary"
                 >
                     <option value="all">{t('all') || 'All'}</option>
@@ -191,12 +192,14 @@ const AllShopsPage = () => {
                 <input
                     value={keyword}
                     onChange={(event) => setKeyword(event.target.value)}
+                    aria-label={t('search_shop_name') || 'Search shop name'}
                     placeholder={t('search_shop_name') || 'Search shop name'}
                     className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm outline-none focus:border-primary"
                 />
                 <select
                     value={sortBy}
                     onChange={(event) => setSortBy(event.target.value)}
+                    aria-label={t('shop_sort_order') || 'Sort shops'}
                     className="rounded-md border border-gray-200 px-2.5 py-2 text-sm outline-none focus:border-primary"
                 >
                     <option value="latest">{t('latest') || 'Latest'}</option>
@@ -240,26 +243,18 @@ const AllShopsPage = () => {
             {!loading && shops.length > 0 && (
                 <>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                        {shops.map((shop, index) => (
-                            <motion.div
-                                key={shop._id}
-                                initial={{ opacity: 0, y: 16 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: index * 0.015, duration: 0.24 }}
-                            >
+                        {shops.map((shop) => (
+                            <div key={shop._id}>
                                 <Link
                                     to={`/shop/${shop._id}`}
                                     className="group block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
                                 >
                                     <img
-                                        src={
-                                            shop.images?.[0] ||
-                                            'https://via.placeholder.com/500x300?text=Shop+Image'
-                                        }
+                                        src={resolveImageSource(shop.images?.[0], 'shop')}
                                         alt={shop.name}
                                         loading="lazy"
                                         decoding="async"
+                                        onError={(event) => applyImageFallback(event, 'shop')}
                                         className="h-32 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-36"
                                     />
                                     <div className="space-y-1.5 p-3">
@@ -271,7 +266,7 @@ const AllShopsPage = () => {
                                         </p>
                                     </div>
                                 </Link>
-                            </motion.div>
+                            </div>
                         ))}
                     </div>
 

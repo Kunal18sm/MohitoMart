@@ -4,6 +4,7 @@ import ProductCard from '../components/ProductCard';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
 import { formatServicePrice } from '../utils/servicePrice';
+import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const ShopDetailsPage = () => {
     const { id } = useParams();
@@ -178,8 +179,9 @@ const ShopDetailsPage = () => {
                 <div>
                     <div className="mb-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">
                         <img
-                            src={activeImage || 'https://via.placeholder.com/900x550?text=Shop+Image'}
+                            src={resolveImageSource(activeImage, 'shop')}
                             alt={shop.name}
+                            onError={(event) => applyImageFallback(event, 'shop')}
                             className="h-[280px] w-full object-cover sm:h-[340px] md:h-[420px]"
                         />
                     </div>
@@ -189,10 +191,18 @@ const ShopDetailsPage = () => {
                                 key={image}
                                 type="button"
                                 onClick={() => setActiveImage(image)}
+                                aria-label={`Show shop image ${(shop.images || []).indexOf(image) + 1}`}
                                 className={`overflow-hidden rounded-lg border ${activeImage === image ? 'border-primary' : 'border-gray-200'
                                     }`}
                             >
-                                <img src={image} alt="shop" className="h-20 w-24 object-cover" />
+                                <img
+                                    src={resolveImageSource(image, 'shop')}
+                                    alt="shop"
+                                    loading="lazy"
+                                    decoding="async"
+                                    onError={(event) => applyImageFallback(event, 'shop')}
+                                    className="h-20 w-24 object-cover"
+                                />
                             </button>
                         ))}
                     </div>
@@ -327,10 +337,11 @@ const ShopDetailsPage = () => {
                                     {(service.images || []).map((image, index) => (
                                         <img
                                             key={`${service._id}-${image}-${index}`}
-                                            src={image}
+                                            src={resolveImageSource(image, 'service')}
                                             alt={service.name}
                                             loading="lazy"
                                             decoding="async"
+                                            onError={(event) => applyImageFallback(event, 'service')}
                                             className="h-44 min-w-full snap-start rounded-xl border border-gray-200 object-cover sm:h-52"
                                         />
                                     ))}
@@ -364,6 +375,7 @@ const ShopDetailsPage = () => {
                                 min="1"
                                 max="5"
                                 value={rating}
+                                aria-label="Rating from 1 to 5"
                                 onChange={(event) => setRating(event.target.value)}
                                 className="w-full rounded-lg border border-gray-200 px-3 py-2 outline-none focus:border-primary"
                             />
@@ -377,6 +389,7 @@ const ShopDetailsPage = () => {
                                 onChange={(event) => setComment(event.target.value)}
                                 rows="4"
                                 required
+                                aria-label="Experience comment"
                                 placeholder="Share your experience in at least a few words."
                                 className="w-full rounded-lg border border-gray-200 px-3 py-2 outline-none focus:border-primary"
                             />

@@ -7,6 +7,7 @@ import GlobalSavingOverlay from './components/GlobalSavingOverlay';
 import InstallAppPrompt from './components/InstallAppPrompt';
 import BottomNav from './components/BottomNav';
 import RouteGuard from './components/RouteGuard';
+import { applyAccessibilityEnhancements } from './utils/accessibility';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage'));
@@ -164,6 +165,17 @@ function App() {
             mounted = false;
         };
     }, []);
+
+    useEffect(() => {
+        const applyLabels = () => applyAccessibilityEnhancements(document);
+        const frameId = window.requestAnimationFrame(applyLabels);
+        const timeoutId = window.setTimeout(applyLabels, 250);
+
+        return () => {
+            window.cancelAnimationFrame(frameId);
+            window.clearTimeout(timeoutId);
+        };
+    }, [location.pathname, sessionBootstrapped]);
 
     if (!sessionBootstrapped) {
         return <PageFallback />;

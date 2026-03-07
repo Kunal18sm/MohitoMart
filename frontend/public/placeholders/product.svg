@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" role="img" aria-labelledby="title desc">
+  <title id="title">Product placeholder</title>
+  <desc id="desc">Placeholder image for a product listing.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ebf7f3" />
+      <stop offset="100%" stop-color="#fee9d7" />
+    </linearGradient>
+  </defs>
+  <rect width="900" height="500" fill="url(#bg)" />
+  <circle cx="754" cy="122" r="74" fill="#ffffff" fill-opacity="0.38" />
+  <circle cx="156" cy="382" r="96" fill="#ffffff" fill-opacity="0.25" />
+  <rect x="178" y="112" width="544" height="286" rx="36" fill="#ffffff" fill-opacity="0.94" />
+  <rect x="248" y="160" width="404" height="190" rx="24" fill="#0f766e" fill-opacity="0.11" />
+  <path d="M350 196h200v118H350z" fill="#ffffff" fill-opacity="0.8" />
+  <path d="M350 216h200" stroke="#0f172a" stroke-opacity="0.16" stroke-width="14" stroke-linecap="round" />
+  <path d="M388 286h124" stroke="#0f172a" stroke-opacity="0.18" stroke-width="16" stroke-linecap="round" />
+  <path d="M424 332h52" stroke="#f97316" stroke-opacity="0.36" stroke-width="18" stroke-linecap="round" />
+  <text x="450" y="444" text-anchor="middle" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="42" font-weight="700" fill="#0f172a">Product Image</text>
+</svg>

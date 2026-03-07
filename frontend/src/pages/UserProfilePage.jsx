@@ -163,6 +163,7 @@ const UserProfilePage = () => {
                         <input
                             type="text"
                             placeholder="Full name"
+                            aria-label="Full name"
                             value={profileForm.name}
                             onChange={(event) =>
                                 setProfileForm((previous) => ({ ...previous, name: event.target.value }))
@@ -175,6 +176,7 @@ const UserProfilePage = () => {
                         <input
                             type="email"
                             placeholder="Email"
+                            aria-label="Email"
                             value={profileForm.email}
                             onChange={(event) =>
                                 setProfileForm((previous) => ({ ...previous, email: event.target.value }))
@@ -186,6 +188,7 @@ const UserProfilePage = () => {
                         <label className="mb-1.5 block text-sm font-semibold text-gray-700">City</label>
                         <SuggestionInput
                             placeholder="City"
+                            ariaLabel="City"
                             value={profileForm.city}
                             options={cityOptions}
                             onChange={(nextValue) =>
@@ -198,6 +201,7 @@ const UserProfilePage = () => {
                         <label className="mb-1.5 block text-sm font-semibold text-gray-700">Area</label>
                         <SuggestionInput
                             placeholder="Area"
+                            ariaLabel="Area"
                             value={profileForm.area}
                             options={areaOptions}
                             onChange={(nextValue) =>

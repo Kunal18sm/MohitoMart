@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 550" role="img" aria-labelledby="title desc">
+  <title id="title">Shop placeholder</title>
+  <desc id="desc">Placeholder image for a shop listing.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d9f0eb" />
+      <stop offset="100%" stop-color="#f4dfcf" />
+    </linearGradient>
+  </defs>
+  <rect width="900" height="550" fill="url(#bg)" />
+  <circle cx="745" cy="105" r="72" fill="#ffffff" fill-opacity="0.45" />
+  <circle cx="145" cy="455" r="88" fill="#ffffff" fill-opacity="0.28" />
+  <rect x="130" y="168" width="640" height="250" rx="28" fill="#ffffff" fill-opacity="0.9" />
+  <path d="M180 218h540l-30 55H210z" fill="#0f766e" fill-opacity="0.14" />
+  <rect x="225" y="258" width="118" height="118" rx="18" fill="#0f766e" fill-opacity="0.16" />
+  <rect x="382" y="258" width="118" height="118" rx="18" fill="#0f766e" fill-opacity="0.16" />
+  <rect x="539" y="258" width="118" height="118" rx="18" fill="#0f766e" fill-opacity="0.16" />
+  <text x="450" y="472" text-anchor="middle" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="44" font-weight="700" fill="#0f172a">Shop Image</text>
+</svg>

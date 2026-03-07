@@ -1,8 +1,9 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
+import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const ShopCard = ({ shop }) => {
-    const imageUrl = shop.images?.[0] || 'https://via.placeholder.com/500x300?text=Shop+Image';
+    const imageUrl = resolveImageSource(shop.images?.[0], 'shop');
 
     return (
         <div className="group overflow-hidden rounded-2xl glass-panel hover-elevate">
@@ -12,6 +13,7 @@ const ShopCard = ({ shop }) => {
                     alt={shop.name}
                     loading="lazy"
                     decoding="async"
+                    onError={(event) => applyImageFallback(event, 'shop')}
                     className="h-32 w-full object-cover sm:h-40 md:h-44"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-dark/40 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />

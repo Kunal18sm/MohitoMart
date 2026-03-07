@@ -8,6 +8,8 @@ const SuggestionInput = ({
     onChange,
     options = [],
     placeholder = '',
+    ariaLabel = '',
+    inputId = '',
     disabled = false,
     type = 'text',
     maxLength,
@@ -94,11 +96,13 @@ const SuggestionInput = ({
     return (
         <div ref={containerRef} className={`relative ${containerClassName}`}>
             <input
+                id={inputId}
                 type={type}
                 value={value}
                 disabled={disabled}
                 maxLength={maxLength}
                 autoComplete="off"
+                aria-label={ariaLabel || placeholder || 'Suggestion input'}
                 placeholder={placeholder}
                 onFocus={() => setIsOpen(true)}
                 onKeyDown={handleKeyDown}

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" role="img" aria-labelledby="title desc">
+  <title id="title">Service placeholder</title>
+  <desc id="desc">Placeholder image for a service listing.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e1f3ef" />
+      <stop offset="100%" stop-color="#fff1e4" />
+    </linearGradient>
+  </defs>
+  <rect width="900" height="500" fill="url(#bg)" />
+  <circle cx="170" cy="110" r="82" fill="#ffffff" fill-opacity="0.35" />
+  <circle cx="720" cy="390" r="92" fill="#ffffff" fill-opacity="0.25" />
+  <rect x="146" y="124" width="608" height="252" rx="32" fill="#ffffff" fill-opacity="0.92" />
+  <circle cx="280" cy="250" r="76" fill="#0f766e" fill-opacity="0.14" />
+  <path d="M280 200c-22 0-40 18-40 40s18 40 40 40 40-18 40-40-18-40-40-40Zm0-28c37.6 0 68 30.4 68 68s-30.4 68-68 68-68-30.4-68-68 30.4-68 68-68Z" fill="#0f766e" fill-opacity="0.38" />
+  <rect x="400" y="205" width="228" height="24" rx="12" fill="#0f172a" fill-opacity="0.14" />
+  <rect x="400" y="255" width="178" height="22" rx="11" fill="#0f172a" fill-opacity="0.1" />
+  <rect x="400" y="302" width="136" height="22" rx="11" fill="#f97316" fill-opacity="0.18" />
+  <text x="450" y="436" text-anchor="middle" font-family="'Plus Jakarta Sans', Arial, sans-serif" font-size="42" font-weight="700" fill="#0f172a">Service Image</text>
+</svg>

@@ -5,6 +5,11 @@ import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { formatProductPrice } from '../utils/productPrice';
+import {
+    applyImageFallback,
+    getPlaceholderImage,
+    resolveImageSource,
+} from '../utils/imageFallbacks';
 
 const ProductDetailsPage = () => {
     const { id } = useParams();
@@ -123,7 +128,7 @@ const ProductDetailsPage = () => {
     const shopImages =
         product?.shop?.images?.length > 0
             ? product.shop.images
-            : ['https://via.placeholder.com/900x600?text=Shop+Image'];
+            : [getPlaceholderImage('shop')];
     const hasMultipleShopImages = shopImages.length > 1;
 
     const showPreviousShopImage = () => {
@@ -169,10 +174,11 @@ const ProductDetailsPage = () => {
                 <div>
                     <div className="mb-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">
                         <img
-                            src={mainImage || 'https://via.placeholder.com/900x500?text=Product+Image'}
+                            src={resolveImageSource(mainImage, 'product')}
                             alt={product.name}
                             loading="eager"
                             decoding="async"
+                            onError={(event) => applyImageFallback(event, 'product')}
                             className="h-[240px] w-full object-cover sm:h-[300px] md:h-[360px]"
                         />
                     </div>
@@ -182,15 +188,17 @@ const ProductDetailsPage = () => {
                                 key={image}
                                 type="button"
                                 onClick={() => setMainImage(image)}
+                                aria-label={`Show product image ${(product.images || []).indexOf(image) + 1}`}
                                 className={`overflow-hidden rounded-lg border ${
                                     mainImage === image ? 'border-primary' : 'border-gray-200'
                                 }`}
                             >
                                 <img
-                                    src={image}
+                                    src={resolveImageSource(image, 'product')}
                                     alt="thumbnail"
                                     loading="lazy"
                                     decoding="async"
+                                    onError={(event) => applyImageFallback(event, 'product')}
                                     className="h-16 w-20 object-cover sm:h-20 sm:w-24"
                                 />
                             </button>
@@ -298,19 +306,21 @@ const ProductDetailsPage = () => {
                                         {product.shop?._id ? (
                                             <Link to={`/shop/${product.shop._id}`} className="block">
                                                 <img
-                                                    src={image}
+                                                    src={resolveImageSource(image, 'shop')}
                                                     alt={product.shop.name}
                                                     loading="lazy"
                                                     decoding="async"
+                                                    onError={(event) => applyImageFallback(event, 'shop')}
                                                     className="h-52 w-full object-cover sm:h-60 md:h-64"
                                                 />
                                             </Link>
                                         ) : (
                                             <img
-                                                src={image}
+                                                src={resolveImageSource(image, 'shop')}
                                                 alt={product.shop.name}
                                                 loading="lazy"
                                                 decoding="async"
+                                                onError={(event) => applyImageFallback(event, 'shop')}
                                                 className="h-52 w-full object-cover sm:h-60 md:h-64"
                                             />
                                         )}
@@ -350,15 +360,17 @@ const ProductDetailsPage = () => {
                                     key={`${image}-thumb-${index}`}
                                     type="button"
                                     onClick={() => setShopGalleryIndex(index)}
+                                    aria-label={`Show shop gallery image ${index + 1}`}
                                     className={`overflow-hidden rounded-lg border ${
                                         shopGalleryIndex === index ? 'border-primary' : 'border-gray-200'
                                     }`}
                                 >
                                     <img
-                                        src={image}
+                                        src={resolveImageSource(image, 'shop')}
                                         alt={`${product.shop.name}-preview-${index + 1}`}
                                         loading="lazy"
                                         decoding="async"
+                                        onError={(event) => applyImageFallback(event, 'shop')}
                                         className="h-14 w-20 object-cover sm:h-16 sm:w-24"
                                     />
                                 </button>

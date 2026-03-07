@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
 import { formatServicePrice } from '../utils/servicePrice';
+import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const ServiceDetailsPage = () => {
     const { id } = useParams();
@@ -59,10 +60,11 @@ const ServiceDetailsPage = () => {
                 <div>
                     <div className="mb-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">
                         <img
-                            src={mainImage || 'https://via.placeholder.com/900x500?text=Service+Image'}
+                            src={resolveImageSource(mainImage, 'service')}
                             alt={service.name}
                             loading="eager"
                             decoding="async"
+                            onError={(event) => applyImageFallback(event, 'service')}
                             className="h-[280px] w-full object-cover sm:h-[360px] md:h-[420px]"
                         />
                     </div>
@@ -73,14 +75,16 @@ const ServiceDetailsPage = () => {
                                     key={image}
                                     type="button"
                                     onClick={() => setMainImage(image)}
+                                    aria-label={`Show service image ${service.images.indexOf(image) + 1}`}
                                     className={`overflow-hidden rounded-lg border ${mainImage === image ? 'border-primary' : 'border-gray-200'
                                         }`}
                                 >
                                     <img
-                                        src={image}
+                                        src={resolveImageSource(image, 'service')}
                                         alt="thumbnail"
                                         loading="lazy"
                                         decoding="async"
+                                        onError={(event) => applyImageFallback(event, 'service')}
                                         className="h-20 w-24 object-cover"
                                     />
                                 </button>

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { formatServicePrice } from '../utils/servicePrice';
 import { buildAreaQueryParam, formatAreaSummary, getAreaFilterState } from '../utils/areaFilters';
+import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const PAGE_SIZE = 20;
 const mergeUniqueServices = (existingServices = [], incomingServices = []) => {
@@ -172,6 +172,7 @@ const AllServicesPage = () => {
                 <select
                     value={selectedCategory}
                     onChange={(event) => setSelectedCategory(event.target.value)}
+                    aria-label={t('service_category_filter') || 'Filter services by category'}
                     className="rounded-md border border-gray-200 px-2.5 py-2 text-sm outline-none focus:border-primary"
                 >
                     <option value="all">{t('all') || 'All'}</option>
@@ -184,12 +185,14 @@ const AllServicesPage = () => {
                 <input
                     value={keyword}
                     onChange={(event) => setKeyword(event.target.value)}
+                    aria-label={t('search_service_name') || 'Search service name'}
                     placeholder={t('search_service_name') || 'Search service name'}
                     className="rounded-md border border-gray-200 px-2.5 py-1.5 text-sm outline-none focus:border-primary"
                 />
                 <select
                     value={sortBy}
                     onChange={(event) => setSortBy(event.target.value)}
+                    aria-label={t('service_sort_order') || 'Sort services'}
                     className="rounded-md border border-gray-200 px-2.5 py-2 text-sm outline-none focus:border-primary"
                 >
                     <option value="latest">{t('latest') || 'Latest'}</option>
@@ -233,23 +236,17 @@ const AllServicesPage = () => {
             {!loading && services.length > 0 && (
                 <>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                        {services.map((service, index) => (
-                            <motion.article
+                        {services.map((service) => (
+                            <article
                                 key={service._id}
-                                initial={{ opacity: 0, y: 16 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: index * 0.015, duration: 0.24 }}
                                 className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
                             >
                                 <img
-                                    src={
-                                        service.images?.[0] ||
-                                        'https://via.placeholder.com/700x420?text=Service+Image'
-                                    }
+                                    src={resolveImageSource(service.images?.[0], 'service')}
                                     alt={service.name}
                                     loading="lazy"
                                     decoding="async"
+                                    onError={(event) => applyImageFallback(event, 'service')}
                                     className="h-44 w-full object-cover"
                                 />
                                 <div className="space-y-2.5 p-4">
@@ -292,7 +289,7 @@ const AllServicesPage = () => {
                                         {t('open_shop') || 'Open Shop'}
                                     </Link>
                                 </div>
-                            </motion.article>
+                            </article>
                         ))}
                     </div>
 

@@ -8,21 +8,4 @@ export default defineConfig({
         react(),
         tailwindcss(),
     ],
-    build: {
-        rollupOptions: {
-            output: {
-                manualChunks(id) {
-                    if (id.includes('node_modules/@mui')) {
-                        return 'mui'
-                    }
-
-                    if (id.includes('node_modules/framer-motion')) {
-                        return 'motion'
-                    }
-
-                    return undefined
-                },
-            },
-        },
-    },
 })

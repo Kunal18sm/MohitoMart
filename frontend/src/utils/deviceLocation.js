@@ -1,119 +1,75 @@
-const buildNominatimUrl = (latitude, longitude) =>
-    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=${latitude}&lon=${longitude}`;
-
-const buildBigDataCloudUrl = (latitude, longitude) =>
-    `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`;
+import api from '../services/api';
 
 const APPROXIMATE_ACCURACY_THRESHOLD_METERS = 5000;
 const QUICK_GEOLOCATION_CACHE_MAX_AGE_MS = 10 * 60 * 1000;
 const PRECISE_GEOLOCATION_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
-const REVERSE_GEOCODE_TIMEOUT_MS = 4500;
+const REVERSE_GEOCODE_CACHE_MAX_AGE_MS = 30 * 60 * 1000;
+const REVERSE_GEOCODE_CACHE_STORAGE_KEY = 'mm_reverse_geocode_cache_v1';
+const REVERSE_GEOCODE_CACHE_PRECISION = 3;
 
 const normalizeLabel = (value, fallback = '') => {
     const normalized = String(value || '').trim();
     return normalized || fallback;
 };
 
-const pickCandidate = (candidates = [], excludedValues = []) => {
-    const excludedSet = new Set(
-        excludedValues
-            .map((entry) => normalizeLabel(entry).toLowerCase())
-            .filter(Boolean)
-    );
+const hasResolvedLocation = (location = {}) =>
+    Boolean(normalizeLabel(location.city) || normalizeLabel(location.area));
 
-    for (const candidate of candidates) {
-        const normalized = normalizeLabel(candidate);
-        if (!normalized) {
-            continue;
-        }
+const buildCoordinateCacheKey = (latitude, longitude) =>
+    `${Number(latitude).toFixed(REVERSE_GEOCODE_CACHE_PRECISION)}:${Number(longitude).toFixed(REVERSE_GEOCODE_CACHE_PRECISION)}`;
 
-        if (excludedSet.has(normalized.toLowerCase())) {
-            continue;
-        }
-
-        return normalized;
+const readReverseGeocodeCache = (latitude, longitude) => {
+    if (typeof window === 'undefined' || !window.localStorage) {
+        return null;
     }
 
-    return '';
-};
-
-const parseNominatimAddress = (payload = {}) => {
-    const address = payload.address || {};
-    const city = pickCandidate([
-        address.city,
-        address.town,
-        address.municipality,
-        address.city_district,
-        address.county,
-        address.state_district,
-        address.state,
-    ]);
-    const area = pickCandidate(
-        [
-            address.suburb,
-            address.neighbourhood,
-            address.residential,
-            address.quarter,
-            address.city_district,
-            address.district,
-            address.borough,
-            address.village,
-            address.hamlet,
-            address.road,
-            address.postcode,
-        ],
-        [city]
-    );
-
-    return { city, area };
-};
-
-const parseBigDataCloudAddress = (payload = {}) => {
-    const administrativeNames = Array.isArray(payload.localityInfo?.administrative)
-        ? payload.localityInfo.administrative.map((entry) => entry?.name)
-        : [];
-    const informativeNames = Array.isArray(payload.localityInfo?.informative)
-        ? payload.localityInfo.informative.map((entry) => entry?.name)
-        : [];
-
-    const city = pickCandidate([
-        payload.city,
-        payload.locality,
-        payload.principalSubdivision,
-        ...administrativeNames,
-    ]);
-    const area = pickCandidate(
-        [
-            payload.locality,
-            ...informativeNames,
-            ...administrativeNames,
-            payload.postcode,
-        ],
-        [city]
-    );
-
-    return { city, area };
-};
-
-const fetchJson = async (url, timeoutMs = REVERSE_GEOCODE_TIMEOUT_MS) => {
-    const abortController = new AbortController();
-    const timeoutHandle = window.setTimeout(() => abortController.abort(), timeoutMs);
-
     try {
-        const response = await fetch(url, {
-            headers: {
-                Accept: 'application/json',
-            },
-            signal: abortController.signal,
-        });
-
-        if (!response.ok) {
-            throw new Error(`Request failed with status ${response.status}`);
+        const rawValue = window.localStorage.getItem(REVERSE_GEOCODE_CACHE_STORAGE_KEY);
+        if (!rawValue) {
+            return null;
         }
 
-        return response.json();
-    } finally {
-        window.clearTimeout(timeoutHandle);
+        const payload = JSON.parse(rawValue);
+        if (
+            payload?.key !== buildCoordinateCacheKey(latitude, longitude) ||
+            Number(payload?.timestamp || 0) + REVERSE_GEOCODE_CACHE_MAX_AGE_MS < Date.now()
+        ) {
+            return null;
+        }
+
+        const cachedLocation = payload.location || {};
+        if (!hasResolvedLocation(cachedLocation)) {
+            return null;
+        }
+
+        return {
+            city: normalizeLabel(cachedLocation.city),
+            area: normalizeLabel(cachedLocation.area),
+        };
+    } catch (error) {
+        return null;
+    }
+};
+
+const writeReverseGeocodeCache = (latitude, longitude, location) => {
+    if (typeof window === 'undefined' || !window.localStorage || !hasResolvedLocation(location)) {
+        return;
+    }
+
+    try {
+        window.localStorage.setItem(
+            REVERSE_GEOCODE_CACHE_STORAGE_KEY,
+            JSON.stringify({
+                key: buildCoordinateCacheKey(latitude, longitude),
+                location: {
+                    city: normalizeLabel(location.city),
+                    area: normalizeLabel(location.area),
+                },
+                timestamp: Date.now(),
+            })
+        );
+    } catch (error) {
+        // Ignore storage failures and continue without cache persistence.
     }
 };
 
@@ -121,6 +77,26 @@ const getCurrentPosition = (options) =>
     new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, options);
     });
+
+const readAccuracyMeters = (position) => {
+    const accuracy = Number(position?.coords?.accuracy);
+    return Number.isFinite(accuracy) ? accuracy : null;
+};
+
+const selectMoreAccuratePosition = (currentPosition, nextPosition) => {
+    const currentAccuracy = readAccuracyMeters(currentPosition);
+    const nextAccuracy = readAccuracyMeters(nextPosition);
+
+    if (nextAccuracy === null) {
+        return currentPosition;
+    }
+
+    if (currentAccuracy === null) {
+        return nextPosition;
+    }
+
+    return nextAccuracy < currentAccuracy ? nextPosition : currentPosition;
+};
 
 const getBestEffortPosition = async (timeoutMs) => {
     const safeTimeoutMs = Math.max(4500, Number(timeoutMs) || 9000);
@@ -172,24 +148,20 @@ const getBestEffortPosition = async (timeoutMs) => {
     }
 };
 
-const readAccuracyMeters = (position) => {
-    const accuracy = Number(position?.coords?.accuracy);
-    return Number.isFinite(accuracy) ? accuracy : null;
-};
+const reverseGeocodeCoordinates = async (latitude, longitude) => {
+    const { data } = await api.get('/shops/reverse-geocode', {
+        __silentError: true,
+        cache: false,
+        params: {
+            latitude,
+            longitude,
+        },
+    });
 
-const selectMoreAccuratePosition = (currentPosition, nextPosition) => {
-    const currentAccuracy = readAccuracyMeters(currentPosition);
-    const nextAccuracy = readAccuracyMeters(nextPosition);
-
-    if (nextAccuracy === null) {
-        return currentPosition;
-    }
-
-    if (currentAccuracy === null) {
-        return nextPosition;
-    }
-
-    return nextAccuracy < currentAccuracy ? nextPosition : currentPosition;
+    return {
+        city: normalizeLabel(data?.city),
+        area: normalizeLabel(data?.area),
+    };
 };
 
 export const detectDeviceLocation = async ({ timeoutMs = 12000 } = {}) => {
@@ -221,39 +193,16 @@ export const detectDeviceLocation = async ({ timeoutMs = 12000 } = {}) => {
         throw new Error('Could not read device coordinates.');
     }
 
-    const [nominatimResult, bigDataResult] = await Promise.allSettled([
-        fetchJson(buildNominatimUrl(latitude, longitude)),
-        fetchJson(buildBigDataCloudUrl(latitude, longitude)),
-    ]);
-
-    const nominatimLocation =
-        nominatimResult.status === 'fulfilled'
-            ? parseNominatimAddress(nominatimResult.value)
-            : { city: '', area: '' };
-    const bigDataCloudLocation =
-        bigDataResult.status === 'fulfilled'
-            ? parseBigDataCloudAddress(bigDataResult.value)
-            : { city: '', area: '' };
-
-    const city = pickCandidate([
-        nominatimLocation.city,
-        bigDataCloudLocation.city,
-        nominatimResult.status === 'fulfilled' ? nominatimResult.value?.address?.state : '',
-        bigDataResult.status === 'fulfilled' ? bigDataResult.value?.principalSubdivision : '',
-    ]);
-    const area = pickCandidate(
-        [
-            nominatimLocation.area,
-            bigDataCloudLocation.area,
-            nominatimResult.status === 'fulfilled' ? nominatimResult.value?.address?.road : '',
-            bigDataResult.status === 'fulfilled' ? bigDataResult.value?.postcode : '',
-        ],
-        [city]
-    );
+    const cachedLocation = readReverseGeocodeCache(latitude, longitude);
+    const resolvedLocation = cachedLocation || (await reverseGeocodeCoordinates(latitude, longitude));
+    const city = normalizeLabel(resolvedLocation.city);
+    const area = normalizeLabel(resolvedLocation.area);
 
     if (!city && !area) {
         throw new Error('Unable to determine your city/area from current coordinates.');
     }
+
+    writeReverseGeocodeCache(latitude, longitude, { city, area });
 
     return {
         city: normalizeLabel(city, 'Unknown City'),

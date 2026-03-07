@@ -115,6 +115,7 @@ const Navbar = () => {
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onFocus={() => setIsSearchFocused(true)}
                                 onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                                aria-label={t('search_placeholder') || 'Search products, shops, services'}
                                 placeholder={t('search_placeholder') || 'Search products, shops, services...'}
                                 className="w-full rounded-full bg-gray-100/50 border border-transparent px-4 py-2 pl-10 text-sm outline-none focus:border-primary/50 focus:bg-white transition-all focus:ring-4 focus:ring-primary/10"
                             />

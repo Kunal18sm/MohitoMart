@@ -154,6 +154,7 @@ const CategoryPage = () => {
                     className="grid w-full gap-2 rounded-xl border border-glass-border glass-panel p-3 shadow-sm sm:max-w-3xl md:grid-cols-5"
                 >
                     <SuggestionInput
+                        ariaLabel={t('city') || 'City'}
                         value={city}
                         onChange={setCity}
                         placeholder={t('city') || 'City'}
@@ -161,6 +162,7 @@ const CategoryPage = () => {
                         options={cityOptions}
                     />
                     <SuggestionInput
+                        ariaLabel={t('area') || 'Area'}
                         value={area}
                         onChange={setArea}
                         placeholder={t('area') || 'Area'}
@@ -170,12 +172,14 @@ const CategoryPage = () => {
                     <input
                         value={keyword}
                         onChange={(event) => setKeyword(event.target.value)}
+                        aria-label={t('search_product') || 'Search product'}
                         placeholder={t('search_product') || 'Search product'}
                         className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                     <select
                         value={sortBy}
                         onChange={(event) => setSortBy(event.target.value)}
+                        aria-label={t('product_sort_order') || 'Sort products'}
                         className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
                     >
                         <option value="latest">{t('latest') || 'Latest'}</option>

@@ -7,6 +7,7 @@ import { uploadImages, validateImageFiles } from '../utils/uploadUtils';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
 import { formatProductPrice } from '../utils/productPrice';
 import SuggestionInput from '../components/SuggestionInput';
+import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const AdminDashboardPage = () => {
     const navigate = useNavigate();
@@ -432,10 +433,11 @@ const AdminDashboardPage = () => {
                                 className="group overflow-hidden rounded-xl border border-gray-200 bg-white transition hover:shadow-md"
                             >
                                 <img
-                                    src={shop.images?.[0] || 'https://via.placeholder.com/500x300?text=Shop+Image'}
+                                    src={resolveImageSource(shop.images?.[0], 'shop')}
                                     alt={shop.name}
                                     loading="lazy"
                                     decoding="async"
+                                    onError={(event) => applyImageFallback(event, 'shop')}
                                     className="h-24 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-28"
                                 />
                                 <div className="p-2.5">
@@ -475,10 +477,11 @@ const AdminDashboardPage = () => {
                                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3">
                                     <div className="flex items-center gap-3">
                                         <img
-                                            src={product.images?.[0] || 'https://via.placeholder.com/300x200?text=Product'}
+                                            src={resolveImageSource(product.images?.[0], 'product')}
                                             alt={product.name}
                                             loading="lazy"
                                             decoding="async"
+                                            onError={(event) => applyImageFallback(event, 'product')}
                                             className="h-12 w-12 rounded-lg object-cover"
                                         />
                                         <div>

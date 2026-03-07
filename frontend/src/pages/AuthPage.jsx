@@ -5,8 +5,12 @@ import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
 import { detectDeviceLocation } from '../utils/deviceLocation';
-import { GoogleLogin } from '@react-oauth/google';
+import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
 import SuggestionInput from '../components/SuggestionInput';
+
+const GOOGLE_CLIENT_ID =
+    import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+    '406817513870-g70h24bmi8216l6i1kpibd7nodgd9lhh.apps.googleusercontent.com';
 
 const getRedirectPathByRole = (role) => {
     if (role === 'admin') {
@@ -345,8 +349,9 @@ const AuthPage = () => {
     };
 
     return (
-        <div className="container mx-auto px-4 py-12">
-            <div className="mx-auto max-w-2xl rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+            <div className="container mx-auto px-4 py-12">
+                <div className="mx-auto max-w-2xl rounded-3xl border border-gray-100 bg-white p-8 shadow-sm">
                 <div className="mb-6 flex gap-3">
                     <button
                         type="button"
@@ -375,6 +380,7 @@ const AuthPage = () => {
                         <input
                             type="text"
                             placeholder="Email or Username"
+                            aria-label="Email or Username"
                             value={loginData.identifier}
                             onChange={(event) =>
                                 setLoginData((prev) => ({ ...prev, identifier: event.target.value }))
@@ -384,6 +390,7 @@ const AuthPage = () => {
                         <input
                             type="password"
                             placeholder="Password"
+                            aria-label="Password"
                             value={loginData.password}
                             onChange={(event) =>
                                 setLoginData((prev) => ({ ...prev, password: event.target.value }))
@@ -466,6 +473,7 @@ const AuthPage = () => {
                                 value={registerData.city}
                                 placeholder="City"
                                 options={cityOptions}
+                                ariaLabel="City"
                                 onChange={(nextValue) =>
                                     setRegisterData((prev) => ({ ...prev, city: nextValue }))
                                 }
@@ -475,6 +483,7 @@ const AuthPage = () => {
                                 value={registerData.area}
                                 placeholder="Area"
                                 options={areaOptions}
+                                ariaLabel="Area"
                                 onChange={(nextValue) =>
                                     setRegisterData((prev) => ({ ...prev, area: nextValue }))
                                 }
@@ -483,6 +492,7 @@ const AuthPage = () => {
                         </div>
                         <select
                             value={registerData.role}
+                            aria-label="Account type"
                             onChange={(event) =>
                                 setRegisterData((prev) => ({ ...prev, role: event.target.value }))
                             }
@@ -513,62 +523,63 @@ const AuthPage = () => {
                         </div>
                     </form>
                 )}
-            </div>
-            {showGoogleRolePrompt && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
-                    <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
-                        <h2 className="text-lg font-bold text-dark">Continue as</h2>
-                        <p className="mt-1 text-xs text-gray-600">
-                            Choose your role to continue.
-                        </p>
-                        <div className="mt-4 flex flex-col items-center space-y-3">
+                </div>
+                {showGoogleRolePrompt && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4">
+                        <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+                            <h2 className="text-lg font-bold text-dark">Continue as</h2>
+                            <p className="mt-1 text-xs text-gray-600">
+                                Choose your role to continue.
+                            </p>
+                            <div className="mt-4 flex flex-col items-center space-y-3">
+                                <button
+                                    type="button"
+                                    onClick={() => completeGoogleAuth('user')}
+                                    disabled={loading}
+                                    className="w-3/4 overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:border-primary hover:shadow-sm disabled:opacity-50"
+                                >
+                                    <div className="aspect-square w-full bg-gray-50 p-2">
+                                        <img
+                                            src="/logo/users.jpeg"
+                                            alt="Customer"
+                                            className="h-full w-full object-contain"
+                                        />
+                                    </div>
+                                    <span className="block px-4 py-3 text-center text-sm font-semibold text-dark">
+                                        Customer
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => completeGoogleAuth('shop_owner')}
+                                    disabled={loading}
+                                    className="w-3/4 overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:border-primary hover:shadow-sm disabled:opacity-50"
+                                >
+                                    <div className="aspect-square w-full bg-gray-50 p-2">
+                                        <img
+                                            src="/logo/shops.jpeg"
+                                            alt="Shop Owner"
+                                            className="h-full w-full object-contain"
+                                        />
+                                    </div>
+                                    <span className="block px-4 py-3 text-center text-sm font-semibold text-dark">
+                                        Shop Owner
+                                    </span>
+                                </button>
+                            </div>
                             <button
                                 type="button"
-                                onClick={() => completeGoogleAuth('user')}
+                                onClick={closeGoogleRolePrompt}
                                 disabled={loading}
-                                className="w-3/4 overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:border-primary hover:shadow-sm disabled:opacity-50"
+                                className="mt-3 w-full rounded-lg px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                             >
-                                <div className="aspect-square w-full bg-gray-50 p-2">
-                                    <img
-                                        src="/logo/users.jpeg"
-                                        alt="Customer"
-                                        className="h-full w-full object-contain"
-                                    />
-                                </div>
-                                <span className="block px-4 py-3 text-center text-sm font-semibold text-dark">
-                                    Customer
-                                </span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => completeGoogleAuth('shop_owner')}
-                                disabled={loading}
-                                className="w-3/4 overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:border-primary hover:shadow-sm disabled:opacity-50"
-                            >
-                                <div className="aspect-square w-full bg-gray-50 p-2">
-                                    <img
-                                        src="/logo/shops.jpeg"
-                                        alt="Shop Owner"
-                                        className="h-full w-full object-contain"
-                                    />
-                                </div>
-                                <span className="block px-4 py-3 text-center text-sm font-semibold text-dark">
-                                    Shop Owner
-                                </span>
+                                Cancel
                             </button>
                         </div>
-                        <button
-                            type="button"
-                            onClick={closeGoogleRolePrompt}
-                            disabled={loading}
-                            className="mt-3 w-full rounded-lg px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                        >
-                            Cancel
-                        </button>
                     </div>
-                </div>
-            )}
-        </div>
+                )}
+            </div>
+        </GoogleOAuthProvider>
     );
 };
 

@@ -1,6 +1,5 @@
 ﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
 import { detectDeviceLocation } from '../utils/deviceLocation';
 import api from '../services/api';
 import { useFlash } from '../context/FlashContext';
@@ -102,7 +101,6 @@ const OnboardingOverlay = () => {
                 showSuccess(`Location detected: ${detected.area}, ${detected.city}`);
             }
         } catch (error) {
-            console.error('Location detection failed:', error);
             showError(error?.message || 'Unable to detect your location automatically');
         } finally {
             setLoadingLoc(false);
@@ -173,19 +171,8 @@ const OnboardingOverlay = () => {
     if (step === 0) return null;
 
     return (
-        <AnimatePresence>
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] flex items-center justify-center bg-dark/60 p-4 backdrop-blur-md"
-            >
-                <motion.div
-                    initial={{ scale: 0.9, y: 20 }}
-                    animate={{ scale: 1, y: 0 }}
-                    exit={{ scale: 0.9, y: 20 }}
-                    className="w-full max-w-md overflow-hidden rounded-2xl bg-light shadow-2xl"
-                >
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-dark/60 p-4 backdrop-blur-md">
+            <div className="w-full max-w-md overflow-hidden rounded-2xl bg-light shadow-2xl">
                     {step === 1 && (
                         <div className="p-8 text-center">
                             <h2 className="mb-6 text-2xl font-bold text-dark">{t('select_language') || 'Language'}</h2>
@@ -255,9 +242,11 @@ const OnboardingOverlay = () => {
                                     <div>
                                         <label className="text-xs font-semibold text-gray-500 mb-1 block">{t('city') || 'City'}</label>
                                         <SuggestionInput
+                                            inputId="onboarding-city"
                                             value={city}
                                             options={cityOptions}
                                             onChange={setCity}
+                                            ariaLabel={t('city') || 'City'}
                                             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-primary"
                                             placeholder={t('city') || 'City'}
                                         />
@@ -265,9 +254,11 @@ const OnboardingOverlay = () => {
                                     <div>
                                         <label className="text-xs font-semibold text-gray-500 mb-1 block">{t('area') || 'Area'}</label>
                                         <SuggestionInput
+                                            inputId="onboarding-area"
                                             value={area}
                                             options={areaOptions}
                                             onChange={setArea}
+                                            ariaLabel={t('area') || 'Area'}
                                             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-primary"
                                             placeholder={t('area') || 'Area'}
                                         />
@@ -294,9 +285,8 @@ const OnboardingOverlay = () => {
                             </div>
                         </div>
                     )}
-                </motion.div>
-            </motion.div>
-        </AnimatePresence>
+            </div>
+        </div>
     );
 };
 

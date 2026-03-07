@@ -71,10 +71,169 @@ const getFollowedShopIdsForUser = async (userId) => {
 
 const LOCATION_SUGGESTION_CACHE_TTL_MS = 5 * 60 * 1000;
 const locationSuggestionCache = new Map();
+const REVERSE_GEOCODE_CACHE_TTL_MS = 30 * 60 * 1000;
+const REVERSE_GEOCODE_CACHE_MAX_ENTRIES = 300;
+const REVERSE_GEOCODE_CACHE_PRECISION = 3;
+const reverseGeocodeCache = new Map();
 
 const getLocationSuggestionCacheKey = (limit) => `locations:${limit}`;
 const clearLocationSuggestionCache = () => {
     locationSuggestionCache.clear();
+};
+const buildNominatimUrl = (latitude, longitude) =>
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=${latitude}&lon=${longitude}`;
+const buildBigDataCloudUrl = (latitude, longitude) =>
+    `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`;
+const normalizeGeocodeLabel = (value) => String(value || '').trim();
+const buildReverseGeocodeCacheKey = (latitude, longitude) =>
+    `${Number(latitude).toFixed(REVERSE_GEOCODE_CACHE_PRECISION)}:${Number(longitude).toFixed(REVERSE_GEOCODE_CACHE_PRECISION)}`;
+
+const pickReverseGeocodeCandidate = (candidates = [], excludedValues = []) => {
+    const excludedSet = new Set(
+        excludedValues
+            .map((entry) => normalizeGeocodeLabel(entry).toLowerCase())
+            .filter(Boolean)
+    );
+
+    for (const candidate of candidates) {
+        const normalized = normalizeGeocodeLabel(candidate);
+        if (!normalized || excludedSet.has(normalized.toLowerCase())) {
+            continue;
+        }
+
+        return normalized;
+    }
+
+    return '';
+};
+
+const parseNominatimAddress = (payload = {}) => {
+    const address = payload.address || {};
+    const city = pickReverseGeocodeCandidate([
+        address.city,
+        address.town,
+        address.municipality,
+        address.city_district,
+        address.county,
+        address.state_district,
+        address.state,
+    ]);
+    const area = pickReverseGeocodeCandidate(
+        [
+            address.suburb,
+            address.neighbourhood,
+            address.residential,
+            address.quarter,
+            address.city_district,
+            address.district,
+            address.borough,
+            address.village,
+            address.hamlet,
+            address.road,
+            address.postcode,
+        ],
+        [city]
+    );
+
+    return { city, area };
+};
+
+const parseBigDataCloudAddress = (payload = {}) => {
+    const administrativeNames = Array.isArray(payload.localityInfo?.administrative)
+        ? payload.localityInfo.administrative.map((entry) => entry?.name)
+        : [];
+    const informativeNames = Array.isArray(payload.localityInfo?.informative)
+        ? payload.localityInfo.informative.map((entry) => entry?.name)
+        : [];
+
+    const city = pickReverseGeocodeCandidate([
+        payload.city,
+        payload.locality,
+        payload.principalSubdivision,
+        ...administrativeNames,
+    ]);
+    const area = pickReverseGeocodeCandidate(
+        [
+            payload.locality,
+            ...informativeNames,
+            ...administrativeNames,
+            payload.postcode,
+        ],
+        [city]
+    );
+
+    return { city, area };
+};
+
+const readReverseGeocodeCache = (latitude, longitude) => {
+    const cacheKey = buildReverseGeocodeCacheKey(latitude, longitude);
+    const cacheEntry = reverseGeocodeCache.get(cacheKey);
+    if (!cacheEntry || cacheEntry.expiresAt <= Date.now()) {
+        reverseGeocodeCache.delete(cacheKey);
+        return null;
+    }
+
+    return cacheEntry.payload;
+};
+
+const pruneReverseGeocodeCache = () => {
+    if (reverseGeocodeCache.size <= REVERSE_GEOCODE_CACHE_MAX_ENTRIES) {
+        return;
+    }
+
+    const entries = [...reverseGeocodeCache.entries()].sort(
+        (left, right) => Number(left[1]?.expiresAt || 0) - Number(right[1]?.expiresAt || 0)
+    );
+    const removableCount = Math.max(0, entries.length - REVERSE_GEOCODE_CACHE_MAX_ENTRIES);
+    for (let index = 0; index < removableCount; index += 1) {
+        reverseGeocodeCache.delete(entries[index][0]);
+    }
+};
+
+const writeReverseGeocodeCache = (latitude, longitude, payload) => {
+    reverseGeocodeCache.set(buildReverseGeocodeCacheKey(latitude, longitude), {
+        expiresAt: Date.now() + REVERSE_GEOCODE_CACHE_TTL_MS,
+        payload,
+    });
+    pruneReverseGeocodeCache();
+};
+
+const fetchReverseGeocodeJson = async (url) => {
+    const response = await fetch(url, {
+        headers: {
+            Accept: 'application/json',
+            'Accept-Language': 'en',
+            'User-Agent': process.env.REVERSE_GEOCODE_USER_AGENT || 'MohitoMart/1.0',
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error(`Reverse geocode request failed with status ${response.status}`);
+    }
+
+    return response.json();
+};
+
+const mergeReverseGeocodeResults = (providerResults = []) => {
+    const cityCandidates = [];
+    const areaCandidates = [];
+
+    providerResults.forEach((entry) => {
+        if (!entry) {
+            return;
+        }
+
+        cityCandidates.push(entry.location?.city, entry.fallbackCity);
+        areaCandidates.push(entry.location?.area, entry.fallbackArea);
+    });
+
+    const city = pickReverseGeocodeCandidate(cityCandidates);
+    const area = pickReverseGeocodeCandidate(areaCandidates, [city]);
+
+    return {
+        area: normalizeLocationLabel(area),
+        city: normalizeLocationLabel(city),
+    };
 };
 
 const recalculateShopRating = async (shopId) => {
@@ -228,6 +387,74 @@ export const getShopLocations = async (req, res, next) => {
         });
 
         res.status(200).json(payload);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Reverse geocode coordinates through the backend with caching
+// @route   GET /api/shops/reverse-geocode
+// @access  Public
+export const reverseGeocodeCoordinates = async (req, res, next) => {
+    try {
+        const latitude = Number(req.query.latitude ?? req.query.lat);
+        const longitude = Number(req.query.longitude ?? req.query.lon);
+
+        const hasValidLatitude = Number.isFinite(latitude) && latitude >= -90 && latitude <= 90;
+        const hasValidLongitude = Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
+
+        if (!hasValidLatitude || !hasValidLongitude) {
+            res.status(400);
+            throw new Error('Valid latitude and longitude are required.');
+        }
+
+        const cachedPayload = readReverseGeocodeCache(latitude, longitude);
+        if (cachedPayload) {
+            return res.status(200).json({
+                ...cachedPayload,
+                cached: true,
+            });
+        }
+
+        const providerResults = [];
+
+        try {
+            const nominatimPayload = await fetchReverseGeocodeJson(buildNominatimUrl(latitude, longitude));
+            const location = parseNominatimAddress(nominatimPayload);
+            providerResults.push({
+                location,
+                fallbackCity: nominatimPayload?.address?.state,
+                fallbackArea: nominatimPayload?.address?.road,
+            });
+
+            if (location.city && location.area) {
+                const payload = mergeReverseGeocodeResults(providerResults);
+                writeReverseGeocodeCache(latitude, longitude, payload);
+                return res.status(200).json(payload);
+            }
+        } catch (error) {
+            // Continue to the secondary provider if the primary provider fails.
+        }
+
+        try {
+            const bigDataPayload = await fetchReverseGeocodeJson(buildBigDataCloudUrl(latitude, longitude));
+            providerResults.push({
+                location: parseBigDataCloudAddress(bigDataPayload),
+                fallbackCity: bigDataPayload?.principalSubdivision,
+                fallbackArea: bigDataPayload?.postcode,
+            });
+        } catch (error) {
+            // Fall through and return the best available primary result, if any.
+        }
+
+        const payload = mergeReverseGeocodeResults(providerResults);
+        if (!payload.city && !payload.area) {
+            res.status(502);
+            throw new Error('Unable to determine city or area for the provided coordinates.');
+        }
+
+        writeReverseGeocodeCache(latitude, longitude, payload);
+        return res.status(200).json(payload);
     } catch (error) {
         next(error);
     }

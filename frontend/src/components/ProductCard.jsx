@@ -1,9 +1,10 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { formatProductPrice } from '../utils/productPrice';
+import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const ProductCard = ({ product, compact = false, desktopTall = false }) => {
-    const imageUrl = product.images?.[0] || 'https://via.placeholder.com/400x300?text=No+Image';
+    const imageUrl = resolveImageSource(product.images?.[0], 'product');
     const compactImageClass = desktopTall ? 'h-24 sm:h-28 lg:h-32' : 'h-24 sm:h-28';
     const regularImageClass = desktopTall
         ? 'h-[104px] sm:h-32 md:h-36 lg:h-40'
@@ -25,6 +26,7 @@ const ProductCard = ({ product, compact = false, desktopTall = false }) => {
                     alt={product.name}
                     loading="lazy"
                     decoding="async"
+                    onError={(event) => applyImageFallback(event, 'product')}
                     className={`w-full object-cover transition-transform duration-500 group-hover:scale-110 ${compact ? compactImageClass : regularImageClass
                         }`}
                 />

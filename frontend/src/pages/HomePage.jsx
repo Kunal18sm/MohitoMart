@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard';
 import ShopCard from '../components/ShopCard';
 import Skeleton from '../components/Skeleton';
@@ -22,6 +21,7 @@ import {
     getCategoryLocalImage,
     handleCategoryImageError,
 } from '../utils/categoryImage';
+import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 import SuggestionInput from '../components/SuggestionInput';
 
 const readStoredLocation = () => {
@@ -40,13 +40,6 @@ const readStoredLocation = () => {
 
 const areAreasEqual = (left = [], right = []) =>
     left.length === right.length && left.every((value, index) => value === right[index]);
-
-const sectionMotion = {
-    initial: { opacity: 1, y: 0 },
-    whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true, amount: 0.25 },
-    transition: { duration: 0.45, ease: 'easeOut' },
-};
 
 const HOME_FEED_PAGE_SIZE = 20;
 
@@ -496,7 +489,7 @@ const HomePage = () => {
 
     return (
         <div className="pb-12">
-            <motion.section {...sectionMotion} className="container mx-auto px-4 py-4 md:py-8">
+            <section className="container mx-auto px-4 py-4 md:py-8">
                 <div className="relative mx-auto w-full max-w-full overflow-hidden rounded-[2rem] border border-white/70 bg-white/80 shadow-[0_20px_50px_rgba(15,23,42,0.1)] backdrop-blur md:max-w-[760px]">
                     {bannerImages.length > 0 ? (
                         <>
@@ -523,6 +516,7 @@ const HomePage = () => {
                                         key={`${image}-dot-${index}`}
                                         type="button"
                                         onClick={() => setActiveSlide(index)}
+                                        aria-label={`Show banner ${index + 1}`}
                                         className={`h-2.5 w-7 rounded-full transition ${index === activeSlide ? 'bg-white' : 'bg-white/40'
                                             }`}
                                     />
@@ -535,9 +529,9 @@ const HomePage = () => {
                         </div>
                     )}
                 </div>
-            </motion.section>
+            </section>
 
-            <motion.section {...sectionMotion} className="container mx-auto px-4 pb-2">
+            <section className="container mx-auto px-4 pb-2">
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                     {t('select_more_areas_near_you') || 'Select more areas near you'}
                 </p>
@@ -553,6 +547,7 @@ const HomePage = () => {
                             <input
                                 value={areaSlots[0] || (t('not_set') || 'Not set')}
                                 disabled
+                                aria-label={t('primary_area') || 'Primary area'}
                                 className="h-[34px] w-full rounded-md border border-gray-200 bg-gray-100 px-2.5 text-[11px] font-medium text-gray-600"
                             />
                         </div>
@@ -561,6 +556,7 @@ const HomePage = () => {
                             <SuggestionInput
                                 value={areaSlots[1]}
                                 onChange={(nextValue) => updateAreaSlot(1, nextValue)}
+                                ariaLabel={t('nearby_area_one') || 'Nearby area 1'}
                                 placeholder="A1"
                                 maxLength={70}
                                 options={nearbyAreaOptions}
@@ -572,6 +568,7 @@ const HomePage = () => {
                             <SuggestionInput
                                 value={areaSlots[2]}
                                 onChange={(nextValue) => updateAreaSlot(2, nextValue)}
+                                ariaLabel={t('nearby_area_two') || 'Nearby area 2'}
                                 placeholder="A2"
                                 maxLength={70}
                                 options={nearbyAreaOptions}
@@ -589,9 +586,9 @@ const HomePage = () => {
                         </button>
                     </div>
                 </div>
-            </motion.section>
+            </section>
 
-            <motion.section {...sectionMotion} className="container mx-auto px-4 py-4">
+            <section className="container mx-auto px-4 py-4">
                 {isShopOwnerUser && (
                     <div className="mb-8 flex flex-wrap items-center gap-2">
                         <Link
@@ -648,15 +645,8 @@ const HomePage = () => {
                     </div>
                 </div>
                 <div className="flex flex-nowrap gap-3 overflow-x-auto overflow-y-hidden pb-2">
-                    {categories.map((category, index) => (
-                        <motion.div
-                            key={category}
-                            className="shrink-0"
-                            initial={{ opacity: 1, y: 0 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: index * 0.02, duration: 0.28 }}
-                        >
+                    {categories.map((category) => (
+                        <div key={category} className="shrink-0">
                             <Link
                                 to={`/category/${encodeURIComponent(category.toLowerCase())}`}
                                 className="group flex min-w-[72px] shrink-0 flex-col items-center text-center"
@@ -667,9 +657,7 @@ const HomePage = () => {
                                         alt={category}
                                         loading="lazy"
                                         decoding="async"
-                                        onError={(event) =>
-                                            handleCategoryImageError(event, category, { width: 160, height: 160 })
-                                        }
+                                        onError={handleCategoryImageError}
                                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
                                     />
                                 </div>
@@ -677,12 +665,12 @@ const HomePage = () => {
                                     {category}
                                 </p>
                             </Link>
-                        </motion.div>
+                        </div>
                     ))}
                 </div>
-            </motion.section>
+            </section>
 
-            <motion.section {...sectionMotion} className="container mx-auto px-4 py-8 md:py-10">
+            <section className="container mx-auto px-4 py-8 md:py-10">
                 <div className="rounded-[2.5rem] bg-gradient-to-br from-primary/15 via-primary/5 to-transparent p-6 sm:p-8 border border-primary/20 shadow-lg relative overflow-hidden">
                     <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/20 rounded-full blur-3xl"></div>
                     <div className="mb-6 flex flex-wrap items-end justify-between gap-3 relative z-10">
@@ -732,9 +720,9 @@ const HomePage = () => {
                         )}
                     </div>
                 </div>
-            </motion.section>
+            </section>
 
-            <motion.section {...sectionMotion} className="container mx-auto px-4 py-4 md:py-6">
+            <section className="container mx-auto px-4 py-4 md:py-6">
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
                         <h2 className="text-xl font-black text-dark sm:text-2xl">{t('recently_viewed') || 'Recently Viewed'}</h2>
@@ -776,9 +764,9 @@ const HomePage = () => {
                         ))}
                     </div>
                 )}
-            </motion.section>
+            </section>
 
-            <motion.section {...sectionMotion} className="container mx-auto px-4 py-4 md:py-6">
+            <section className="container mx-auto px-4 py-4 md:py-6">
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
                         <h2 className="text-xl font-black text-dark sm:text-2xl">
@@ -820,10 +808,10 @@ const HomePage = () => {
                         ))}
                     </div>
                 )}
-            </motion.section>
+            </section>
 
             {!loadingRandomServices && randomServices.length > 0 && (
-                <motion.section {...sectionMotion} className="container mx-auto px-4 py-2 md:py-4">
+                <section className="container mx-auto px-4 py-2 md:py-4">
                     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                         <div>
                             <h2 className="text-xl font-black text-dark sm:text-2xl">
@@ -841,10 +829,11 @@ const HomePage = () => {
                                 className="group min-w-[50%] shrink-0 snap-start overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md sm:min-w-[34%] md:min-w-[220px] lg:min-w-[200px]"
                             >
                                 <img
-                                    src={service.images?.[0] || 'https://via.placeholder.com/700x420?text=Service+Image'}
+                                    src={resolveImageSource(service.images?.[0], 'service')}
                                     alt={service.name}
                                     loading="lazy"
                                     decoding="async"
+                                    onError={(event) => applyImageFallback(event, 'service')}
                                     className="h-20 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-24"
                                 />
                                 <div className="p-2.5">
@@ -855,10 +844,10 @@ const HomePage = () => {
                             </Link>
                         ))}
                     </div>
-                </motion.section>
+                </section>
             )}
 
-            <motion.section {...sectionMotion} className="container mx-auto px-4 py-4">
+            <section className="container mx-auto px-4 py-4">
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
                         <h2 className="text-xl font-black text-dark sm:text-2xl">
@@ -891,9 +880,9 @@ const HomePage = () => {
                         ))}
                     </div>
                 )}
-            </motion.section>
+            </section>
 
-            <motion.section {...sectionMotion} className="container mx-auto px-4 py-4">
+            <section className="container mx-auto px-4 py-4">
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
                         <h2 className="text-xl font-black text-dark sm:text-2xl">
@@ -972,7 +961,7 @@ const HomePage = () => {
                         aria-hidden="true"
                     />
                 )}
-            </motion.section>
+            </section>
         </div>
     );
 };
