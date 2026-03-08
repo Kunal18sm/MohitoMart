@@ -163,7 +163,7 @@ const Navbar = () => {
                         >
                             {i18n.language === 'en' ? 'HI' : 'EN'}
                         </button>
-                        <span className="rounded-full bg-light px-4 py-2 text-sm font-medium text-gray-600">
+                        <span className="min-w-[160px] rounded-full bg-light px-4 py-2 text-sm font-medium text-gray-600">
                             {locationLabel}
                         </span>
                         <Link

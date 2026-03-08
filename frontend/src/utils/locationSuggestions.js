@@ -80,51 +80,63 @@ const uniqueSorted = (items) => {
     );
 };
 
-export const useLocationSuggestions = () => {
+const loadLocations = async () => {
+    const cacheValid =
+        Array.isArray(cachedLocations) &&
+        cachedLocations.length > 0 &&
+        Date.now() - cachedAt < CACHE_TTL_MS;
+
+    if (cacheValid) {
+        return cachedLocations;
+    }
+
+    if (!pendingLocationRequest) {
+        pendingLocationRequest = api
+            .get('/shops/locations', {
+                params: {
+                    limit: 400,
+                },
+            })
+            .then(({ data }) =>
+                Array.isArray(data.locations)
+                    ? data.locations
+                          .map((entry) => ({
+                              city: normalizeValue(entry.city),
+                              area: normalizeValue(entry.area),
+                          }))
+                          .filter((entry) => entry.city && entry.area)
+                    : []
+            )
+            .finally(() => {
+                pendingLocationRequest = null;
+            });
+    }
+
+    const normalizedLocations = await pendingLocationRequest;
+    cachedLocations = normalizedLocations;
+    cachedAt = Date.now();
+    persistLocationCache(normalizedLocations, cachedAt);
+    return normalizedLocations;
+};
+
+export const useLocationSuggestions = ({ enabled = true } = {}) => {
     const [locations, setLocations] = useState(cachedLocations);
+
+    const ensureLoaded = useCallback(async () => {
+        const normalizedLocations = await loadLocations();
+        setLocations(normalizedLocations);
+        return normalizedLocations;
+    }, []);
 
     useEffect(() => {
         let isMounted = true;
-        const cacheValid =
-            Array.isArray(cachedLocations) &&
-            cachedLocations.length > 0 &&
-            Date.now() - cachedAt < CACHE_TTL_MS;
-
-        if (cacheValid) {
-            setLocations(cachedLocations);
+        if (!enabled) {
             return undefined;
         }
 
-        const fetchLocations = async () => {
+        const syncLocations = async () => {
             try {
-                if (!pendingLocationRequest) {
-                    pendingLocationRequest = api
-                        .get('/shops/locations', {
-                            params: {
-                                limit: 400,
-                            },
-                        })
-                        .then(({ data }) =>
-                            Array.isArray(data.locations)
-                                ? data.locations
-                                      .map((entry) => ({
-                                          city: normalizeValue(entry.city),
-                                          area: normalizeValue(entry.area),
-                                      }))
-                                      .filter((entry) => entry.city && entry.area)
-                                : []
-                        )
-                        .finally(() => {
-                            pendingLocationRequest = null;
-                        });
-                }
-
-                const normalizedLocations = await pendingLocationRequest;
-
-                cachedLocations = normalizedLocations;
-                cachedAt = Date.now();
-                persistLocationCache(normalizedLocations, cachedAt);
-
+                const normalizedLocations = await loadLocations();
                 if (isMounted) {
                     setLocations(normalizedLocations);
                 }
@@ -135,11 +147,11 @@ export const useLocationSuggestions = () => {
             }
         };
 
-        fetchLocations();
+        syncLocations();
         return () => {
             isMounted = false;
         };
-    }, []);
+    }, [enabled]);
 
     const cityOptions = useMemo(
         () => uniqueSorted(locations.map((entry) => entry.city)),
@@ -188,5 +200,6 @@ export const useLocationSuggestions = () => {
         cityOptions,
         globalAreaOptions,
         getAreaOptionsByCity,
+        ensureLoaded,
     };
 };

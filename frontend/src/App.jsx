@@ -35,6 +35,7 @@ const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const ContactUsPage = lazy(() => import('./pages/ContactUsPage'));
 const OnboardingOverlay = lazy(() => import('./components/OnboardingOverlay'));
 const CSRF_STORAGE_KEY = 'mm_csrf_token';
+const READABLE_SESSION_COOKIE_KEY = 'mm_csrf';
 
 const PageFallback = () => (
     <div className="container mx-auto px-4 py-10">
@@ -77,6 +78,20 @@ const resolveOnboardingCompleted = (payload = {}) => {
     return hasProfileLocation;
 };
 
+const readCookieValue = (name) => {
+    if (typeof document === 'undefined') {
+        return '';
+    }
+
+    const segments = document.cookie.split(';').map((segment) => segment.trim());
+    const cookie = segments.find((segment) => segment.startsWith(`${name}=`));
+    if (!cookie) {
+        return '';
+    }
+
+    return decodeURIComponent(cookie.slice(name.length + 1));
+};
+
 function App() {
     const [sessionBootstrapped, setSessionBootstrapped] = useState(
         () => !Boolean(localStorage.getItem('authToken'))
@@ -85,6 +100,14 @@ function App() {
     const showFooter = location.pathname === '/' || location.pathname === '/profile';
 
     useEffect(() => {
+        const hasStoredSession = Boolean(localStorage.getItem('authToken'));
+        const hasReadableSessionCookie = Boolean(readCookieValue(READABLE_SESSION_COOKIE_KEY));
+
+        if (!hasStoredSession && !hasReadableSessionCookie) {
+            setSessionBootstrapped(true);
+            return undefined;
+        }
+
         let mounted = true;
         const timeoutId = window.setTimeout(() => {
             if (mounted) {

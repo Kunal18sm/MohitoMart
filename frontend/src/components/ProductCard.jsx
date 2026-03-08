@@ -42,6 +42,7 @@ const ProductCard = ({
                     }}
                     containerClassName={`bg-white/40 ${imageFrameClass}`.trim()}
                     fillContainer={useFixedFrame}
+                    fitMode={homeSized ? 'cover' : 'contain'}
                     className="rounded-t-2xl"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-dark/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />

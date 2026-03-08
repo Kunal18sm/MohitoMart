@@ -17,9 +17,11 @@ const AdaptiveCardImage = ({
     responsiveOptions = {},
     containerClassName = '',
     fillContainer = false,
+    fitMode = 'contain',
     className = '',
 }) => {
     const resolvedAlt = String(alt || IMAGE_ALT_FALLBACKS[kind] || 'Image').trim();
+    const objectFitClass = fitMode === 'cover' ? 'object-cover' : 'object-contain';
     const imageProps = getResponsiveImageProps(resolveImageSource(source, kind), {
         kind,
         crop: 'limit',
@@ -39,7 +41,7 @@ const AdaptiveCardImage = ({
                 loading="lazy"
                 decoding="async"
                 onError={(event) => applyImageFallback(event, kind)}
-                className={`block w-full max-w-full object-contain ${fillContainer ? 'h-full' : 'h-auto'} ${className}`.trim()}
+                className={`block w-full max-w-full ${objectFitClass} ${fillContainer ? 'h-full' : 'h-auto'} ${className}`.trim()}
             />
         </div>
     );

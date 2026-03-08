@@ -5,7 +5,7 @@ const Footer = () => {
     const { t } = useTranslation();
 
     return (
-        <footer className="mt-8 border-t border-gray-200 bg-white py-5 text-gray-600">
+        <footer className="mt-8 min-h-[132px] border-t border-gray-200 bg-white py-5 text-gray-600">
             <div className="container mx-auto flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between md:px-8">
                 <h2 className="text-lg font-black tracking-tight text-dark">
                     MOHITO<span className="text-primary">MART</span>

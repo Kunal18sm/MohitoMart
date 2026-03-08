@@ -48,6 +48,7 @@ const areAreasEqual = (left = [], right = []) =>
 const HOME_FEED_PAGE_SIZE = 20;
 const HOME_FEED_PREFETCH_SIZE = 40;
 const HOME_FEED_EXCLUDE_LIMIT = 200;
+const HOME_DEFERRED_FETCH_DELAY_MS = 180;
 
 const toProductIdKey = (product = {}) => String(product?._id || '');
 
@@ -108,6 +109,20 @@ const prioritizeNearbyAreas = (primaryArea, options = []) => {
     return prioritized;
 };
 
+const scheduleDeferredWork = (callback, delayMs = HOME_DEFERRED_FETCH_DELAY_MS) => {
+    if (typeof window === 'undefined') {
+        return () => {};
+    }
+
+    if ('requestIdleCallback' in window) {
+        const idleId = window.requestIdleCallback(() => callback(), { timeout: 1500 });
+        return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timeoutId = window.setTimeout(callback, delayMs);
+    return () => window.clearTimeout(timeoutId);
+};
+
 const HomePage = () => {
     const { t } = useTranslation();
     const { showError } = useFlash();
@@ -144,16 +159,16 @@ const HomePage = () => {
         initialAreaFilterState.areas[2] || '',
     ]);
     const [activeAreas, setActiveAreas] = useState(() => initialAreaFilterState.areas);
-    const [loadingFollowed, setLoadingFollowed] = useState(false);
-    const [loadingFeed, setLoadingFeed] = useState(false);
+    const [loadingFollowed, setLoadingFollowed] = useState(true);
+    const [loadingFeed, setLoadingFeed] = useState(true);
     const [loadingMoreFeed, setLoadingMoreFeed] = useState(false);
-    const [loadingRandomServices, setLoadingRandomServices] = useState(false);
-    const [loadingRecentlyViewed, setLoadingRecentlyViewed] = useState(false);
-    const [loadingTopRatedShops, setLoadingTopRatedShops] = useState(false);
-    const [loadingLatestProducts, setLoadingLatestProducts] = useState(false);
+    const [loadingRandomServices, setLoadingRandomServices] = useState(true);
+    const [loadingRecentlyViewed, setLoadingRecentlyViewed] = useState(true);
+    const [loadingTopRatedShops, setLoadingTopRatedShops] = useState(true);
+    const [loadingLatestProducts, setLoadingLatestProducts] = useState(true);
     const [feedCurrentPage, setFeedCurrentPage] = useState(1);
     const [hasMoreFeed, setHasMoreFeed] = useState(false);
-    const { getAreaOptionsByCity } = useLocationSuggestions();
+    const { getAreaOptionsByCity, ensureLoaded: ensureLocationSuggestionsLoaded } = useLocationSuggestions({ enabled: false });
     const feedLoadTriggerRef = useRef(null);
     const feedRequestIdRef = useRef(0);
     const feedPoolRef = useRef([]);
@@ -288,6 +303,7 @@ const HomePage = () => {
     const fetchFollowedRandomProducts = async (areas = activeAreas) => {
         if (!localStorage.getItem('authToken')) {
             setFollowedProducts([]);
+            setLoadingFollowed(false);
             return;
         }
 
@@ -418,6 +434,7 @@ const HomePage = () => {
     const fetchRecentlyViewedProducts = async (areas = activeAreas) => {
         if (!localStorage.getItem('authToken')) {
             setRecentlyViewedProducts([]);
+            setLoadingRecentlyViewed(false);
             return;
         }
 
@@ -497,18 +514,43 @@ const HomePage = () => {
     useEffect(() => {
         fetchHomeBanners();
         fetchCategories();
-    }, []);
+
+        const cancelLocationSuggestionsPrefetch = scheduleDeferredWork(() => {
+            ensureLocationSuggestionsLoaded().catch(() => {});
+        }, 250);
+
+        return () => {
+            cancelLocationSuggestionsPrefetch();
+        };
+    }, [ensureLocationSuggestionsLoaded]);
 
     useEffect(() => {
-        fetchFollowedRandomProducts(activeAreas);
-        fetchRecentlyViewedProducts(activeAreas);
-        fetchTopRatedShops(activeAreas);
-        fetchLatestProducts(activeAreas);
         fetchFeedProductsPage(1, {
             reset: true,
             areas: activeAreas,
         });
-        fetchRandomServices(activeAreas);
+
+        const cancelDeferredFetches = [
+            scheduleDeferredWork(() => {
+                fetchFollowedRandomProducts(activeAreas);
+            }),
+            scheduleDeferredWork(() => {
+                fetchRecentlyViewedProducts(activeAreas);
+            }),
+            scheduleDeferredWork(() => {
+                fetchTopRatedShops(activeAreas);
+            }),
+            scheduleDeferredWork(() => {
+                fetchLatestProducts(activeAreas);
+            }),
+            scheduleDeferredWork(() => {
+                fetchRandomServices(activeAreas);
+            }),
+        ];
+
+        return () => {
+            cancelDeferredFetches.forEach((cancel) => cancel());
+        };
     }, [activeAreas, activeAreasQuery, fetchFeedProductsPage, selectedLocation.city]);
 
     useEffect(() => {
@@ -740,34 +782,45 @@ const HomePage = () => {
                         </Link>
                     </div>
                 </div>
-                <div className="flex flex-nowrap gap-3 overflow-x-auto overflow-y-hidden pb-2">
-                    {categories.map((category) => (
-                        <div key={category} className="shrink-0">
-                            <Link
-                                to={`/category/${encodeURIComponent(category.toLowerCase())}`}
-                                className="group flex min-w-[72px] shrink-0 flex-col items-center text-center"
-                            >
-                                <div className="h-12 w-12 overflow-hidden rounded-full border border-gray-200 bg-white shadow-sm transition group-hover:border-primary group-hover:shadow-md">
-                                    <img
-                                        src={getCategoryLocalImage(category)}
-                                        alt={category}
-                                        loading="lazy"
-                                        decoding="async"
-                                        onError={handleCategoryImageError}
-                                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
-                                    />
+                <div className="min-h-[86px]">
+                    <div className="flex flex-nowrap gap-3 overflow-x-auto overflow-y-hidden pb-2">
+                        {categories.length === 0
+                            ? [...Array(8)].map((_, index) => (
+                                <div key={`category-skeleton-${index}`} className="shrink-0">
+                                    <div className="flex min-w-[72px] shrink-0 flex-col items-center text-center">
+                                        <div className="h-12 w-12 rounded-full bg-gray-200/90" />
+                                        <div className="mt-2 h-3 w-14 rounded-full bg-gray-200/80" />
+                                    </div>
                                 </div>
-                                <p className="mt-1.5 line-clamp-2 max-w-[74px] text-[10px] font-semibold leading-tight text-gray-700">
-                                    {category}
-                                </p>
-                            </Link>
-                        </div>
-                    ))}
+                            ))
+                            : categories.map((category) => (
+                                <div key={category} className="shrink-0">
+                                    <Link
+                                        to={`/category/${encodeURIComponent(category.toLowerCase())}`}
+                                        className="group flex min-w-[72px] shrink-0 flex-col items-center text-center"
+                                    >
+                                        <div className="h-12 w-12 overflow-hidden rounded-full border border-gray-200 bg-white shadow-sm transition group-hover:border-primary group-hover:shadow-md">
+                                            <img
+                                                src={getCategoryLocalImage(category)}
+                                                alt={category}
+                                                loading="lazy"
+                                                decoding="async"
+                                                onError={handleCategoryImageError}
+                                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                            />
+                                        </div>
+                                        <p className="mt-1.5 line-clamp-2 max-w-[74px] text-[10px] font-semibold leading-tight text-gray-700">
+                                            {category}
+                                        </p>
+                                    </Link>
+                                </div>
+                            ))}
+                    </div>
                 </div>
             </section>
 
             <section className="container mx-auto px-4 py-8 md:py-10">
-                <div className="rounded-[2.5rem] bg-gradient-to-br from-primary/15 via-primary/5 to-transparent p-6 sm:p-8 border border-primary/20 shadow-lg relative overflow-hidden">
+                <div className="relative min-h-[300px] overflow-hidden rounded-[2.5rem] border border-primary/20 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent p-6 shadow-lg sm:min-h-[320px] sm:p-8">
                     <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/20 rounded-full blur-3xl"></div>
                     <div className="mb-6 flex flex-wrap items-end justify-between gap-3 relative z-10">
                         <div>
@@ -830,6 +883,7 @@ const HomePage = () => {
                     )}
                 </div>
 
+                <div className="min-h-[180px]">
                 {loadingRecentlyViewed && (
                     <div className="flex gap-3 overflow-x-auto pb-2">
                         {[...Array(4)].map((_, index) => (
@@ -860,6 +914,7 @@ const HomePage = () => {
                         ))}
                     </div>
                 )}
+                </div>
             </section>
 
             <section className="container mx-auto px-4 py-4 md:py-6">
@@ -906,6 +961,24 @@ const HomePage = () => {
                 )}
             </section>
 
+            {loadingRandomServices && (
+                <section className="container mx-auto px-4 py-2 md:py-4">
+                    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                            <h2 className="text-xl font-black text-dark sm:text-2xl">
+                                {t('services_near_you') || 'Services Near You'}
+                            </h2>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 overflow-x-auto pb-2">
+                        {[...Array(4)].map((_, index) => (
+                            <div key={index} className="h-28 min-w-[50%] shrink-0 rounded-2xl bg-gray-200/80 sm:min-w-[34%] md:min-w-[220px]" />
+                        ))}
+                    </div>
+                </section>
+            )}
+
             {!loadingRandomServices && randomServices.length > 0 && (
                 <section className="container mx-auto px-4 py-2 md:py-4">
                     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -937,6 +1010,7 @@ const HomePage = () => {
                                     }}
                                     containerClassName="h-20 bg-white/40 sm:h-24"
                                     fillContainer
+                                    fitMode="cover"
                                     className="rounded-t-2xl"
                                 />
                                     );

@@ -19,6 +19,7 @@ const ShopCard = ({ shop, homeSized = false, fixedFrame = true }) => {
                     }}
                     containerClassName={`bg-white/40 ${useFixedFrame ? 'h-32 sm:h-40 md:h-44' : ''}`.trim()}
                     fillContainer={useFixedFrame}
+                    fitMode={homeSized ? 'cover' : 'contain'}
                     className="rounded-t-2xl"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-dark/40 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
