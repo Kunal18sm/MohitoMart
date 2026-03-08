@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { filterCategoriesWithLocalImages } from '../utils/categoryImage';
 import { buildAreaQueryParam, formatAreaSummary, getAreaFilterState } from '../utils/areaFilters';
-import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const PAGE_SIZE = 20;
 const mergeUniqueShops = (existingShops = [], incomingShops = []) => {
@@ -247,15 +247,21 @@ const AllShopsPage = () => {
                             <div key={shop._id}>
                                 <Link
                                     to={`/shop/${shop._id}`}
-                                    className="group block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
+                                    className="group block h-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
                                 >
-                                    <img
-                                        src={resolveImageSource(shop.images?.[0], 'shop')}
+                                    <AdaptiveCardImage
+                                        source={shop.images?.[0]}
                                         alt={shop.name}
-                                        loading="lazy"
-                                        decoding="async"
-                                        onError={(event) => applyImageFallback(event, 'shop')}
-                                        className="h-32 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-36"
+                                        kind="shop"
+                                        responsiveOptions={{
+                                            width: 420,
+                                            widths: [180, 240, 320, 420],
+                                            sizes:
+                                                '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw',
+                                        }}
+                                        containerClassName="h-32 bg-white/40 sm:h-36"
+                                        fillContainer
+                                        className="rounded-t-2xl"
                                     />
                                     <div className="space-y-1.5 p-3">
                                         <h2 className="line-clamp-1 text-sm font-black text-dark sm:text-base">

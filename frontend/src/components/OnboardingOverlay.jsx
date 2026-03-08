@@ -9,7 +9,7 @@ import SuggestionInput from './SuggestionInput';
 const OnboardingOverlay = () => {
     const { t, i18n } = useTranslation();
     const { showError, showSuccess } = useFlash();
-    const [step, setStep] = useState(0); // 0 = hidden, 1 = language, 2 = role, 3 = location
+    const [step, setStep] = useState(0); // 0 = hidden, 1 = language, 3 = location
     const [loadingLoc, setLoadingLoc] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -67,11 +67,6 @@ const OnboardingOverlay = () => {
         } else {
             setStep(3); // Skip role selection for guests
         }
-    };
-
-    const handleRoleSelect = (selectedRole) => {
-        setRole(selectedRole);
-        setStep(3);
     };
 
     const persistGuestLocation = ({ city, area, latitude, longitude }) => {
@@ -190,28 +185,6 @@ const OnboardingOverlay = () => {
                                     className="flex items-center justify-center rounded-xl bg-primary px-6 py-4 font-semibold text-white transition-transform hover:scale-105 active:scale-95"
                                 >
                                     {t('hindi') || 'Hindi'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {step === 2 && (
-                        <div className="p-8 text-center">
-                            <h2 className="mb-6 text-2xl font-bold text-dark">What are you here for?</h2>
-                            <p className="mb-8 text-app-muted">Select your primary reason for using our platform.</p>
-
-                            <div className="flex flex-col gap-4">
-                                <button
-                                    onClick={() => handleRoleSelect('user')}
-                                    className="flex items-center justify-center rounded-xl bg-white border border-gray-200 px-6 py-4 font-semibold text-dark transition-transform hover:scale-105 active:scale-95 hover:border-primary hover:text-primary"
-                                >
-                                    I am a Customer
-                                </button>
-                                <button
-                                    onClick={() => handleRoleSelect('shop_owner')}
-                                    className="flex items-center justify-center rounded-xl bg-white border border-gray-200 px-6 py-4 font-semibold text-dark transition-transform hover:scale-105 active:scale-95 hover:border-primary hover:text-primary"
-                                >
-                                    I am a Shop Owner
                                 </button>
                             </div>
                         </div>

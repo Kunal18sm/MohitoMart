@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
@@ -321,13 +322,13 @@ const ShopProfilePage = () => {
                         {existingShop.images?.length ? (
                             <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1">
                                 {existingShop.images.map((imageUrl, index) => (
-                                    <img
+                                    <AdaptiveCardImage
                                         key={`${imageUrl}-${index}`}
-                                        src={imageUrl}
+                                        source={imageUrl}
                                         alt={`${existingShop.name}-${index + 1}`}
-                                        loading="lazy"
-                                        decoding="async"
-                                        className="h-36 min-w-[220px] snap-start rounded-xl border border-gray-200 object-cover sm:h-44 sm:min-w-[260px]"
+                                        kind="shop"
+                                        containerClassName="h-36 min-w-[220px] snap-start rounded-xl border border-gray-200 bg-white sm:h-44 sm:min-w-[260px]"
+                                        fillContainer
                                     />
                                 ))}
                             </div>
@@ -557,13 +558,13 @@ const ShopProfilePage = () => {
                     {previewUrls.length > 0 && (
                         <div className="grid grid-cols-3 gap-2 md:col-span-2 md:grid-cols-5">
                             {previewUrls.map((url, index) => (
-                                <img
+                                <AdaptiveCardImage
                                     key={`${url}-${index}`}
-                                    src={url}
+                                    source={url}
                                     alt={`preview-${index + 1}`}
-                                    loading="lazy"
-                                    decoding="async"
-                                    className="h-16 w-full rounded-lg border border-gray-200 object-cover sm:h-20"
+                                    kind="shop"
+                                    containerClassName="h-16 rounded-lg border border-gray-200 bg-white sm:h-20"
+                                    fillContainer
                                 />
                             ))}
                         </div>

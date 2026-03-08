@@ -1,20 +1,25 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
-import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
+import AdaptiveCardImage from './AdaptiveCardImage';
 
-const ShopCard = ({ shop }) => {
-    const imageUrl = resolveImageSource(shop.images?.[0], 'shop');
+const ShopCard = ({ shop, homeSized = false, fixedFrame = true }) => {
+    const useFixedFrame = fixedFrame || homeSized;
 
     return (
-        <div className="group overflow-hidden rounded-2xl glass-panel hover-elevate">
+        <div className="group flex h-full flex-col overflow-hidden rounded-2xl glass-panel hover-elevate">
             <div className="relative overflow-hidden">
-                <img
-                    src={imageUrl}
+                <AdaptiveCardImage
+                    source={shop.images?.[0]}
                     alt={shop.name}
-                    loading="lazy"
-                    decoding="async"
-                    onError={(event) => applyImageFallback(event, 'shop')}
-                    className="h-32 w-full object-cover sm:h-40 md:h-44"
+                    kind="shop"
+                    responsiveOptions={{
+                        width: 420,
+                        widths: [180, 240, 320, 420],
+                        sizes: '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw',
+                    }}
+                    containerClassName={`bg-white/40 ${useFixedFrame ? 'h-32 sm:h-40 md:h-44' : ''}`.trim()}
+                    fillContainer={useFixedFrame}
+                    className="rounded-t-2xl"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-dark/40 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
@@ -27,7 +32,7 @@ const ShopCard = ({ shop }) => {
                     )}
                 </div>
             </div>
-            <div className="space-y-2 p-3.5">
+            <div className="space-y-2 p-3.5 flex flex-1 flex-col">
                 <div className="flex items-start justify-between gap-3">
                     <h3 className="line-clamp-1 text-base font-bold text-dark">{shop.name}</h3>
                     <span className="rounded-full bg-light px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
@@ -52,7 +57,7 @@ const ShopCard = ({ shop }) => {
 
                 <Link
                     to={`/shop/${shop._id}`}
-                    className="inline-flex rounded-lg bg-dark px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary"
+                    className="mt-auto inline-flex rounded-lg bg-dark px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary"
                 >
                     Open Shop Profile
                 </Link>

@@ -542,6 +542,8 @@ const AuthPage = () => {
                                         <img
                                             src="/logo/users.jpeg"
                                             alt="Customer"
+                                            loading="lazy"
+                                            decoding="async"
                                             className="h-full w-full object-contain"
                                         />
                                     </div>
@@ -559,6 +561,8 @@ const AuthPage = () => {
                                         <img
                                             src="/logo/shops.jpeg"
                                             alt="Shop Owner"
+                                            loading="lazy"
+                                            decoding="async"
                                             className="h-full w-full object-contain"
                                         />
                                     </div>

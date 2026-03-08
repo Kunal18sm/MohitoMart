@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import ProductCard from '../components/ProductCard';
 import ShopCard from '../components/ShopCard';
 import Skeleton from '../components/Skeleton';
+import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
@@ -21,7 +22,10 @@ import {
     getCategoryLocalImage,
     handleCategoryImageError,
 } from '../utils/categoryImage';
-import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
+import {
+    applyImageFallback,
+    getResponsiveImageProps,
+} from '../utils/imageFallbacks';
 import SuggestionInput from '../components/SuggestionInput';
 
 const readStoredLocation = () => {
@@ -42,6 +46,8 @@ const areAreasEqual = (left = [], right = []) =>
     left.length === right.length && left.every((value, index) => value === right[index]);
 
 const HOME_FEED_PAGE_SIZE = 20;
+const HOME_FEED_PREFETCH_SIZE = 40;
+const HOME_FEED_EXCLUDE_LIMIT = 200;
 
 const toProductIdKey = (product = {}) => String(product?._id || '');
 
@@ -150,6 +156,9 @@ const HomePage = () => {
     const { getAreaOptionsByCity } = useLocationSuggestions();
     const feedLoadTriggerRef = useRef(null);
     const feedRequestIdRef = useRef(0);
+    const feedPoolRef = useRef([]);
+    const feedSeenIdsRef = useRef(new Set());
+    const feedCanRefillRef = useRef(true);
 
     const nearbyAreaOptions = useMemo(
         () => getAreaOptionsByCity(selectedLocation.city || ''),
@@ -161,6 +170,18 @@ const HomePage = () => {
     );
     const areaSummary = useMemo(() => formatAreaSummary(activeAreas), [activeAreas]);
     const activeAreasQuery = useMemo(() => buildAreaQueryParam(activeAreas), [activeAreas]);
+    const heroBannerImage = useMemo(
+        () =>
+            getResponsiveImageProps(bannerImages[0], {
+                kind: 'shop',
+                width: 1280,
+                height: 720,
+                widths: [480, 768, 960, 1280],
+                sizes: '(max-width: 768px) 100vw, 760px',
+                quality: 'auto:best',
+            }),
+        [bannerImages]
+    );
 
     useEffect(() => {
         const syncLocation = () => {
@@ -216,6 +237,28 @@ const HomePage = () => {
 
         return () => window.clearInterval(timer);
     }, [bannerImages.length]);
+
+    useEffect(() => {
+        if (typeof document === 'undefined' || !heroBannerImage?.src) {
+            return undefined;
+        }
+
+        const preloadLink = document.createElement('link');
+        preloadLink.rel = 'preload';
+        preloadLink.as = 'image';
+        preloadLink.href = heroBannerImage.src;
+        if (heroBannerImage.srcSet) {
+            preloadLink.imageSrcset = heroBannerImage.srcSet;
+        }
+        if (heroBannerImage.sizes) {
+            preloadLink.imageSizes = heroBannerImage.sizes;
+        }
+
+        document.head.appendChild(preloadLink);
+        return () => {
+            document.head.removeChild(preloadLink);
+        };
+    }, [heroBannerImage]);
 
     const fetchHomeBanners = async () => {
         try {
@@ -278,28 +321,59 @@ const HomePage = () => {
                     setLoadingMoreFeed(true);
                 }
 
-                const { data } = await api.get('/products', {
-                    params: {
-                        page: targetPage,
-                        limit: HOME_FEED_PAGE_SIZE,
-                        sort: 'latest',
-                        city: selectedLocation.city || undefined,
-                        areas: buildAreaQueryParam(areas),
-                    },
-                });
+                if (reset) {
+                    feedPoolRef.current = [];
+                    feedSeenIdsRef.current = new Set();
+                    feedCanRefillRef.current = true;
+                }
+
+                const queuedPool = reset ? [] : [...feedPoolRef.current];
+                const shouldRefillPool = reset || queuedPool.length < HOME_FEED_PAGE_SIZE;
+                const excludeIds = Array.from(feedSeenIdsRef.current).slice(-HOME_FEED_EXCLUDE_LIMIT);
+                let fetchedProducts = [];
+
+                if (shouldRefillPool) {
+                    const { data } = await api.get('/products/random', {
+                        params: {
+                            limit: HOME_FEED_PREFETCH_SIZE,
+                            city: selectedLocation.city || undefined,
+                            areas: buildAreaQueryParam(areas),
+                            excludeIds: excludeIds.length ? excludeIds.join(',') : undefined,
+                        },
+                    });
+
+                    fetchedProducts = Array.isArray(data.products) ? data.products : [];
+                }
 
                 if (requestId !== feedRequestIdRef.current) {
                     return;
                 }
 
-                const nextProducts = Array.isArray(data.products) ? data.products : [];
-                const totalPages = Math.max(Number(data.pages || 0), 0);
+                const nextPool = shouldRefillPool
+                    ? mergeProductsById(queuedPool, fetchedProducts)
+                    : queuedPool;
+                const nextProducts = nextPool.slice(0, HOME_FEED_PAGE_SIZE);
+                const remainingPool = nextPool.slice(HOME_FEED_PAGE_SIZE);
+                const nextSeenIds = new Set(feedSeenIdsRef.current);
+
+                nextPool.forEach((entry) => {
+                    const key = toProductIdKey(entry);
+                    if (key) {
+                        nextSeenIds.add(key);
+                    }
+                });
+
+                feedPoolRef.current = remainingPool;
+                feedSeenIdsRef.current = nextSeenIds;
+                if (shouldRefillPool) {
+                    feedCanRefillRef.current = fetchedProducts.length === HOME_FEED_PREFETCH_SIZE;
+                }
 
                 setFeedProducts((previous) =>
                     reset ? nextProducts : mergeProductsById(previous, nextProducts)
                 );
-                setFeedCurrentPage(targetPage);
-                setHasMoreFeed(targetPage < totalPages);
+                setFeedCurrentPage(reset ? 1 : targetPage);
+                setHasMoreFeed(remainingPool.length > 0 || feedCanRefillRef.current);
             } catch (error) {
                 if (requestId !== feedRequestIdRef.current) {
                     return;
@@ -308,7 +382,10 @@ const HomePage = () => {
                 if (reset) {
                     setFeedProducts([]);
                     setFeedCurrentPage(1);
+                    feedPoolRef.current = [];
+                    feedSeenIdsRef.current = new Set();
                 }
+                feedCanRefillRef.current = false;
                 setHasMoreFeed(false);
                 showError(extractErrorMessage(error, 'Unable to load nearby products'));
             } finally {
@@ -499,13 +576,32 @@ const HomePage = () => {
                             >
                                 {bannerImages.map((image, index) => (
                                     <div key={`${image}-${index}`} className="relative min-w-full aspect-[16/9]">
+                                        {(() => {
+                                            const bannerProps = getResponsiveImageProps(image, {
+                                                kind: 'shop',
+                                                width: 1280,
+                                                height: 720,
+                                                widths: [480, 768, 960, 1280],
+                                                sizes: '(max-width: 768px) 100vw, 760px',
+                                                quality: index === 0 ? 'auto:best' : 'auto:good',
+                                            });
+
+                                            return (
                                         <img
-                                            src={image}
+                                            src={bannerProps.src}
+                                            srcSet={bannerProps.srcSet}
+                                            sizes={bannerProps.sizes}
+                                            width={bannerProps.width}
+                                            height={bannerProps.height}
                                             alt={`banner-${index + 1}`}
                                             loading={index === 0 ? 'eager' : 'lazy'}
                                             decoding="async"
+                                            fetchPriority={index === 0 ? 'high' : 'auto'}
+                                            onError={(event) => applyImageFallback(event, 'shop')}
                                             className="h-full w-full object-cover"
                                         />
+                                            );
+                                        })()}
                                     </div>
                                 ))}
                             </div>
@@ -713,7 +809,7 @@ const HomePage = () => {
                                         key={product._id}
                                         className="min-w-[52%] shrink-0 snap-start sm:min-w-[35%] md:min-w-[240px] lg:min-w-[220px]"
                                     >
-                                        <ProductCard product={product} compact desktopTall />
+                                        <ProductCard product={product} compact desktopTall homeSized />
                                     </div>
                                 ))}
                             </div>
@@ -759,7 +855,7 @@ const HomePage = () => {
                                 key={product._id}
                                 className="min-w-[52%] shrink-0 snap-start sm:min-w-[35%] md:min-w-[240px] lg:min-w-[220px]"
                             >
-                                <ProductCard product={product} compact desktopTall />
+                                <ProductCard product={product} compact desktopTall homeSized />
                             </div>
                         ))}
                     </div>
@@ -803,7 +899,7 @@ const HomePage = () => {
                                 key={shop._id}
                                 className="min-w-[62%] shrink-0 snap-start sm:min-w-[45%] md:min-w-[280px]"
                             >
-                                <ShopCard shop={shop} />
+                                <ShopCard shop={shop} homeSized />
                             </div>
                         ))}
                     </div>
@@ -828,14 +924,23 @@ const HomePage = () => {
                                 to={`/service/${service._id}`}
                                 className="group min-w-[50%] shrink-0 snap-start overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md sm:min-w-[34%] md:min-w-[220px] lg:min-w-[200px]"
                             >
-                                <img
-                                    src={resolveImageSource(service.images?.[0], 'service')}
+                                {(() => {
+                                    return (
+                                <AdaptiveCardImage
+                                    source={service.images?.[0]}
                                     alt={service.name}
-                                    loading="lazy"
-                                    decoding="async"
-                                    onError={(event) => applyImageFallback(event, 'service')}
-                                    className="h-20 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-24"
+                                    kind="service"
+                                    responsiveOptions={{
+                                        width: 320,
+                                        widths: [160, 220, 280, 320],
+                                        sizes: '(max-width: 640px) 50vw, 220px',
+                                    }}
+                                    containerClassName="h-20 bg-white/40 sm:h-24"
+                                    fillContainer
+                                    className="rounded-t-2xl"
                                 />
+                                    );
+                                })()}
                                 <div className="p-2.5">
                                     <h3 className="line-clamp-1 text-sm font-black text-dark">
                                         {service.name}
@@ -876,7 +981,7 @@ const HomePage = () => {
                 {!loadingLatestProducts && latestProducts.length > 0 && (
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                         {latestProducts.map((product) => (
-                            <ProductCard key={product._id} product={product} desktopTall />
+                            <ProductCard key={product._id} product={product} desktopTall homeSized />
                         ))}
                     </div>
                 )}
@@ -922,7 +1027,7 @@ const HomePage = () => {
                     <>
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                             {feedProducts.map((product) => (
-                                <ProductCard key={product._id} product={product} desktopTall />
+                                <ProductCard key={product._id} product={product} desktopTall homeSized />
                             ))}
                         </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
@@ -180,13 +181,15 @@ const OwnerProductsPage = () => {
                                         className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <img
-                                                src={product.images?.[0]}
-                                                alt={product.name}
-                                                loading="lazy"
-                                                decoding="async"
-                                                className="h-16 w-16 rounded-lg object-cover sm:h-20 sm:w-20"
-                                            />
+                                            <div className="w-16 overflow-hidden rounded-lg bg-white sm:w-20">
+                                                <AdaptiveCardImage
+                                                    source={product.images?.[0]}
+                                                    alt={product.name}
+                                                    kind="product"
+                                                    containerClassName="h-16 sm:h-20"
+                                                    fillContainer
+                                                />
+                                            </div>
                                             <div>
                                                 <p className="font-semibold text-dark">{product.name}</p>
                                                 <p className="text-sm text-gray-500">

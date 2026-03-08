@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import api from '../services/api';
 import { useFlash } from '../context/FlashContext';
 import { extractErrorMessage } from '../utils/errorUtils';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const CartPage = () => {
     const navigate = useNavigate();
@@ -151,13 +151,16 @@ const CartPage = () => {
                             className="flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white p-2.5 shadow-sm"
                         >
                             <Link to={`/product/${item.product}`} className="overflow-hidden rounded-xl bg-light">
-                                <img
-                                    src={resolveImageSource(item.image, 'product')}
+                                <AdaptiveCardImage
+                                    source={item.image}
                                     alt={item.name}
-                                    loading="lazy"
-                                    decoding="async"
-                                    onError={(event) => applyImageFallback(event, 'product')}
-                                    className="h-28 w-full object-cover sm:h-32"
+                                    kind="product"
+                                    responsiveOptions={{
+                                        width: 360,
+                                        widths: [160, 220, 280, 360],
+                                        sizes:
+                                            '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw',
+                                    }}
                                 />
                             </Link>
 

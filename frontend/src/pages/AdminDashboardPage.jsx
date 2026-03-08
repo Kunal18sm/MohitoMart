@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import api from '../services/api';
 import { useFlash } from '../context/FlashContext';
 import { extractErrorMessage } from '../utils/errorUtils';
@@ -7,7 +8,6 @@ import { uploadImages, validateImageFiles } from '../utils/uploadUtils';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
 import { formatProductPrice } from '../utils/productPrice';
 import SuggestionInput from '../components/SuggestionInput';
-import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const AdminDashboardPage = () => {
     const navigate = useNavigate();
@@ -432,13 +432,16 @@ const AdminDashboardPage = () => {
                                 to={`/shop/${shop._id}`}
                                 className="group overflow-hidden rounded-xl border border-gray-200 bg-white transition hover:shadow-md"
                             >
-                                <img
-                                    src={resolveImageSource(shop.images?.[0], 'shop')}
+                                <AdaptiveCardImage
+                                    source={shop.images?.[0]}
                                     alt={shop.name}
-                                    loading="lazy"
-                                    decoding="async"
-                                    onError={(event) => applyImageFallback(event, 'shop')}
-                                    className="h-24 w-full object-cover transition-transform duration-300 group-hover:scale-105 sm:h-28"
+                                    kind="shop"
+                                    responsiveOptions={{
+                                        width: 320,
+                                        widths: [120, 180, 240, 320],
+                                        sizes:
+                                            '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw',
+                                    }}
                                 />
                                 <div className="p-2.5">
                                     <p className="line-clamp-1 text-sm font-bold text-dark">{shop.name}</p>
@@ -475,16 +478,20 @@ const AdminDashboardPage = () => {
                                 className="overflow-hidden rounded-xl border border-gray-200 bg-white"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3">
-                                    <div className="flex items-center gap-3">
-                                        <img
-                                            src={resolveImageSource(product.images?.[0], 'product')}
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 shrink-0 overflow-hidden rounded-lg bg-light">
+                                        <AdaptiveCardImage
+                                            source={product.images?.[0]}
                                             alt={product.name}
-                                            loading="lazy"
-                                            decoding="async"
-                                            onError={(event) => applyImageFallback(event, 'product')}
-                                            className="h-12 w-12 rounded-lg object-cover"
+                                            kind="product"
+                                            responsiveOptions={{
+                                                width: 96,
+                                                widths: [48, 72, 96],
+                                                sizes: '48px',
+                                            }}
                                         />
-                                        <div>
+                                    </div>
+                                    <div>
                                             <p className="font-semibold text-dark">{product.name}</p>
                                             <p className="text-xs text-gray-500">
                                                 Shop: {product.shop?.name || '-'} | {product.category}

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { formatServicePrice } from '../utils/servicePrice';
 import { buildAreaQueryParam, formatAreaSummary, getAreaFilterState } from '../utils/areaFilters';
-import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const PAGE_SIZE = 20;
 const mergeUniqueServices = (existingServices = [], incomingServices = []) => {
@@ -239,17 +239,23 @@ const AllServicesPage = () => {
                         {services.map((service) => (
                             <article
                                 key={service._id}
-                                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+                                className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
                             >
-                                <img
-                                    src={resolveImageSource(service.images?.[0], 'service')}
+                                <AdaptiveCardImage
+                                    source={service.images?.[0]}
                                     alt={service.name}
-                                    loading="lazy"
-                                    decoding="async"
-                                    onError={(event) => applyImageFallback(event, 'service')}
-                                    className="h-44 w-full object-cover"
+                                    kind="service"
+                                    responsiveOptions={{
+                                        width: 640,
+                                        widths: [240, 360, 480, 640],
+                                        sizes:
+                                            '(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw',
+                                    }}
+                                    containerClassName="h-44 bg-white/40"
+                                    fillContainer
+                                    className="rounded-t-2xl"
                                 />
-                                <div className="space-y-2.5 p-4">
+                                <div className="space-y-2.5 p-4 flex flex-1 flex-col">
                                     <div className="flex items-start justify-between gap-3">
                                         <h2 className="line-clamp-1 text-lg font-black text-dark">{service.name}</h2>
                                         <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
@@ -277,7 +283,7 @@ const AllServicesPage = () => {
                                     <Link
                                         to={`/shop/${service.shop?._id || ''}`}
                                         aria-disabled={!service.shop?._id}
-                                        className={`inline-flex items-center gap-1.5 rounded-[10px] border px-3 py-1.5 text-sm font-bold transition ${
+                                        className={`mt-auto inline-flex items-center gap-1.5 rounded-[10px] border px-3 py-1.5 text-sm font-bold transition ${
                                             service.shop?._id
                                                 ? 'border-slate-300 text-dark hover:border-slate-400'
                                                 : 'pointer-events-none border-slate-200 text-slate-400'

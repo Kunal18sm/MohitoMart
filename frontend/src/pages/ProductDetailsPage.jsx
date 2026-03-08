@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { formatProductPrice } from '../utils/productPrice';
 import {
-    applyImageFallback,
     getPlaceholderImage,
-    resolveImageSource,
 } from '../utils/imageFallbacks';
 
 const ProductDetailsPage = () => {
@@ -130,7 +129,6 @@ const ProductDetailsPage = () => {
             ? product.shop.images
             : [getPlaceholderImage('shop')];
     const hasMultipleShopImages = shopImages.length > 1;
-
     const showPreviousShopImage = () => {
         setShopGalleryIndex((previous) => Math.max(previous - 1, 0));
     };
@@ -173,33 +171,43 @@ const ProductDetailsPage = () => {
             <div className="grid gap-8 lg:grid-cols-2">
                 <div>
                     <div className="mb-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">
-                        <img
-                            src={resolveImageSource(mainImage, 'product')}
+                        <AdaptiveCardImage
+                            source={mainImage}
                             alt={product.name}
-                            loading="eager"
-                            decoding="async"
-                            onError={(event) => applyImageFallback(event, 'product')}
-                            className="h-[240px] w-full object-cover sm:h-[300px] md:h-[360px]"
+                            kind="product"
+                            responsiveOptions={{
+                                width: 1200,
+                                widths: [480, 768, 960, 1200],
+                                sizes: '(max-width: 1024px) 100vw, 50vw',
+                                quality: 'auto:best',
+                            }}
+                            containerClassName="h-[240px] bg-white sm:h-[300px] md:h-[360px]"
+                            fillContainer
                         />
                     </div>
                     <div className="flex gap-3 overflow-x-auto">
-                        {(product.images || []).map((image) => (
+                        {(product.images || []).map((image, index) => (
                             <button
                                 key={image}
                                 type="button"
                                 onClick={() => setMainImage(image)}
-                                aria-label={`Show product image ${(product.images || []).indexOf(image) + 1}`}
+                                aria-label={`Show product image ${index + 1}`}
                                 className={`overflow-hidden rounded-lg border ${
                                     mainImage === image ? 'border-primary' : 'border-gray-200'
                                 }`}
                             >
-                                <img
-                                    src={resolveImageSource(image, 'product')}
-                                    alt="thumbnail"
-                                    loading="lazy"
-                                    decoding="async"
-                                    onError={(event) => applyImageFallback(event, 'product')}
-                                    className="h-16 w-20 object-cover sm:h-20 sm:w-24"
+                                <AdaptiveCardImage
+                                    source={image}
+                                    alt={`thumbnail-${index + 1}`}
+                                    kind="product"
+                                    responsiveOptions={{
+                                        width: 240,
+                                        widths: [96, 160, 240],
+                                        sizes: '96px',
+                                        quality: 'auto:eco',
+                                    }}
+                                    containerClassName="h-16 w-20 bg-white sm:h-20 sm:w-24"
+                                    fillContainer
                                 />
                             </button>
                         ))}
@@ -305,23 +313,31 @@ const ProductDetailsPage = () => {
                                     <div key={`${image}-${index}`} className="min-w-full">
                                         {product.shop?._id ? (
                                             <Link to={`/shop/${product.shop._id}`} className="block">
-                                                <img
-                                                    src={resolveImageSource(image, 'shop')}
+                                                <AdaptiveCardImage
+                                                    source={image}
                                                     alt={product.shop.name}
-                                                    loading="lazy"
-                                                    decoding="async"
-                                                    onError={(event) => applyImageFallback(event, 'shop')}
-                                                    className="h-52 w-full object-cover sm:h-60 md:h-64"
+                                                    kind="shop"
+                                                    responsiveOptions={{
+                                                        width: 1280,
+                                                        widths: [480, 768, 960, 1280],
+                                                        sizes: '(max-width: 1024px) 100vw, 50vw',
+                                                    }}
+                                                    containerClassName="h-52 bg-white sm:h-60 md:h-64"
+                                                    fillContainer
                                                 />
                                             </Link>
                                         ) : (
-                                            <img
-                                                src={resolveImageSource(image, 'shop')}
+                                            <AdaptiveCardImage
+                                                source={image}
                                                 alt={product.shop.name}
-                                                loading="lazy"
-                                                decoding="async"
-                                                onError={(event) => applyImageFallback(event, 'shop')}
-                                                className="h-52 w-full object-cover sm:h-60 md:h-64"
+                                                kind="shop"
+                                                responsiveOptions={{
+                                                    width: 1280,
+                                                    widths: [480, 768, 960, 1280],
+                                                    sizes: '(max-width: 1024px) 100vw, 50vw',
+                                                }}
+                                                containerClassName="h-52 bg-white sm:h-60 md:h-64"
+                                                fillContainer
                                             />
                                         )}
                                     </div>
@@ -365,13 +381,18 @@ const ProductDetailsPage = () => {
                                         shopGalleryIndex === index ? 'border-primary' : 'border-gray-200'
                                     }`}
                                 >
-                                    <img
-                                        src={resolveImageSource(image, 'shop')}
+                                    <AdaptiveCardImage
+                                        source={image}
                                         alt={`${product.shop.name}-preview-${index + 1}`}
-                                        loading="lazy"
-                                        decoding="async"
-                                        onError={(event) => applyImageFallback(event, 'shop')}
-                                        className="h-14 w-20 object-cover sm:h-16 sm:w-24"
+                                        kind="shop"
+                                        responsiveOptions={{
+                                            width: 240,
+                                            widths: [96, 160, 240],
+                                            sizes: '96px',
+                                            quality: 'auto:eco',
+                                        }}
+                                        containerClassName="h-14 w-20 bg-white sm:h-16 sm:w-24"
+                                        fillContainer
                                     />
                                 </button>
                             ))}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
@@ -196,13 +197,15 @@ const OwnerServicesPage = () => {
                                         className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3"
                                     >
                                         <div className="flex items-center gap-3">
-                                            <img
-                                                src={service.images?.[0]}
-                                                alt={service.name}
-                                                loading="lazy"
-                                                decoding="async"
-                                                className="h-12 w-12 rounded-lg object-cover"
-                                            />
+                                            <div className="w-12 overflow-hidden rounded-lg bg-white">
+                                                <AdaptiveCardImage
+                                                    source={service.images?.[0]}
+                                                    alt={service.name}
+                                                    kind="service"
+                                                    containerClassName="h-12"
+                                                    fillContainer
+                                                />
+                                            </div>
                                             <div>
                                                 <p className="font-semibold text-dark">{service.name}</p>
                                                 <p className="text-sm text-gray-500">

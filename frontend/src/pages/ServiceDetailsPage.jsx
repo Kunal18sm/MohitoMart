@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
 import { formatServicePrice } from '../utils/servicePrice';
-import { applyImageFallback, resolveImageSource } from '../utils/imageFallbacks';
 
 const ServiceDetailsPage = () => {
     const { id } = useParams();
@@ -59,33 +59,43 @@ const ServiceDetailsPage = () => {
             <div className="grid gap-8 lg:grid-cols-2">
                 <div>
                     <div className="mb-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">
-                        <img
-                            src={resolveImageSource(mainImage, 'service')}
+                        <AdaptiveCardImage
+                            source={mainImage}
                             alt={service.name}
-                            loading="eager"
-                            decoding="async"
-                            onError={(event) => applyImageFallback(event, 'service')}
-                            className="h-[280px] w-full object-cover sm:h-[360px] md:h-[420px]"
+                            kind="service"
+                            responsiveOptions={{
+                                width: 1200,
+                                widths: [480, 768, 960, 1200],
+                                sizes: '(max-width: 1024px) 100vw, 50vw',
+                                quality: 'auto:best',
+                            }}
+                            containerClassName="h-[280px] bg-white sm:h-[360px] md:h-[420px]"
+                            fillContainer
                         />
                     </div>
                     {(service.images || []).length > 1 && (
                         <div className="flex gap-3 overflow-x-auto">
-                            {(service.images || []).map((image) => (
+                            {(service.images || []).map((image, index) => (
                                 <button
                                     key={image}
                                     type="button"
                                     onClick={() => setMainImage(image)}
-                                    aria-label={`Show service image ${service.images.indexOf(image) + 1}`}
+                                    aria-label={`Show service image ${index + 1}`}
                                     className={`overflow-hidden rounded-lg border ${mainImage === image ? 'border-primary' : 'border-gray-200'
                                         }`}
                                 >
-                                    <img
-                                        src={resolveImageSource(image, 'service')}
-                                        alt="thumbnail"
-                                        loading="lazy"
-                                        decoding="async"
-                                        onError={(event) => applyImageFallback(event, 'service')}
-                                        className="h-20 w-24 object-cover"
+                                    <AdaptiveCardImage
+                                        source={image}
+                                        alt={`service-${index + 1}`}
+                                        kind="service"
+                                        responsiveOptions={{
+                                            width: 240,
+                                            widths: [96, 160, 240],
+                                            sizes: '96px',
+                                            quality: 'auto:eco',
+                                        }}
+                                        containerClassName="h-20 w-24 bg-white"
+                                        fillContainer
                                     />
                                 </button>
                             ))}

@@ -84,6 +84,29 @@ const mapProductWithFollowState = (product, followedShopIds = new Set()) => {
 const mapProductsWithFollowState = (products, followedShopIds = new Set()) =>
     products.map((product) => mapProductWithFollowState(product, followedShopIds));
 
+const parseObjectIdList = (value) => {
+    const rawValues = Array.isArray(value)
+        ? value
+        : String(value || '')
+            .split(',')
+            .map((entry) => entry.trim())
+            .filter(Boolean);
+
+    const seenIds = new Set();
+
+    return rawValues
+        .filter((entry) => mongoose.Types.ObjectId.isValid(entry))
+        .filter((entry) => {
+            if (seenIds.has(entry)) {
+                return false;
+            }
+
+            seenIds.add(entry);
+            return true;
+        })
+        .map((entry) => new mongoose.Types.ObjectId(entry));
+};
+
 const toAggregateMatch = (filters) => {
     const match = { ...filters };
     if (typeof match.shop === 'string' && mongoose.Types.ObjectId.isValid(match.shop)) {
@@ -508,6 +531,7 @@ export const getRandomProducts = async (req, res, next) => {
     try {
         const limit = Math.min(Math.max(Number(req.query.limit || 12), 1), 40);
         const match = {};
+        const excludedProductIds = parseObjectIdList(req.query.excludeIds);
 
         if (req.query.category) {
             const normalizedCategory = normalizeCategory(req.query.category);
@@ -544,6 +568,10 @@ export const getRandomProducts = async (req, res, next) => {
             }
 
             match.shop = { $in: nearbyShopIds };
+        }
+
+        if (excludedProductIds.length) {
+            match._id = { $nin: excludedProductIds };
         }
 
         const onePerShop = await Product.aggregate([
