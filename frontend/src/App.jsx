@@ -1,10 +1,9 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import FlashBanner from './components/FlashBanner';
 import Footer from './components/Footer';
 import GlobalSavingOverlay from './components/GlobalSavingOverlay';
-import InstallAppPrompt from './components/InstallAppPrompt';
 import BottomNav from './components/BottomNav';
 import RouteGuard from './components/RouteGuard';
 import { applyAccessibilityEnhancements } from './utils/accessibility';
@@ -33,9 +32,24 @@ const AboutUsPage = lazy(() => import('./pages/AboutUsPage'));
 const TermsConditionsPage = lazy(() => import('./pages/TermsConditionsPage'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const ContactUsPage = lazy(() => import('./pages/ContactUsPage'));
+const InstallAppPrompt = lazy(() => import('./components/InstallAppPrompt'));
 const OnboardingOverlay = lazy(() => import('./components/OnboardingOverlay'));
 const CSRF_STORAGE_KEY = 'mm_csrf_token';
 const READABLE_SESSION_COOKIE_KEY = 'mm_csrf';
+const PUBLIC_ROUTE_PATTERNS = [
+    /^\/$/,
+    /^\/category\/[^/]+$/,
+    /^\/shop\/[^/]+$/,
+    /^\/product\/[^/]+$/,
+    /^\/service\/[^/]+$/,
+    /^\/categories$/,
+    /^\/shops\/all$/,
+    /^\/services\/all$/,
+    /^\/about-us$/,
+    /^\/terms-and-conditions$/,
+    /^\/privacy-policy$/,
+    /^\/contact-us$/,
+];
 
 const HomePageFallback = () => (
     <div className="pb-12">
@@ -152,14 +166,62 @@ const readCookieValue = (name) => {
     return decodeURIComponent(cookie.slice(name.length + 1));
 };
 
+const isPublicRoutePath = (pathname = '/') =>
+    PUBLIC_ROUTE_PATTERNS.some((pattern) => pattern.test(String(pathname || '').trim()));
+
+const shouldMountOnboardingOverlay = () =>
+    localStorage.getItem('onboarding_complete') !== 'true';
+
 function App() {
     const [sessionBootstrapped, setSessionBootstrapped] = useState(
         () => !Boolean(localStorage.getItem('authToken'))
     );
+    const [installPromptReady, setInstallPromptReady] = useState(false);
+    const [onboardingOverlayEnabled, setOnboardingOverlayEnabled] = useState(() =>
+        shouldMountOnboardingOverlay()
+    );
     const location = useLocation();
     const showFooter = location.pathname === '/' || location.pathname === '/profile';
+    const isPublicRoute = useMemo(() => isPublicRoutePath(location.pathname), [location.pathname]);
+    const canRenderRoutes = isPublicRoute || sessionBootstrapped;
     const pageFallbackVariant =
         location.pathname === '/' ? 'home' : location.pathname === '/profile' ? 'profile' : 'default';
+
+    useEffect(() => {
+        const syncOnboardingOverlay = () => {
+            setOnboardingOverlayEnabled(shouldMountOnboardingOverlay());
+        };
+
+        syncOnboardingOverlay();
+        window.addEventListener('storage', syncOnboardingOverlay);
+        return () => {
+            window.removeEventListener('storage', syncOnboardingOverlay);
+        };
+    }, []);
+
+    useEffect(() => {
+        let idleId = null;
+        let timeoutId = null;
+
+        const enableInstallPrompt = () => {
+            setInstallPromptReady(true);
+        };
+
+        if ('requestIdleCallback' in window) {
+            idleId = window.requestIdleCallback(enableInstallPrompt, { timeout: 2200 });
+        } else {
+            timeoutId = window.setTimeout(enableInstallPrompt, 1200);
+        }
+
+        return () => {
+            if (idleId !== null && 'cancelIdleCallback' in window) {
+                window.cancelIdleCallback(idleId);
+            }
+            if (timeoutId !== null) {
+                window.clearTimeout(timeoutId);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         const hasStoredSession = Boolean(localStorage.getItem('authToken'));
@@ -253,12 +315,22 @@ function App() {
 
     useEffect(() => {
         const applyLabels = () => applyAccessibilityEnhancements(document);
-        const frameId = window.requestAnimationFrame(applyLabels);
-        const timeoutId = window.setTimeout(applyLabels, 250);
+        let idleId = null;
+        let timeoutId = null;
+
+        if ('requestIdleCallback' in window) {
+            idleId = window.requestIdleCallback(applyLabels, { timeout: 1500 });
+        } else {
+            timeoutId = window.setTimeout(applyLabels, 500);
+        }
 
         return () => {
-            window.cancelAnimationFrame(frameId);
-            window.clearTimeout(timeoutId);
+            if (idleId !== null && 'cancelIdleCallback' in window) {
+                window.cancelIdleCallback(idleId);
+            }
+            if (timeoutId !== null) {
+                window.clearTimeout(timeoutId);
+            }
         };
     }, [location.pathname, sessionBootstrapped]);
 
@@ -271,13 +343,19 @@ function App() {
             <Navbar />
             <FlashBanner />
             <GlobalSavingOverlay />
-            <InstallAppPrompt />
-            <Suspense fallback={null}>
-                <OnboardingOverlay />
-            </Suspense>
+            {installPromptReady ? (
+                <Suspense fallback={null}>
+                    <InstallAppPrompt />
+                </Suspense>
+            ) : null}
+            {onboardingOverlayEnabled ? (
+                <Suspense fallback={null}>
+                    <OnboardingOverlay />
+                </Suspense>
+            ) : null}
 
             <main className="relative z-10 flex-grow">
-                {sessionBootstrapped ? (
+                {canRenderRoutes ? (
                     <Suspense fallback={<PageFallback variant={pageFallbackVariant} />}>
                         <Routes>
                             <Route path="/" element={<HomePage />} />

@@ -9,17 +9,17 @@
   "theme_color": "#0f766e",
   "icons": [
     {
-      "src": "/logo/mohito-192.png",
+      "src": "/logo/mohito-192-optimized.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/logo/mohito-512.png",
+      "src": "/logo/mohito-512-optimized.png",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "/logo/mohito-512.png",
+      "src": "/logo/mohito-512-optimized.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

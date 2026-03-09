@@ -540,7 +540,7 @@ const AuthPage = () => {
                                 >
                                     <div className="aspect-square w-full bg-gray-50 p-2">
                                         <img
-                                            src="/logo/users.jpeg"
+                                            src="/logo/users-optimized.jpeg"
                                             alt="Customer"
                                             loading="lazy"
                                             decoding="async"
@@ -559,7 +559,7 @@ const AuthPage = () => {
                                 >
                                     <div className="aspect-square w-full bg-gray-50 p-2">
                                         <img
-                                            src="/logo/shops.jpeg"
+                                            src="/logo/shops-optimized.jpeg"
                                             alt="Shop Owner"
                                             loading="lazy"
                                             decoding="async"

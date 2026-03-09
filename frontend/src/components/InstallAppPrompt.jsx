@@ -18,7 +18,7 @@ const InstallAppPrompt = () => {
     return (
         <div className="fixed left-1/2 top-[88px] z-[70] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 rounded-2xl border border-primary/20 bg-white/95 p-4 shadow-[0_24px_54px_-24px_rgba(15,23,42,0.55)] backdrop-blur sm:top-[96px]">
             <div className="mb-2 flex items-center gap-2">
-                <img src="/logo/mohito-192.png" alt="Mohito Mart" className="h-8 w-8 rounded-lg object-cover" />
+                <img src="/logo/mohito-192-optimized.png" alt="Mohito Mart" className="h-8 w-8 rounded-lg object-cover" />
                 <p className="text-sm font-semibold text-dark">Install Mohito Mart</p>
             </div>
             <p className="mt-1 text-xs leading-relaxed text-gray-600">

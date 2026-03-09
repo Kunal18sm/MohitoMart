@@ -13,9 +13,9 @@ const ShopCard = ({ shop, homeSized = false, fixedFrame = true }) => {
                     alt={shop.name}
                     kind="shop"
                     responsiveOptions={{
-                        width: 420,
-                        widths: [180, 240, 320, 420],
-                        sizes: '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw',
+                        width: 360,
+                        widths: [180, 240, 300, 360],
+                        sizes: '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 240px',
                     }}
                     containerClassName={`bg-white/40 ${useFixedFrame ? 'h-32 sm:h-40 md:h-44' : ''}`.trim()}
                     fillContainer={useFixedFrame}

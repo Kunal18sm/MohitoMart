@@ -2,19 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/logo/mohito-192.png" />
-    <link rel="apple-touch-icon" href="/logo/mohito-192.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/logo/mohito-192-optimized.png" />
+    <link rel="apple-touch-icon" href="/logo/mohito-192-optimized.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
+    <link rel="preconnect" href="https://mohitomart.onrender.com" crossorigin />
     <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+    <link rel="dns-prefetch" href="https://mohitomart.onrender.com" />
     <script>
       (() => {
         const cacheKey = 'mm_home_banner_cache';
         const cacheTtlMs = 24 * 60 * 60 * 1000;
         const uploadSegment = '/image/upload/';
         const sizes = '(max-width: 768px) 100vw, 760px';
-        const widths = [480, 768, 960, 1280];
-        const aspectRatio = 720 / 1280;
+        const widths = [320, 480, 640, 760];
+        const aspectRatio = 428 / 760;
 
         const buildCloudinaryUrl = (source, width) => {
           if (
@@ -29,7 +31,7 @@
           const normalizedHeight = Math.round(normalizedWidth * aspectRatio);
           const transforms = [
             'f_auto',
-            'q_auto:best',
+            'q_auto:eco',
             'dpr_auto',
             'c_fill',
             'g_auto',

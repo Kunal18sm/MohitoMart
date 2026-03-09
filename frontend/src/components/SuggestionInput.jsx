@@ -16,6 +16,7 @@ const SuggestionInput = ({
     className = '',
     containerClassName = '',
     maxSuggestions = 8,
+    onFocus,
 }) => {
     const containerRef = useRef(null);
     const [isOpen, setIsOpen] = useState(false);
@@ -104,7 +105,10 @@ const SuggestionInput = ({
                 autoComplete="off"
                 aria-label={ariaLabel || placeholder || 'Suggestion input'}
                 placeholder={placeholder}
-                onFocus={() => setIsOpen(true)}
+                onFocus={(event) => {
+                    setIsOpen(true);
+                    onFocus?.(event);
+                }}
                 onKeyDown={handleKeyDown}
                 onChange={(event) => {
                     onChange(event.target.value);

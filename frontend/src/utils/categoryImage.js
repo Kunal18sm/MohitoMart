@@ -39,6 +39,8 @@ const CATEGORY_IMAGE_ALIASES = {
     'salon-and-spa': 'saloon',
     'sports-and-fitness': 'gym',
 };
+const OPTIMIZED_CATEGORY_IMAGE_FOLDER = '/category-images-optimized';
+const DEFAULT_CATEGORY_IMAGE_FOLDER = '/category-images';
 
 export const getCategoryImageSlug = (category) =>
     String(category || '')
@@ -73,7 +75,11 @@ export const getCategoryLocalImage = (category) => {
         return getPlaceholderImage('category');
     }
 
-    return `/category-images/${resolvedSlug}.${extension}`;
+    const basePath = extension === 'jpg' || extension === 'jpeg'
+        ? OPTIMIZED_CATEGORY_IMAGE_FOLDER
+        : DEFAULT_CATEGORY_IMAGE_FOLDER;
+
+    return `${basePath}/${resolvedSlug}.${extension}`;
 };
 
 export const handleCategoryImageError = (event) => {

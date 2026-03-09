@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import ProductCard from '../components/ProductCard';
-import ShopCard from '../components/ShopCard';
 import Skeleton from '../components/Skeleton';
 import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import api from '../services/api';
@@ -53,7 +52,11 @@ const areAreasEqual = (left = [], right = []) =>
 const HOME_FEED_PAGE_SIZE = 20;
 const HOME_FEED_PREFETCH_SIZE = 40;
 const HOME_FEED_EXCLUDE_LIMIT = 200;
-const HOME_DEFERRED_FETCH_DELAY_MS = 180;
+const HOME_DEFERRED_FETCH_DELAY_MS = 300;
+const BELOW_THE_FOLD_SECTION_STYLE = {
+    contentVisibility: 'auto',
+    containIntrinsicSize: '1px 360px',
+};
 
 const toProductIdKey = (product = {}) => String(product?._id || '');
 
@@ -119,13 +122,70 @@ const scheduleDeferredWork = (callback, delayMs = HOME_DEFERRED_FETCH_DELAY_MS) 
         return () => {};
     }
 
-    if ('requestIdleCallback' in window) {
-        const idleId = window.requestIdleCallback(() => callback(), { timeout: 1500 });
-        return () => window.cancelIdleCallback(idleId);
-    }
+    let cancelled = false;
+    let idleId = null;
+    const timeoutId = window.setTimeout(() => {
+        if (cancelled) {
+            return;
+        }
 
-    const timeoutId = window.setTimeout(callback, delayMs);
-    return () => window.clearTimeout(timeoutId);
+        if ('requestIdleCallback' in window) {
+            idleId = window.requestIdleCallback(() => {
+                if (!cancelled) {
+                    callback();
+                }
+            }, { timeout: 1500 });
+            return;
+        }
+
+        callback();
+    }, delayMs);
+
+    return () => {
+        cancelled = true;
+        window.clearTimeout(timeoutId);
+        if (idleId !== null && 'cancelIdleCallback' in window) {
+            window.cancelIdleCallback(idleId);
+        }
+    };
+};
+
+const useSectionActivation = (rootMargin = '320px 0px') => {
+    const sectionRef = useRef(null);
+    const [activated, setActivated] = useState(false);
+
+    useEffect(() => {
+        if (activated) {
+            return undefined;
+        }
+
+        const sectionElement = sectionRef.current;
+        if (!sectionElement || typeof IntersectionObserver === 'undefined') {
+            setActivated(true);
+            return undefined;
+        }
+
+        const observer = new IntersectionObserver(
+            (entries, attachedObserver) => {
+                if (!entries.some((entry) => entry.isIntersecting)) {
+                    return;
+                }
+
+                attachedObserver.disconnect();
+                setActivated(true);
+            },
+            {
+                root: null,
+                rootMargin,
+                threshold: 0.01,
+            }
+        );
+
+        observer.observe(sectionElement);
+        return () => observer.disconnect();
+    }, [activated, rootMargin]);
+
+    return [sectionRef, activated];
 };
 
 const HomePage = () => {
@@ -155,8 +215,6 @@ const HomePage = () => {
     const [followedProducts, setFollowedProducts] = useState([]);
     const [feedProducts, setFeedProducts] = useState([]);
     const [randomServices, setRandomServices] = useState([]);
-    const [recentlyViewedProducts, setRecentlyViewedProducts] = useState([]);
-    const [topRatedShops, setTopRatedShops] = useState([]);
     const [latestProducts, setLatestProducts] = useState([]);
     const [areaSlots, setAreaSlots] = useState(() => [
         initialAreaFilterState.primaryArea || '',
@@ -165,12 +223,10 @@ const HomePage = () => {
     ]);
     const [activeAreas, setActiveAreas] = useState(() => initialAreaFilterState.areas);
     const [loadingFollowed, setLoadingFollowed] = useState(true);
-    const [loadingFeed, setLoadingFeed] = useState(true);
+    const [loadingFeed, setLoadingFeed] = useState(false);
     const [loadingMoreFeed, setLoadingMoreFeed] = useState(false);
-    const [loadingRandomServices, setLoadingRandomServices] = useState(true);
-    const [loadingRecentlyViewed, setLoadingRecentlyViewed] = useState(true);
-    const [loadingTopRatedShops, setLoadingTopRatedShops] = useState(true);
-    const [loadingLatestProducts, setLoadingLatestProducts] = useState(true);
+    const [loadingRandomServices, setLoadingRandomServices] = useState(false);
+    const [loadingLatestProducts, setLoadingLatestProducts] = useState(false);
     const [feedCurrentPage, setFeedCurrentPage] = useState(1);
     const [hasMoreFeed, setHasMoreFeed] = useState(false);
     const { getAreaOptionsByCity, ensureLoaded: ensureLocationSuggestionsLoaded } = useLocationSuggestions({ enabled: false });
@@ -179,6 +235,9 @@ const HomePage = () => {
     const feedPoolRef = useRef([]);
     const feedSeenIdsRef = useRef(new Set());
     const feedCanRefillRef = useRef(true);
+    const [servicesSectionRef, servicesSectionActivated] = useSectionActivation();
+    const [latestSectionRef, latestSectionActivated] = useSectionActivation();
+    const [feedSectionRef, feedSectionActivated] = useSectionActivation('420px 0px');
 
     const nearbyAreaOptions = useMemo(
         () => getAreaOptionsByCity(selectedLocation.city || ''),
@@ -404,50 +463,6 @@ const HomePage = () => {
         loadingMoreFeed,
     ]);
 
-    const fetchRecentlyViewedProducts = async (areas = activeAreas) => {
-        if (!localStorage.getItem('authToken')) {
-            setRecentlyViewedProducts([]);
-            setLoadingRecentlyViewed(false);
-            return;
-        }
-
-        try {
-            setLoadingRecentlyViewed(true);
-            const { data } = await api.get('/products/recently-viewed', {
-                params: {
-                    limit: 12,
-                    city: selectedLocation.city || undefined,
-                    areas: buildAreaQueryParam(areas),
-                },
-            });
-            setRecentlyViewedProducts(data.products || []);
-        } catch (error) {
-            setRecentlyViewedProducts([]);
-        } finally {
-            setLoadingRecentlyViewed(false);
-        }
-    };
-
-    const fetchTopRatedShops = async (areas = activeAreas) => {
-        try {
-            setLoadingTopRatedShops(true);
-            const { data } = await api.get('/shops', {
-                params: {
-                    page: 1,
-                    limit: 10,
-                    sort: 'rating_desc',
-                    city: selectedLocation.city || undefined,
-                    areas: buildAreaQueryParam(areas),
-                },
-            });
-            setTopRatedShops(data.shops || []);
-        } catch (error) {
-            setTopRatedShops([]);
-        } finally {
-            setLoadingTopRatedShops(false);
-        }
-    };
-
     const fetchLatestProducts = async (areas = activeAreas) => {
         try {
             setLoadingLatestProducts(true);
@@ -487,47 +502,55 @@ const HomePage = () => {
     useEffect(() => {
         fetchHomeBanners();
         fetchCategories();
-
-        const cancelLocationSuggestionsPrefetch = scheduleDeferredWork(() => {
-            ensureLocationSuggestionsLoaded().catch(() => {});
-        }, 250);
-
-        return () => {
-            cancelLocationSuggestionsPrefetch();
-        };
-    }, [ensureLocationSuggestionsLoaded]);
+    }, []);
 
     useEffect(() => {
-        fetchFeedProductsPage(1, {
-            reset: true,
-            areas: activeAreas,
-        });
-
         const cancelDeferredFetches = [
             scheduleDeferredWork(() => {
                 fetchFollowedRandomProducts(activeAreas);
-            }),
-            scheduleDeferredWork(() => {
-                fetchRecentlyViewedProducts(activeAreas);
-            }),
-            scheduleDeferredWork(() => {
-                fetchTopRatedShops(activeAreas);
-            }),
-            scheduleDeferredWork(() => {
-                fetchLatestProducts(activeAreas);
-            }),
-            scheduleDeferredWork(() => {
-                fetchRandomServices(activeAreas);
-            }),
+            }, 600),
         ];
 
         return () => {
             cancelDeferredFetches.forEach((cancel) => cancel());
         };
-    }, [activeAreas, activeAreasQuery, fetchFeedProductsPage, selectedLocation.city]);
+    }, [activeAreas, activeAreasQuery, selectedLocation.city]);
 
     useEffect(() => {
-        if (!hasMoreFeed || loadingFeed || loadingMoreFeed) {
+        if (!servicesSectionActivated) {
+            return undefined;
+        }
+
+        return scheduleDeferredWork(() => {
+            fetchRandomServices(activeAreas);
+        }, 180);
+    }, [activeAreas, activeAreasQuery, selectedLocation.city, servicesSectionActivated]);
+
+    useEffect(() => {
+        if (!latestSectionActivated) {
+            return undefined;
+        }
+
+        return scheduleDeferredWork(() => {
+            fetchLatestProducts(activeAreas);
+        }, 180);
+    }, [activeAreas, activeAreasQuery, latestSectionActivated, selectedLocation.city]);
+
+    useEffect(() => {
+        if (!feedSectionActivated) {
+            return undefined;
+        }
+
+        return scheduleDeferredWork(() => {
+            fetchFeedProductsPage(1, {
+                reset: true,
+                areas: activeAreas,
+            });
+        }, 180);
+    }, [activeAreas, activeAreasQuery, feedSectionActivated, fetchFeedProductsPage, selectedLocation.city]);
+
+    useEffect(() => {
+        if (!feedSectionActivated || !hasMoreFeed || loadingFeed || loadingMoreFeed) {
             return undefined;
         }
 
@@ -554,7 +577,7 @@ const HomePage = () => {
 
         observer.observe(triggerElement);
         return () => observer.disconnect();
-    }, [hasMoreFeed, loadMoreFeedProducts, loadingFeed, loadingMoreFeed, feedProducts.length]);
+    }, [feedSectionActivated, hasMoreFeed, loadMoreFeedProducts, loadingFeed, loadingMoreFeed, feedProducts.length]);
 
     const updateAreaSlot = (index, value) => {
         setAreaSlots((previous) => {
@@ -594,11 +617,11 @@ const HomePage = () => {
                                         {(() => {
                                             const bannerProps = getResponsiveImageProps(image, {
                                                 kind: 'shop',
-                                                width: 1280,
-                                                height: 720,
-                                                widths: [480, 768, 960, 1280],
+                                                width: 760,
+                                                height: 428,
+                                                widths: [320, 480, 640, 760],
                                                 sizes: '(max-width: 768px) 100vw, 760px',
-                                                quality: index === 0 ? 'auto:best' : 'auto:good',
+                                                quality: index === 0 ? 'auto:eco' : 'auto:low',
                                             });
 
                                             return (
@@ -667,6 +690,7 @@ const HomePage = () => {
                             <SuggestionInput
                                 value={areaSlots[1]}
                                 onChange={(nextValue) => updateAreaSlot(1, nextValue)}
+                                onFocus={() => ensureLocationSuggestionsLoaded().catch(() => {})}
                                 ariaLabel={t('nearby_area_one') || 'Nearby area 1'}
                                 placeholder="A1"
                                 maxLength={70}
@@ -679,6 +703,7 @@ const HomePage = () => {
                             <SuggestionInput
                                 value={areaSlots[2]}
                                 onChange={(nextValue) => updateAreaSlot(2, nextValue)}
+                                onFocus={() => ensureLocationSuggestionsLoaded().catch(() => {})}
                                 ariaLabel={t('nearby_area_two') || 'Nearby area 2'}
                                 placeholder="A2"
                                 maxLength={70}
@@ -792,7 +817,7 @@ const HomePage = () => {
                 </div>
             </section>
 
-            <section className="container mx-auto px-4 py-8 md:py-10">
+            <section className="container mx-auto px-4 py-8 md:py-10" style={BELOW_THE_FOLD_SECTION_STYLE}>
                 <div className="relative min-h-[300px] overflow-hidden rounded-[2.5rem] border border-primary/20 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent p-6 shadow-lg sm:min-h-[320px] sm:p-8">
                     <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/20 rounded-full blur-3xl"></div>
                     <div className="mb-6 flex flex-wrap items-end justify-between gap-3 relative z-10">
@@ -844,125 +869,30 @@ const HomePage = () => {
                 </div>
             </section>
 
-            <section className="container mx-auto px-4 py-4 md:py-6">
-                <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-                    <div>
-                        <h2 className="text-xl font-black text-dark sm:text-2xl">{t('recently_viewed') || 'Recently Viewed'}</h2>
-                    </div>
-                    {!localStorage.getItem('authToken') && (
-                        <Link to="/auth" className="text-sm font-semibold text-primary hover:underline">
-                            {t('login_to_build_viewed_list') || 'Login to build your viewed list'}
-                        </Link>
-                    )}
-                </div>
-
-                <div className="min-h-[180px]">
-                {loadingRecentlyViewed && (
-                    <div className="flex gap-3 overflow-x-auto pb-2">
-                        {[...Array(4)].map((_, index) => (
-                            <div key={index} className="min-w-[44%] sm:min-w-[30%] md:min-w-[20%]">
-                                <Skeleton type="product" />
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {!loadingRecentlyViewed &&
-                    localStorage.getItem('authToken') &&
-                    recentlyViewedProducts.length === 0 && (
-                        <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
-                            {t('recently_viewed_empty') || 'Your recently viewed products list is currently empty.'}
-                        </p>
-                    )}
-
-                {!loadingRecentlyViewed && recentlyViewedProducts.length > 0 && (
-                    <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
-                        {recentlyViewedProducts.map((product) => (
-                            <div
-                                key={product._id}
-                                className="min-w-[52%] shrink-0 snap-start sm:min-w-[35%] md:min-w-[240px] lg:min-w-[220px]"
-                            >
-                                <ProductCard product={product} compact desktopTall homeSized />
-                            </div>
-                        ))}
-                    </div>
-                )}
-                </div>
-            </section>
-
-            <section className="container mx-auto px-4 py-4 md:py-6">
-                <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <section
+                ref={servicesSectionRef}
+                className="container mx-auto px-4 py-2 md:py-4"
+                style={BELOW_THE_FOLD_SECTION_STYLE}
+            >
+                <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                     <div>
                         <h2 className="text-xl font-black text-dark sm:text-2xl">
-                            {t('top_rated_shops_near_you') || 'Top Rated Shops Near You'}
+                            {t('services_near_you') || 'Services Near You'}
                         </h2>
-                        <p className="text-sm text-gray-500">
-                            {selectedLocation.city && activeAreas.length
-                                ? `${t('sorted_by_rating_in') || 'Sorted by rating in'} ${areaSummary}, ${selectedLocation.city}`
-                                : t('sorted_by_best_ratings') || 'Sorted by best ratings across all shops'}
-                        </p>
                     </div>
                 </div>
 
-                {loadingTopRatedShops && (
-                    <div className="flex gap-3 overflow-x-auto pb-2">
-                        {[...Array(3)].map((_, index) => (
-                            <div key={index} className="min-w-[62%] sm:min-w-[45%] md:min-w-[280px]">
-                                <div className="h-[260px] animate-pulse rounded-2xl bg-gray-200" />
-                            </div>
-                        ))}
-                    </div>
-                )}
+                {!servicesSectionActivated && <div className="h-28" aria-hidden="true" />}
 
-                {!loadingTopRatedShops && topRatedShops.length === 0 && (
-                    <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
-                        {t('nearby_top_rated_shops_not_available') || 'Nearby top-rated shops are not available right now.'}
-                    </p>
-                )}
-
-                {!loadingTopRatedShops && topRatedShops.length > 0 && (
-                    <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
-                        {topRatedShops.map((shop) => (
-                            <div
-                                key={shop._id}
-                                className="min-w-[62%] shrink-0 snap-start sm:min-w-[45%] md:min-w-[280px]"
-                            >
-                                <ShopCard shop={shop} homeSized />
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </section>
-
-            {loadingRandomServices && (
-                <section className="container mx-auto px-4 py-2 md:py-4">
-                    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-                        <div>
-                            <h2 className="text-xl font-black text-dark sm:text-2xl">
-                                {t('services_near_you') || 'Services Near You'}
-                            </h2>
-                        </div>
-                    </div>
-
+                {servicesSectionActivated && loadingRandomServices && (
                     <div className="flex gap-3 overflow-x-auto pb-2">
                         {[...Array(4)].map((_, index) => (
                             <div key={index} className="h-28 min-w-[50%] shrink-0 rounded-2xl bg-gray-200/80 sm:min-w-[34%] md:min-w-[220px]" />
                         ))}
                     </div>
-                </section>
-            )}
+                )}
 
-            {!loadingRandomServices && randomServices.length > 0 && (
-                <section className="container mx-auto px-4 py-2 md:py-4">
-                    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-                        <div>
-                            <h2 className="text-xl font-black text-dark sm:text-2xl">
-                                {t('services_near_you') || 'Services Near You'}
-                            </h2>
-
-                        </div>
-                    </div>
-
+                {servicesSectionActivated && !loadingRandomServices && randomServices.length > 0 && (
                     <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
                         {randomServices.map((service) => (
                             <Link
@@ -970,8 +900,6 @@ const HomePage = () => {
                                 to={`/service/${service._id}`}
                                 className="group min-w-[50%] shrink-0 snap-start overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md sm:min-w-[34%] md:min-w-[220px] lg:min-w-[200px]"
                             >
-                                {(() => {
-                                    return (
                                 <AdaptiveCardImage
                                     source={service.images?.[0]}
                                     alt={service.name}
@@ -986,8 +914,6 @@ const HomePage = () => {
                                     fitMode="cover"
                                     className="rounded-t-2xl"
                                 />
-                                    );
-                                })()}
                                 <div className="p-2.5">
                                     <h3 className="line-clamp-1 text-sm font-black text-dark">
                                         {service.name}
@@ -996,10 +922,14 @@ const HomePage = () => {
                             </Link>
                         ))}
                     </div>
-                </section>
-            )}
+                )}
+            </section>
 
-            <section className="container mx-auto px-4 py-4">
+            <section
+                ref={latestSectionRef}
+                className="container mx-auto px-4 py-4"
+                style={BELOW_THE_FOLD_SECTION_STYLE}
+            >
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
                         <h2 className="text-xl font-black text-dark sm:text-2xl">
@@ -1011,7 +941,9 @@ const HomePage = () => {
                     </div>
                 </div>
 
-                {loadingLatestProducts && (
+                {!latestSectionActivated && <div className="h-[260px]" aria-hidden="true" />}
+
+                {latestSectionActivated && loadingLatestProducts && (
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                         {[...Array(8)].map((_, index) => (
                             <Skeleton key={index} type="product" />
@@ -1019,13 +951,13 @@ const HomePage = () => {
                     </div>
                 )}
 
-                {!loadingLatestProducts && latestProducts.length === 0 && (
+                {latestSectionActivated && !loadingLatestProducts && latestProducts.length === 0 && (
                     <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
                         {t('newly_added_products_not_available') || 'Newly added products are not available right now.'}
                     </p>
                 )}
 
-                {!loadingLatestProducts && latestProducts.length > 0 && (
+                {latestSectionActivated && !loadingLatestProducts && latestProducts.length > 0 && (
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                         {latestProducts.map((product) => (
                             <ProductCard key={product._id} product={product} desktopTall homeSized />
@@ -1034,7 +966,11 @@ const HomePage = () => {
                 )}
             </section>
 
-            <section className="container mx-auto px-4 py-4">
+            <section
+                ref={feedSectionRef}
+                className="container mx-auto px-4 py-4"
+                style={BELOW_THE_FOLD_SECTION_STYLE}
+            >
                 <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
                     <div>
                         <h2 className="text-xl font-black text-dark sm:text-2xl">
@@ -1056,7 +992,9 @@ const HomePage = () => {
                     </span>
                 </div>
 
-                {loadingFeed && (
+                {!feedSectionActivated && <div className="h-[280px]" aria-hidden="true" />}
+
+                {feedSectionActivated && loadingFeed && (
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                         {[...Array(8)].map((_, index) => (
                             <Skeleton key={index} type="product" />
@@ -1064,13 +1002,13 @@ const HomePage = () => {
                     </div>
                 )}
 
-                {!loadingFeed && feedProducts.length === 0 && (
+                {feedSectionActivated && !loadingFeed && feedProducts.length === 0 && (
                     <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
                         {t('nearby_products_not_available') || 'Nearby products are not available right now.'}
                     </p>
                 )}
 
-                {!loadingFeed && feedProducts.length > 0 && (
+                {feedSectionActivated && !loadingFeed && feedProducts.length > 0 && (
                     <>
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                             {feedProducts.map((product) => (
@@ -1106,7 +1044,7 @@ const HomePage = () => {
                     </>
                 )}
 
-                {loadingFeed && (
+                {feedSectionActivated && loadingFeed && (
                     <div
                         ref={feedLoadTriggerRef}
                         className="h-8"

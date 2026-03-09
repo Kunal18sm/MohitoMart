@@ -12,7 +12,7 @@ const ProductCard = ({
 }) => {
     const imageSizes = compact
         ? '(max-width: 640px) 52vw, (max-width: 1024px) 35vw, 220px'
-        : '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw';
+        : '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 220px';
     const compactImageClass = desktopTall ? 'h-24 sm:h-28 lg:h-32' : 'h-24 sm:h-28';
     const regularImageClass = desktopTall
         ? 'h-[104px] sm:h-32 md:h-36 lg:h-40'
@@ -36,8 +36,8 @@ const ProductCard = ({
                     alt={product.name}
                     kind="product"
                     responsiveOptions={{
-                        width: compact ? 320 : 400,
-                        widths: compact ? [160, 220, 280, 320] : [180, 240, 320, 400],
+                        width: compact ? 280 : 320,
+                        widths: compact ? [140, 180, 240, 280] : [160, 220, 280, 320],
                         sizes: imageSizes,
                     }}
                     containerClassName={`bg-white/40 ${imageFrameClass}`.trim()}
