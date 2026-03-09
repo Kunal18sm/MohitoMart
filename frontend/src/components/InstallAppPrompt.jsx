@@ -1,86 +1,17 @@
-import { useEffect, useState } from 'react';
-
-const INSTALL_COMPLETED_KEY = 'mohito_app_installed_v1';
-
-const isStandaloneMode = () =>
-    window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-
-const isIosSafari = () => {
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIos = /iphone|ipad|ipod/.test(userAgent);
-    const isSafari = /safari/.test(userAgent) && !/crios|fxios|edgios|chrome/.test(userAgent);
-    return isIos && isSafari;
-};
+import { useInstallAppPrompt } from '../hooks/useInstallAppPrompt';
 
 const InstallAppPrompt = () => {
-    const [deferredPrompt, setDeferredPrompt] = useState(null);
-    const [isVisible, setIsVisible] = useState(false);
-    const [isInstalling, setIsInstalling] = useState(false);
-    const [showManualHint, setShowManualHint] = useState(false);
+    const {
+        canInstall,
+        dismissPrompt,
+        isInstalled,
+        isInstalling,
+        isPromptVisible,
+        promptInstall,
+        showManualHint,
+    } = useInstallAppPrompt();
 
-    useEffect(() => {
-        if (isStandaloneMode()) {
-            return;
-        }
-
-        if (localStorage.getItem(INSTALL_COMPLETED_KEY) === 'true') {
-            return;
-        }
-
-        if (isIosSafari()) {
-            setShowManualHint(true);
-            setIsVisible(true);
-        }
-
-        const handleBeforeInstallPrompt = (event) => {
-            event.preventDefault();
-            setShowManualHint(false);
-            setDeferredPrompt(event);
-            setIsVisible(true);
-        };
-
-        const handleAppInstalled = () => {
-            localStorage.setItem(INSTALL_COMPLETED_KEY, 'true');
-            setDeferredPrompt(null);
-            setIsVisible(false);
-        };
-
-        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-        window.addEventListener('appinstalled', handleAppInstalled);
-
-        return () => {
-            window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-            window.removeEventListener('appinstalled', handleAppInstalled);
-        };
-    }, []);
-
-    const closePrompt = () => {
-        setDeferredPrompt(null);
-        setShowManualHint(false);
-        setIsVisible(false);
-    };
-
-    const installApp = async () => {
-        if (!deferredPrompt) {
-            return;
-        }
-
-        setIsInstalling(true);
-        deferredPrompt.prompt();
-
-        try {
-            const choiceResult = await deferredPrompt.userChoice;
-            if (choiceResult.outcome === 'accepted') {
-                localStorage.setItem(INSTALL_COMPLETED_KEY, 'true');
-            }
-        } finally {
-            setDeferredPrompt(null);
-            setIsVisible(false);
-            setIsInstalling(false);
-        }
-    };
-
-    if (!isVisible) {
+    if (!isPromptVisible || isInstalled) {
         return null;
     }
 
@@ -98,15 +29,15 @@ const InstallAppPrompt = () => {
             <div className="mt-3 flex items-center justify-end gap-2">
                 <button
                     type="button"
-                    onClick={closePrompt}
+                    onClick={dismissPrompt}
                     className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50"
                 >
                     {showManualHint ? 'Got it' : 'Not now'}
                 </button>
-                {deferredPrompt ? (
+                {canInstall ? (
                     <button
                         type="button"
-                        onClick={installApp}
+                        onClick={promptInstall}
                         disabled={isInstalling}
                         className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-70"
                     >

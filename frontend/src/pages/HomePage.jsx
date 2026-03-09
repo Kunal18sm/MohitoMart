@@ -26,6 +26,11 @@ import {
     applyImageFallback,
     getResponsiveImageProps,
 } from '../utils/imageFallbacks';
+import {
+    clearCachedHomeBannerImages,
+    readCachedHomeBannerImages,
+    writeCachedHomeBannerImages,
+} from '../utils/homeBannerCache';
 import SuggestionInput from '../components/SuggestionInput';
 
 const readStoredLocation = () => {
@@ -145,7 +150,7 @@ const HomePage = () => {
     );
 
     const [activeSlide, setActiveSlide] = useState(0);
-    const [bannerImages, setBannerImages] = useState([]);
+    const [bannerImages, setBannerImages] = useState(() => readCachedHomeBannerImages());
     const [categories, setCategories] = useState([]);
     const [followedProducts, setFollowedProducts] = useState([]);
     const [feedProducts, setFeedProducts] = useState([]);
@@ -185,18 +190,6 @@ const HomePage = () => {
     );
     const areaSummary = useMemo(() => formatAreaSummary(activeAreas), [activeAreas]);
     const activeAreasQuery = useMemo(() => buildAreaQueryParam(activeAreas), [activeAreas]);
-    const heroBannerImage = useMemo(
-        () =>
-            getResponsiveImageProps(bannerImages[0], {
-                kind: 'shop',
-                width: 1280,
-                height: 720,
-                widths: [480, 768, 960, 1280],
-                sizes: '(max-width: 768px) 100vw, 760px',
-                quality: 'auto:best',
-            }),
-        [bannerImages]
-    );
 
     useEffect(() => {
         const syncLocation = () => {
@@ -253,28 +246,6 @@ const HomePage = () => {
         return () => window.clearInterval(timer);
     }, [bannerImages.length]);
 
-    useEffect(() => {
-        if (typeof document === 'undefined' || !heroBannerImage?.src) {
-            return undefined;
-        }
-
-        const preloadLink = document.createElement('link');
-        preloadLink.rel = 'preload';
-        preloadLink.as = 'image';
-        preloadLink.href = heroBannerImage.src;
-        if (heroBannerImage.srcSet) {
-            preloadLink.imageSrcset = heroBannerImage.srcSet;
-        }
-        if (heroBannerImage.sizes) {
-            preloadLink.imageSizes = heroBannerImage.sizes;
-        }
-
-        document.head.appendChild(preloadLink);
-        return () => {
-            document.head.removeChild(preloadLink);
-        };
-    }, [heroBannerImage]);
-
     const fetchHomeBanners = async () => {
         try {
             const { data } = await api.get('/banners/home');
@@ -282,12 +253,14 @@ const HomePage = () => {
 
             if (images.length) {
                 setBannerImages(images);
+                writeCachedHomeBannerImages(images);
                 setActiveSlide(0);
             } else {
                 setBannerImages([]);
+                clearCachedHomeBannerImages();
             }
         } catch (error) {
-            setBannerImages([]);
+            setBannerImages((previous) => (previous.length ? previous : []));
         }
     };
 

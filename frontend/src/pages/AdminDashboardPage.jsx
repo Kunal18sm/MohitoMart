@@ -7,6 +7,7 @@ import { extractErrorMessage } from '../utils/errorUtils';
 import { uploadImages, validateImageFiles } from '../utils/uploadUtils';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
 import { formatProductPrice } from '../utils/productPrice';
+import { writeCachedHomeBannerImages } from '../utils/homeBannerCache';
 import SuggestionInput from '../components/SuggestionInput';
 
 const AdminDashboardPage = () => {
@@ -101,7 +102,9 @@ const AdminDashboardPage = () => {
             setProducts(Array.isArray(productsRes.data.products) ? productsRes.data.products : []);
             setTotalShops(Number(shopsRes.data.total || 0));
             setTotalProducts(Number(productsRes.data.total || 0));
-            setBannerImages(Array.isArray(bannerRes.data.images) ? bannerRes.data.images : []);
+            const loadedBannerImages = Array.isArray(bannerRes.data.images) ? bannerRes.data.images : [];
+            setBannerImages(loadedBannerImages);
+            writeCachedHomeBannerImages(loadedBannerImages);
         } catch (error) {
             showError(extractErrorMessage(error, 'Unable to load admin dashboard'));
         } finally {
@@ -144,6 +147,7 @@ const AdminDashboardPage = () => {
             const { data } = await api.get('/banners/home');
             const savedImages = Array.isArray(data.images) ? data.images.filter(Boolean) : [];
             setBannerImages(savedImages);
+            writeCachedHomeBannerImages(savedImages);
             setSelectedBannerFiles([]);
             bannerPreviewUrls.forEach((url) => {
                 if (url.startsWith('blob:')) {
@@ -184,14 +188,13 @@ const AdminDashboardPage = () => {
         try {
             const payload = {
                 name: profileForm.name.trim(),
-                email: profileForm.email.trim().toLowerCase(),
                 city: profileForm.city.trim(),
                 area: profileForm.area.trim(),
                 password: profileForm.password,
             };
 
-            if (!payload.name || !payload.email || !payload.city || !payload.area) {
-                showError('Name, email, city and area are required');
+            if (!payload.name || !payload.city || !payload.area) {
+                showError('Name, city and area are required');
                 return;
             }
 
@@ -314,10 +317,9 @@ const AdminDashboardPage = () => {
                             type="email"
                             placeholder="Email"
                             value={profileForm.email}
-                            onChange={(event) =>
-                                setProfileForm((previous) => ({ ...previous, email: event.target.value }))
-                            }
-                            className="rounded-lg border border-gray-200 px-4 py-3 outline-none focus:border-primary"
+                            readOnly
+                            disabled
+                            className="cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-500 outline-none"
                         />
                         <SuggestionInput
                             placeholder="City"

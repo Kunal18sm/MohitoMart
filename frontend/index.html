@@ -7,6 +7,69 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
     <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+    <script>
+      (() => {
+        const cacheKey = 'mm_home_banner_cache';
+        const cacheTtlMs = 24 * 60 * 60 * 1000;
+        const uploadSegment = '/image/upload/';
+        const sizes = '(max-width: 768px) 100vw, 760px';
+        const widths = [480, 768, 960, 1280];
+        const aspectRatio = 720 / 1280;
+
+        const buildCloudinaryUrl = (source, width) => {
+          if (
+            typeof source !== 'string' ||
+            !source.includes('res.cloudinary.com') ||
+            !source.includes(uploadSegment)
+          ) {
+            return String(source || '').trim();
+          }
+
+          const normalizedWidth = Math.round(Number(width));
+          const normalizedHeight = Math.round(normalizedWidth * aspectRatio);
+          const transforms = [
+            'f_auto',
+            'q_auto:best',
+            'dpr_auto',
+            'c_fill',
+            'g_auto',
+            `w_${normalizedWidth}`,
+            `h_${normalizedHeight}`,
+          ].join(',');
+
+          return source.replace(uploadSegment, `${uploadSegment}${transforms}/`);
+        };
+
+        try {
+          const parsed = JSON.parse(window.localStorage.getItem(cacheKey) || '{}');
+          const images = Array.isArray(parsed?.images)
+            ? parsed.images.map((image) => String(image || '').trim()).filter(Boolean).slice(0, 3)
+            : [];
+          const storedAt = Number(parsed?.storedAt || 0);
+
+          if (!images.length || !storedAt || Date.now() - storedAt > cacheTtlMs) {
+            return;
+          }
+
+          const source = images[0];
+          const preloadLink = document.createElement('link');
+          preloadLink.rel = 'preload';
+          preloadLink.as = 'image';
+          preloadLink.href = buildCloudinaryUrl(source, widths[widths.length - 1]);
+
+          if (source.includes('res.cloudinary.com') && source.includes(uploadSegment)) {
+            preloadLink.imageSrcset = widths
+              .map((width) => `${buildCloudinaryUrl(source, width)} ${width}w`)
+              .join(', ');
+            preloadLink.imageSizes = sizes;
+          }
+
+          document.head.appendChild(preloadLink);
+        } catch (error) {
+          // ignore preload bootstrap failures
+        }
+      })();
+    </script>
     <meta name="theme-color" content="#0f766e" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta

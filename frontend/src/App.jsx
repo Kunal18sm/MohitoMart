@@ -37,11 +37,71 @@ const OnboardingOverlay = lazy(() => import('./components/OnboardingOverlay'));
 const CSRF_STORAGE_KEY = 'mm_csrf_token';
 const READABLE_SESSION_COOKIE_KEY = 'mm_csrf';
 
-const PageFallback = () => (
-    <div className="container mx-auto px-4 py-10">
-        <p className="text-sm font-medium text-gray-500">Loading...</p>
+const HomePageFallback = () => (
+    <div className="pb-12">
+        <section className="container mx-auto px-4 py-4 md:py-8">
+            <div className="mx-auto aspect-[16/9] w-full max-w-full animate-pulse rounded-[2rem] border border-white/70 bg-white/80 md:max-w-[760px]" />
+        </section>
+
+        <section className="container mx-auto px-4 pb-2">
+            <div className="h-[56px] animate-pulse rounded-xl border border-gray-200 bg-white/90" />
+        </section>
+
+        <section className="container mx-auto px-4 py-4">
+            <div className="mb-4 h-7 w-52 animate-pulse rounded-full bg-gray-200/80" />
+            <div className="flex gap-3 overflow-hidden">
+                {[...Array(8)].map((_, index) => (
+                    <div key={index} className="flex min-w-[72px] shrink-0 flex-col items-center">
+                        <div className="h-12 w-12 animate-pulse rounded-full bg-gray-200/90" />
+                        <div className="mt-2 h-3 w-14 animate-pulse rounded-full bg-gray-200/80" />
+                    </div>
+                ))}
+            </div>
+        </section>
+
+        <section className="container mx-auto px-4 py-8 md:py-10">
+            <div className="min-h-[320px] animate-pulse rounded-[2.5rem] border border-primary/20 bg-white/70" />
+        </section>
+
+        <section className="container mx-auto px-4 py-4 md:py-6">
+            <div className="mb-5 h-7 w-44 animate-pulse rounded-full bg-gray-200/80" />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {[...Array(8)].map((_, index) => (
+                    <div key={index} className="h-[220px] animate-pulse rounded-2xl bg-white/80" />
+                ))}
+            </div>
+        </section>
     </div>
 );
+
+const ProfilePageFallback = () => (
+    <div className="container mx-auto px-4 py-8">
+        <div className="mx-auto max-w-4xl space-y-4">
+            <div className="h-32 animate-pulse rounded-3xl bg-white/85" />
+            <div className="grid gap-4 md:grid-cols-2">
+                <div className="h-56 animate-pulse rounded-3xl bg-white/85" />
+                <div className="h-56 animate-pulse rounded-3xl bg-white/85" />
+            </div>
+        </div>
+    </div>
+);
+
+const PageFallback = ({ variant = 'default' }) => {
+    if (variant === 'home') {
+        return <HomePageFallback />;
+    }
+
+    if (variant === 'profile') {
+        return <ProfilePageFallback />;
+    }
+
+    return (
+        <div className="container mx-auto px-4 py-10">
+            <div className="h-6 w-28 animate-pulse rounded-full bg-gray-200/80" />
+            <div className="mt-4 h-40 animate-pulse rounded-3xl bg-white/80" />
+        </div>
+    );
+};
 
 const resolveApiBaseUrl = () => {
     const fallbackBaseUrl = 'http://localhost:5000/api';
@@ -98,6 +158,8 @@ function App() {
     );
     const location = useLocation();
     const showFooter = location.pathname === '/' || location.pathname === '/profile';
+    const pageFallbackVariant =
+        location.pathname === '/' ? 'home' : location.pathname === '/profile' ? 'profile' : 'default';
 
     useEffect(() => {
         const hasStoredSession = Boolean(localStorage.getItem('authToken'));
@@ -200,10 +262,6 @@ function App() {
         };
     }, [location.pathname, sessionBootstrapped]);
 
-    if (!sessionBootstrapped) {
-        return <PageFallback />;
-    }
-
     return (
         <div className="relative flex min-h-screen flex-col overflow-x-clip bg-light pb-[70px] pt-[76px] md:pb-0">
             <div
@@ -219,124 +277,128 @@ function App() {
             </Suspense>
 
             <main className="relative z-10 flex-grow">
-                <Suspense fallback={<PageFallback />}>
-                    <Routes>
-                        <Route path="/" element={<HomePage />} />
-                        <Route path="/category/:id" element={<CategoryPage />} />
-                        <Route
-                            path="/cart"
-                            element={
-                                <RouteGuard requireAuth>
-                                    <CartPage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route
-                            path="/shop/:id"
-                            element={<ShopDetailsPage />}
-                        />
-                        <Route path="/product/:id" element={<ProductDetailsPage />} />
-                        <Route path="/service/:id" element={<ServiceDetailsPage />} />
-                        <Route
-                            path="/auth"
-                            element={
-                                <RouteGuard guestOnly>
-                                    <AuthPage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route
-                            path="/profile"
-                            element={
-                                <RouteGuard requireAuth>
-                                    <UserProfilePage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route
-                            path="/owner/shop"
-                            element={
-                                <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
-                                    <ShopProfilePage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route
-                            path="/owner/products"
-                            element={
-                                <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
-                                    <OwnerProductsPage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route
-                            path="/owner/products/new"
-                            element={
-                                <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
-                                    <OwnerAddProductPage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route
-                            path="/owner/products/:productId/edit"
-                            element={
-                                <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
-                                    <OwnerEditProductPage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route
-                            path="/owner/services"
-                            element={
-                                <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
-                                    <OwnerServicesPage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route
-                            path="/owner/services/new"
-                            element={
-                                <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
-                                    <OwnerAddServicePage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route
-                            path="/owner/services/:serviceId/edit"
-                            element={
-                                <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
-                                    <OwnerEditServicePage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route
-                            path="/admin"
-                            element={
-                                <RouteGuard requireAuth allowRoles={['admin']}>
-                                    <AdminDashboardPage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route
-                            path="/admin/products/:id/edit"
-                            element={
-                                <RouteGuard requireAuth allowRoles={['admin']}>
-                                    <AdminProductEditPage />
-                                </RouteGuard>
-                            }
-                        />
-                        <Route path="/categories" element={<AllCategoriesPage />} />
-                        <Route path="/shops/all" element={<AllShopsPage />} />
-                        <Route path="/services/all" element={<AllServicesPage />} />
-                        <Route path="/about-us" element={<AboutUsPage />} />
-                        <Route
-                            path="/terms-and-conditions"
-                            element={<TermsConditionsPage />}
-                        />
-                        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-                        <Route path="/contact-us" element={<ContactUsPage />} />
-                    </Routes>
-                </Suspense>
+                {sessionBootstrapped ? (
+                    <Suspense fallback={<PageFallback variant={pageFallbackVariant} />}>
+                        <Routes>
+                            <Route path="/" element={<HomePage />} />
+                            <Route path="/category/:id" element={<CategoryPage />} />
+                            <Route
+                                path="/cart"
+                                element={
+                                    <RouteGuard requireAuth>
+                                        <CartPage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
+                                path="/shop/:id"
+                                element={<ShopDetailsPage />}
+                            />
+                            <Route path="/product/:id" element={<ProductDetailsPage />} />
+                            <Route path="/service/:id" element={<ServiceDetailsPage />} />
+                            <Route
+                                path="/auth"
+                                element={
+                                    <RouteGuard guestOnly>
+                                        <AuthPage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
+                                path="/profile"
+                                element={
+                                    <RouteGuard requireAuth>
+                                        <UserProfilePage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
+                                path="/owner/shop"
+                                element={
+                                    <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
+                                        <ShopProfilePage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
+                                path="/owner/products"
+                                element={
+                                    <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
+                                        <OwnerProductsPage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
+                                path="/owner/products/new"
+                                element={
+                                    <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
+                                        <OwnerAddProductPage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
+                                path="/owner/products/:productId/edit"
+                                element={
+                                    <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
+                                        <OwnerEditProductPage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
+                                path="/owner/services"
+                                element={
+                                    <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
+                                        <OwnerServicesPage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
+                                path="/owner/services/new"
+                                element={
+                                    <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
+                                        <OwnerAddServicePage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
+                                path="/owner/services/:serviceId/edit"
+                                element={
+                                    <RouteGuard requireAuth allowRoles={['shop_owner', 'admin']}>
+                                        <OwnerEditServicePage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
+                                path="/admin"
+                                element={
+                                    <RouteGuard requireAuth allowRoles={['admin']}>
+                                        <AdminDashboardPage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
+                                path="/admin/products/:id/edit"
+                                element={
+                                    <RouteGuard requireAuth allowRoles={['admin']}>
+                                        <AdminProductEditPage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route path="/categories" element={<AllCategoriesPage />} />
+                            <Route path="/shops/all" element={<AllShopsPage />} />
+                            <Route path="/services/all" element={<AllServicesPage />} />
+                            <Route path="/about-us" element={<AboutUsPage />} />
+                            <Route
+                                path="/terms-and-conditions"
+                                element={<TermsConditionsPage />}
+                            />
+                            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                            <Route path="/contact-us" element={<ContactUsPage />} />
+                        </Routes>
+                    </Suspense>
+                ) : (
+                    <PageFallback variant={pageFallbackVariant} />
+                )}
             </main>
 
             {showFooter ? <Footer /> : null}

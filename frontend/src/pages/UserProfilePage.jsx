@@ -5,6 +5,7 @@ import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
 import SuggestionInput from '../components/SuggestionInput';
+import ProfileInstallButton from '../components/ProfileInstallButton';
 
 const UserProfilePage = () => {
     const navigate = useNavigate();
@@ -77,15 +78,13 @@ const UserProfilePage = () => {
         try {
             setSavingProfile(true);
             const payload = {
-                ...profileForm,
                 name: profileForm.name.trim(),
-                email: profileForm.email.trim().toLowerCase(),
                 city: profileForm.city.trim(),
                 area: profileForm.area.trim(),
             };
 
-            if (!payload.name || !payload.email || !payload.city || !payload.area) {
-                showError('Name, email, city and area are required');
+            if (!payload.name || !payload.city || !payload.area) {
+                showError('Name, city and area are required');
                 return;
             }
 
@@ -123,13 +122,16 @@ const UserProfilePage = () => {
         <div className="container mx-auto max-w-5xl px-4 py-8 md:py-10">
             <div className="mb-8 flex items-center justify-between gap-3">
                 <h1 className="text-3xl font-black text-dark">My Profile</h1>
-                <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
-                >
-                    Logout
-                </button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    <ProfileInstallButton />
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                    >
+                        Logout
+                    </button>
+                </div>
             </div>
 
             {isShopOwner && (
@@ -178,11 +180,11 @@ const UserProfilePage = () => {
                             placeholder="Email"
                             aria-label="Email"
                             value={profileForm.email}
-                            onChange={(event) =>
-                                setProfileForm((previous) => ({ ...previous, email: event.target.value }))
-                            }
-                            className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                            readOnly
+                            disabled
+                            className="w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-500 outline-none"
                         />
+                        <p className="mt-1 text-xs text-gray-500">Email cannot be changed.</p>
                     </div>
                     <div>
                         <label className="mb-1.5 block text-sm font-semibold text-gray-700">City</label>

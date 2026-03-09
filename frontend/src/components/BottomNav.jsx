@@ -77,7 +77,7 @@ const BottomNav = () => {
             return [
                 { path: '/', label: t('home'), Icon: HomeIcon },
                 { path: '/owner/shop', label: t('dashboard'), Icon: DashboardIcon },
-                { path: '/cart', label: t('wishlist'), Icon: WishlistIcon },
+                { path: '/categories', label: t('categories'), Icon: CategoryIcon },
                 { path: '/owner/services', label: t('services'), Icon: ServicesIcon },
                 { path: '/profile', label: t('profile'), Icon: ProfileIcon },
             ];

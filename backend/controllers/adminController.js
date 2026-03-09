@@ -61,9 +61,6 @@ export const updateUser = async (req, res, next) => {
         const user = await User.findById(req.params.id);
         if (user) {
             user.name = req.body.name || user.name;
-            user.email = req.body.email
-                ? String(req.body.email).trim().toLowerCase()
-                : user.email;
             user.username = user.email;
             user.role = req.body.role || user.role;
 

@@ -13,20 +13,31 @@ const LOCAL_CATEGORY_IMAGE_MAP = {
     'florist': 'avif',
     'footwear': 'avif',
     'furniture': 'jpg',
+    'grocery': 'jpg',
+    'gym': 'jpg',
     'handicrafts': 'avif',
     'home-appliances': 'jpg',
     'home-decor': 'jpg',
     'jewellery': 'avif',
     'kitchen-appliances': 'jpg',
     'lighting': 'avif',
+    'mobile-repair': 'jpg',
     'mobiles-and-accessories': 'avif',
     'optical': 'avif',
+    'paint-and-sanitary': 'jpg',
     'pet-supplies': 'avif',
     'plumbing-and-electrical': 'avif',
     'restaurant': 'jpg',
+    'saloon': 'jpg',
+    'sweets-and-namkeen': 'jpg',
     'tailor-and-boutique': 'avif',
     'toys': 'avif',
     'watches': 'avif',
+};
+
+const CATEGORY_IMAGE_ALIASES = {
+    'salon-and-spa': 'saloon',
+    'sports-and-fitness': 'gym',
 };
 
 export const getCategoryImageSlug = (category) =>
@@ -40,21 +51,29 @@ export const getCategoryImageSlug = (category) =>
 
 export const hasLocalCategoryImage = (category) => {
     const slug = getCategoryImageSlug(category);
-    return Boolean(LOCAL_CATEGORY_IMAGE_MAP[slug]);
+    const resolvedSlug = CATEGORY_IMAGE_ALIASES[slug] || slug;
+    return Boolean(LOCAL_CATEGORY_IMAGE_MAP[resolvedSlug]);
 };
 
 export const filterCategoriesWithLocalImages = (categories = []) =>
-    [...new Set(categories.map((category) => String(category || '').trim()).filter(Boolean))];
+    [
+        ...new Set(
+            categories
+                .map((category) => String(category || '').trim())
+                .filter((category) => category && hasLocalCategoryImage(category))
+        ),
+    ];
 
 export const getCategoryLocalImage = (category) => {
     const slug = getCategoryImageSlug(category);
-    const extension = LOCAL_CATEGORY_IMAGE_MAP[slug];
+    const resolvedSlug = CATEGORY_IMAGE_ALIASES[slug] || slug;
+    const extension = LOCAL_CATEGORY_IMAGE_MAP[resolvedSlug];
 
     if (!extension) {
         return getPlaceholderImage('category');
     }
 
-    return `/category-images/${slug}.${extension}`;
+    return `/category-images/${resolvedSlug}.${extension}`;
 };
 
 export const handleCategoryImageError = (event) => {

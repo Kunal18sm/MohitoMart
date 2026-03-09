@@ -59,9 +59,6 @@ export const updateUserProfile = async (req, res, next) => {
 
         if (user) {
             user.name = req.body.name || user.name;
-            user.email = req.body.email
-                ? String(req.body.email).trim().toLowerCase()
-                : user.email;
             user.username = user.email;
             user.location = {
                 city:
