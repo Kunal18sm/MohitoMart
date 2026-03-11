@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';   
+
+// install 
 
 export const INSTALL_COMPLETED_KEY = 'mohito_app_installed_v1';
 
