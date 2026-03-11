@@ -21,7 +21,6 @@ export const isIosSafari = () => {
 
 const listeners = new Set();
 
-let initialized = false;
 let installState = {
     deferredPrompt: null,
     isInstalling: false,
@@ -48,27 +47,21 @@ const setInstallState = (updates) => {
     emitChange();
 };
 
-const initializeInstallAppPrompt = () => {
-    if (initialized || typeof window === 'undefined') {
-        return;
-    }
-
-    initialized = true;
-
+if (typeof window !== 'undefined') {
     const installed =
         isStandaloneMode() || window.localStorage.getItem(INSTALL_COMPLETED_KEY) === 'true';
 
     installState = {
         ...installState,
+        deferredPrompt: window.deferredInstallPrompt || null,
         isInstalled: installed,
-        isPromptVisible: !installed && isIosSafari(),
+        isPromptVisible: Boolean(window.deferredInstallPrompt) || (!installed && isIosSafari()),
         showManualHint: !installed && isIosSafari(),
     };
 
-    emitChange();
-
     window.addEventListener('beforeinstallprompt', (event) => {
         event.preventDefault();
+        window.deferredInstallPrompt = event;
         setInstallState({
             deferredPrompt: event,
             isPromptVisible: true,
@@ -86,7 +79,7 @@ const initializeInstallAppPrompt = () => {
             showManualHint: false,
         });
     });
-};
+}
 
 const subscribe = (listener) => {
     listeners.add(listener);
@@ -108,9 +101,16 @@ const dismissPrompt = () => {
     });
 };
 
-const promptInstall = async () => {
-    initializeInstallAppPrompt();
+const showPrompt = () => {
+    if (!installState.isInstalled) {
+        setInstallState({
+            isPromptVisible: true,
+            showManualHint: isIosSafari() && !installState.deferredPrompt,
+        });
+    }
+};
 
+const promptInstall = async () => {
     if (!installState.deferredPrompt) {
         return {
             outcome: null,
@@ -167,13 +167,13 @@ export const useInstallAppPrompt = () => {
     });
 
     useEffect(() => {
-        initializeInstallAppPrompt();
         return subscribe(setSnapshot);
     }, []);
 
     return {
         ...snapshot,
         dismissPrompt,
+        showPrompt,
         promptInstall,
     };
 };

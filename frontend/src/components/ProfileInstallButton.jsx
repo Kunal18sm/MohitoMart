@@ -1,41 +1,15 @@
-import { useState } from 'react';
 import { useInstallAppPrompt } from '../hooks/useInstallAppPrompt';
 
 const ProfileInstallButton = () => {
-    const [showHint, setShowHint] = useState(false);
-    const [showUnsupportedHint, setShowUnsupportedHint] = useState(false);
-    const { canInstall, isInstalled, isInstalling, promptInstall, shouldShowManualHint } =
-        useInstallAppPrompt();
+    const { isInstalled, isInstalling, showPrompt } = useInstallAppPrompt();
 
-    const handleInstall = async () => {
-        if (isInstalled) {
-            return;
+    const handleInstall = () => {
+        if (!isInstalled) {
+            showPrompt();
         }
-
-        if (canInstall) {
-            setShowHint(false);
-            setShowUnsupportedHint(false);
-            await promptInstall();
-            return;
-        }
-
-        if (shouldShowManualHint) {
-            setShowHint((previous) => !previous);
-            setShowUnsupportedHint(false);
-            return;
-        }
-
-        setShowUnsupportedHint((previous) => !previous);
-        setShowHint(false);
     };
 
-    const buttonLabel = isInstalled
-        ? 'App Installed'
-        : canInstall
-            ? 'Install App'
-            : shouldShowManualHint
-                ? 'Add to Home'
-                : 'Install App';
+    const buttonLabel = isInstalled ? 'App Installed' : 'Install App';
 
     return (
         <div className="flex flex-col items-end gap-1.5">
@@ -54,18 +28,6 @@ const ProfileInstallButton = () => {
                 </svg>
                 {isInstalling ? 'Installing...' : buttonLabel}
             </button>
-
-            {showHint ? (
-                <p className="max-w-[220px] text-right text-[11px] leading-relaxed text-gray-500">
-                    Safari me Share dabayein, phir <span className="font-semibold">Add to Home Screen</span> select karein.
-                </p>
-            ) : null}
-
-            {showUnsupportedHint ? (
-                <p className="max-w-[220px] text-right text-[11px] leading-relaxed text-gray-500">
-                    Install option ke liye page ko Chrome ya Edge me open karein.
-                </p>
-            ) : null}
         </div>
     );
 };

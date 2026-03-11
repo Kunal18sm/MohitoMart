@@ -24,7 +24,9 @@ const InstallAppPrompt = () => {
             <p className="mt-1 text-xs leading-relaxed text-gray-600">
                 {showManualHint
                     ? 'Safari me Share button dabayein, phir Add to Home Screen select karein.'
-                    : 'Ek click me app install karein aur home screen se direct open karein.'}
+                    : canInstall 
+                        ? 'Ek click me app install karein aur home screen se direct open karein.' 
+                        : "Browser menu (⋮) open karein aur 'Install app' ya 'Add to Home screen' select karein."}
             </p>
             <div className="mt-3 flex items-center justify-end gap-2">
                 <button
