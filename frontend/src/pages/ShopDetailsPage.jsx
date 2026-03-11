@@ -62,6 +62,8 @@ const ShopDetailsPage = () => {
 
     const [activeImage, setActiveImage] = useState('');
     const [shopData, setShopData] = useState(null);
+    const [visibleProductsCount, setVisibleProductsCount] = useState(20);
+    const [visibleServicesCount, setVisibleServicesCount] = useState(20);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [rating, setRating] = useState(5);
@@ -215,6 +217,8 @@ const ShopDetailsPage = () => {
     }
 
     const { shop, products = [], services = [], ratings = [] } = shopData;
+    const visibleProducts = products.slice(0, visibleProductsCount);
+    const visibleServices = services.slice(0, visibleServicesCount);
     return (
         <div className="container mx-auto px-4 py-8 md:py-10">
             <p className="mb-4 text-sm text-gray-500">
@@ -371,11 +375,24 @@ const ShopDetailsPage = () => {
                     </p>
                 )}
                 {products.length > 0 && (
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                        {products.map((product) => (
-                            <ProductCard key={product._id} product={{ ...product, shop }} />
-                        ))}
-                    </div>
+                    <>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                            {visibleProducts.map((product) => (
+                                <ProductCard key={product._id} product={{ ...product, shop }} />
+                            ))}
+                        </div>
+                        {visibleProducts.length < products.length && (
+                            <div className="mt-8 flex justify-center">
+                                <button
+                                    type="button"
+                                    onClick={() => setVisibleProductsCount((prev) => prev + 20)}
+                                    className="rounded-full border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                                >
+                                    Load more products
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </section>
 
@@ -387,48 +404,61 @@ const ShopDetailsPage = () => {
                     </p>
                 )}
                 {services.length > 0 && (
-                    <div className="grid gap-4 md:grid-cols-2">
-                        {services.map((service) => (
-                            <article
-                                key={service._id}
-                                className="rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.08)]"
-                            >
-                                <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
-                                    {(service.images || []).map((image, index) => (
-                                        <div
-                                            key={`${service._id}-${image}-${index}`}
-                                            className="min-w-full snap-start overflow-hidden rounded-xl border border-gray-200"
-                                        >
-                                            <AdaptiveCardImage
-                                                source={image}
-                                                alt={service.name}
-                                                kind="service"
-                                                responsiveOptions={{
-                                                    width: 960,
-                                                    widths: [480, 720, 960],
-                                                    sizes: '(max-width: 768px) 100vw, 50vw',
-                                                }}
-                                                containerClassName="h-44 bg-white sm:h-52"
-                                                fillContainer
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="mt-3 flex items-start justify-between gap-3">
-                                    <div>
-                                        <h3 className="text-xl font-black text-dark">{service.name}</h3>
-                                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">
-                                            {service.category}
-                                        </p>
+                    <>
+                        <div className="grid gap-4 md:grid-cols-2">
+                            {visibleServices.map((service) => (
+                                <article
+                                    key={service._id}
+                                    className="rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.08)]"
+                                >
+                                    <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
+                                        {(service.images || []).map((image, index) => (
+                                            <div
+                                                key={`${service._id}-${image}-${index}`}
+                                                className="min-w-full snap-start overflow-hidden rounded-xl border border-gray-200"
+                                            >
+                                                <AdaptiveCardImage
+                                                    source={image}
+                                                    alt={service.name}
+                                                    kind="service"
+                                                    responsiveOptions={{
+                                                        width: 960,
+                                                        widths: [480, 720, 960],
+                                                        sizes: '(max-width: 768px) 100vw, 50vw',
+                                                    }}
+                                                    containerClassName="h-44 bg-white sm:h-52"
+                                                    fillContainer
+                                                />
+                                            </div>
+                                        ))}
                                     </div>
-                                    <p className="text-lg font-black text-primary">{formatServicePrice(service)}</p>
-                                </div>
-                                <p className="mt-2 text-sm text-gray-600">
-                                    {service.description || 'Service details not added yet.'}
-                                </p>
-                            </article>
-                        ))}
-                    </div>
+                                    <div className="mt-3 flex items-start justify-between gap-3">
+                                        <div>
+                                            <h3 className="text-xl font-black text-dark">{service.name}</h3>
+                                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">
+                                                {service.category}
+                                            </p>
+                                        </div>
+                                        <p className="text-lg font-black text-primary">{formatServicePrice(service)}</p>
+                                    </div>
+                                    <p className="mt-2 text-sm text-gray-600">
+                                        {service.description || 'Service details not added yet.'}
+                                    </p>
+                                </article>
+                            ))}
+                        </div>
+                        {visibleServices.length < services.length && (
+                            <div className="mt-8 flex justify-center">
+                                <button
+                                    type="button"
+                                    onClick={() => setVisibleServicesCount((prev) => prev + 20)}
+                                    className="rounded-full border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                                >
+                                    Load more services
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </section>
 

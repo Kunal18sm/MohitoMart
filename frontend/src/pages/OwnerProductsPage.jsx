@@ -17,6 +17,7 @@ const OwnerProductsPage = () => {
     const [selectedShopId, setSelectedShopId] = useState('');
     const [deletingProductId, setDeletingProductId] = useState('');
     const [productIdToDelete, setProductIdToDelete] = useState('');
+    const [visibleProductsCount, setVisibleProductsCount] = useState(20);
 
     const canManageItems = useMemo(
         () => ['shop_owner', 'admin'].includes(profileRole),
@@ -31,6 +32,8 @@ const OwnerProductsPage = () => {
         () => products.find((product) => product._id === productIdToDelete) || null,
         [products, productIdToDelete]
     );
+
+    const visibleProducts = products.slice(0, visibleProductsCount);
 
     const fetchProductsForShop = async (shopId) => {
         if (!shopId) {
@@ -174,51 +177,64 @@ const OwnerProductsPage = () => {
                         )}
 
                         {products.length > 0 && (
-                            <div className="space-y-3">
-                                {products.map((product) => (
-                                    <div
-                                        key={product._id}
-                                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-16 overflow-hidden rounded-lg bg-white sm:w-20">
-                                                <AdaptiveCardImage
-                                                    source={product.images?.[0]}
-                                                    alt={product.name}
-                                                    kind="product"
-                                                    containerClassName="h-16 sm:h-20"
-                                                    fillContainer
-                                                />
+                            <>
+                                <div className="space-y-3">
+                                    {visibleProducts.map((product) => (
+                                        <div
+                                            key={product._id}
+                                            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-16 overflow-hidden rounded-lg bg-white sm:w-20">
+                                                    <AdaptiveCardImage
+                                                        source={product.images?.[0]}
+                                                        alt={product.name}
+                                                        kind="product"
+                                                        containerClassName="h-16 sm:h-20"
+                                                        fillContainer
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-dark">{product.name}</p>
+                                                    <p className="text-sm text-gray-500">
+                                                        {formatProductPrice(product)} | {product.category}
+                                                    </p>
+                                                    <p className="text-xs font-medium text-gray-500">
+                                                        {product.viewsCount || 0} views
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-semibold text-dark">{product.name}</p>
-                                                <p className="text-sm text-gray-500">
-                                                    {formatProductPrice(product)} | {product.category}
-                                                </p>
-                                                <p className="text-xs font-medium text-gray-500">
-                                                    {product.viewsCount || 0} views
-                                                </p>
+                                            <div className="flex items-center gap-2">
+                                                <Link
+                                                    to={`/owner/products/${product._id}/edit`}
+                                                    className="rounded-lg border border-primary/30 px-3 py-1 text-sm font-semibold text-primary hover:bg-primary/10"
+                                                >
+                                                    Edit
+                                                </Link>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => requestDeleteProduct(product._id)}
+                                                    disabled={deletingProductId === product._id}
+                                                    className="rounded-lg border border-red-200 px-3 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
+                                                >
+                                                    {deletingProductId === product._id ? 'Deleting...' : 'Delete'}
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <Link
-                                                to={`/owner/products/${product._id}/edit`}
-                                                className="rounded-lg border border-primary/30 px-3 py-1 text-sm font-semibold text-primary hover:bg-primary/10"
-                                            >
-                                                Edit
-                                            </Link>
-                                            <button
-                                                type="button"
-                                                onClick={() => requestDeleteProduct(product._id)}
-                                                disabled={deletingProductId === product._id}
-                                                className="rounded-lg border border-red-200 px-3 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
-                                            >
-                                                {deletingProductId === product._id ? 'Deleting...' : 'Delete'}
-                                            </button>
-                                        </div>
+                                    ))}
+                                </div>
+                                {visibleProducts.length < products.length && (
+                                    <div className="mt-8 flex justify-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => setVisibleProductsCount((prev) => prev + 20)}
+                                            className="rounded-full border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                                        >
+                                            Load more products
+                                        </button>
                                     </div>
-                                ))}
-                            </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

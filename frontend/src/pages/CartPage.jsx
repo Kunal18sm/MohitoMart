@@ -14,6 +14,7 @@ const CartPage = () => {
 
     const [loading, setLoading] = useState(true);
     const [items, setItems] = useState([]);
+    const [visibleItemsCount, setVisibleItemsCount] = useState(20);
     const [updatingProductId, setUpdatingProductId] = useState('');
     const [itemIdToRemove, setItemIdToRemove] = useState('');
     const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -22,6 +23,11 @@ const CartPage = () => {
     const itemToRemove = useMemo(
         () => items.find((entry) => entry.product === itemIdToRemove) || null,
         [items, itemIdToRemove]
+    );
+
+    const visibleItems = useMemo(
+        () => items.slice(0, visibleItemsCount),
+        [items, visibleItemsCount]
     );
 
     const applyCartResponse = (payload) => {
@@ -144,60 +150,76 @@ const CartPage = () => {
                     </Link>
                 </div>
             ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                    {items.map((item) => (
-                        <article
-                            key={item.product}
-                            className="flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white p-2.5 shadow-sm"
-                        >
-                            <Link to={`/product/${item.product}`} className="overflow-hidden rounded-xl bg-light">
-                                <AdaptiveCardImage
-                                    source={item.image}
-                                    alt={item.name}
-                                    kind="product"
-                                    responsiveOptions={{
-                                        width: 360,
-                                        widths: [160, 220, 280, 360],
-                                        sizes:
-                                            '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw',
-                                    }}
-                                />
-                            </Link>
-
-                            <div className="mt-2 flex flex-1 flex-col gap-2">
-                                <Link
-                                    to={`/product/${item.product}`}
-                                    className="line-clamp-2 text-xs font-semibold leading-tight text-dark hover:text-primary sm:text-sm"
-                                >
-                                    {item.name}
+                <>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                        {visibleItems.map((item) => (
+                            <article
+                                key={item.product}
+                                className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white p-2.5 shadow-[0_12px_28px_rgba(15,23,42,0.08)] transition hover:-translate-y-1 hover:shadow-lg"
+                            >
+                                <Link to={`/product/${item.product}`} className="relative block h-40 shrink-0 overflow-hidden rounded-xl bg-light sm:h-48">
+                                    <AdaptiveCardImage
+                                        source={item.image}
+                                        alt={item.name}
+                                        kind="product"
+                                        responsiveOptions={{
+                                            width: 360,
+                                            widths: [160, 220, 280, 360],
+                                            sizes:
+                                                '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw',
+                                        }}
+                                        containerClassName="absolute inset-0 h-full w-full"
+                                        fillContainer
+                                    />
                                 </Link>
-                                {Number(item.qty || 1) > 1 && (
-                                    <p className="text-[11px] text-gray-500">
-                                        {t('saved_qty') || 'Saved quantity'}: {item.qty}
-                                    </p>
-                                )}
-                                <div className="mt-auto flex gap-2">
+
+                                <div className="mt-2 flex flex-1 flex-col gap-2">
                                     <Link
                                         to={`/product/${item.product}`}
-                                        className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-center text-[11px] font-semibold text-gray-700 hover:bg-gray-50 sm:text-xs"
+                                        className="line-clamp-2 text-xs font-semibold leading-tight text-dark hover:text-primary sm:text-sm"
                                     >
-                                        {t('view') || 'View'}
+                                        {item.name}
                                     </Link>
-                                    <button
-                                        type="button"
-                                        onClick={() => requestRemoveItem(item.product)}
-                                        disabled={updatingProductId === item.product}
-                                        className="flex-1 rounded-lg border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60 sm:text-xs"
-                                    >
-                                        {updatingProductId === item.product
-                                            ? t('removing') || 'Removing...'
-                                            : t('remove') || 'Remove'}
-                                    </button>
+                                    {Number(item.qty || 1) > 1 && (
+                                        <p className="text-[11px] text-gray-500">
+                                            {t('saved_qty') || 'Saved quantity'}: {item.qty}
+                                        </p>
+                                    )}
+                                    <div className="mt-auto flex gap-2">
+                                        <Link
+                                            to={`/product/${item.product}`}
+                                            className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-center text-[11px] font-semibold text-gray-700 hover:bg-gray-50 sm:text-xs"
+                                        >
+                                            {t('view') || 'View'}
+                                        </Link>
+                                        <button
+                                            type="button"
+                                            onClick={() => requestRemoveItem(item.product)}
+                                            disabled={updatingProductId === item.product}
+                                            className="flex-1 rounded-lg border border-red-200 px-2 py-1.5 text-[11px] font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60 sm:text-xs"
+                                        >
+                                            {updatingProductId === item.product
+                                                ? t('removing') || 'Removing...'
+                                                : t('remove') || 'Remove'}
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        </article>
-                    ))}
-                </div>
+                            </article>
+                        ))}
+                    </div>
+
+                    {visibleItems.length < items.length && (
+                        <div className="mt-8 flex justify-center">
+                            <button
+                                type="button"
+                                onClick={() => setVisibleItemsCount((prev) => prev + 20)}
+                                className="rounded-full border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                            >
+                                Load more items
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
 
             <ConfirmDialog

@@ -119,7 +119,7 @@ const prioritizeNearbyAreas = (primaryArea, options = []) => {
 
 const scheduleDeferredWork = (callback, delayMs = HOME_DEFERRED_FETCH_DELAY_MS) => {
     if (typeof window === 'undefined') {
-        return () => {};
+        return () => { };
     }
 
     let cancelled = false;
@@ -549,35 +549,7 @@ const HomePage = () => {
         }, 180);
     }, [activeAreas, activeAreasQuery, feedSectionActivated, fetchFeedProductsPage, selectedLocation.city]);
 
-    useEffect(() => {
-        if (!feedSectionActivated || !hasMoreFeed || loadingFeed || loadingMoreFeed) {
-            return undefined;
-        }
-
-        const triggerElement = feedLoadTriggerRef.current;
-        if (!triggerElement) {
-            return undefined;
-        }
-
-        const observer = new IntersectionObserver(
-            (entries, attachedObserver) => {
-                if (!entries.some((entry) => entry.isIntersecting)) {
-                    return;
-                }
-
-                attachedObserver.disconnect();
-                loadMoreFeedProducts();
-            },
-            {
-                root: null,
-                rootMargin: '500px 0px',
-                threshold: 0.01,
-            }
-        );
-
-        observer.observe(triggerElement);
-        return () => observer.disconnect();
-    }, [feedSectionActivated, hasMoreFeed, loadMoreFeedProducts, loadingFeed, loadingMoreFeed, feedProducts.length]);
+    // Infinite scroll observer removed in favor of manual Load More button
 
     const updateAreaSlot = (index, value) => {
         setAreaSlots((previous) => {
@@ -625,19 +597,19 @@ const HomePage = () => {
                                             });
 
                                             return (
-                                        <img
-                                            src={bannerProps.src}
-                                            srcSet={bannerProps.srcSet}
-                                            sizes={bannerProps.sizes}
-                                            width={bannerProps.width}
-                                            height={bannerProps.height}
-                                            alt={`banner-${index + 1}`}
-                                            loading={index === 0 ? 'eager' : 'lazy'}
-                                            decoding="async"
-                                            fetchPriority={index === 0 ? 'high' : 'auto'}
-                                            onError={(event) => applyImageFallback(event, 'shop')}
-                                            className="h-full w-full object-cover"
-                                        />
+                                                <img
+                                                    src={bannerProps.src}
+                                                    srcSet={bannerProps.srcSet}
+                                                    sizes={bannerProps.sizes}
+                                                    width={bannerProps.width}
+                                                    height={bannerProps.height}
+                                                    alt={`banner-${index + 1}`}
+                                                    loading={index === 0 ? 'eager' : 'lazy'}
+                                                    decoding="async"
+                                                    fetchPriority={index === 0 ? 'high' : 'auto'}
+                                                    onError={(event) => applyImageFallback(event, 'shop')}
+                                                    className="h-full w-full object-cover"
+                                                />
                                             );
                                         })()}
                                     </div>
@@ -690,7 +662,7 @@ const HomePage = () => {
                             <SuggestionInput
                                 value={areaSlots[1]}
                                 onChange={(nextValue) => updateAreaSlot(1, nextValue)}
-                                onFocus={() => ensureLocationSuggestionsLoaded().catch(() => {})}
+                                onFocus={() => ensureLocationSuggestionsLoaded().catch(() => { })}
                                 ariaLabel={t('nearby_area_one') || 'Nearby area 1'}
                                 placeholder="A1"
                                 maxLength={70}
@@ -703,7 +675,7 @@ const HomePage = () => {
                             <SuggestionInput
                                 value={areaSlots[2]}
                                 onChange={(nextValue) => updateAreaSlot(2, nextValue)}
-                                onFocus={() => ensureLocationSuggestionsLoaded().catch(() => {})}
+                                onFocus={() => ensureLocationSuggestionsLoaded().catch(() => { })}
                                 ariaLabel={t('nearby_area_two') || 'Nearby area 2'}
                                 placeholder="A2"
                                 maxLength={70}
@@ -1026,14 +998,20 @@ const HomePage = () => {
 
                         <div
                             ref={feedLoadTriggerRef}
-                            className="h-8"
+                            className="h-4"
                             aria-hidden="true"
                         />
 
                         {hasMoreFeed && !loadingMoreFeed && (
-                            <p className="text-center text-xs font-medium text-gray-500">
-                                {t('scroll_to_load_more_products') || 'Scroll to load more products'}
-                            </p>
+                            <div className="mt-4 flex justify-center">
+                                <button
+                                    onClick={loadMoreFeedProducts}
+                                    type="button"
+                                    className="cursor-pointer rounded-xl border border-transparent bg-dark px-6 py-2.5 text-sm font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:bg-primary hover:shadow-lg sm:px-8 sm:py-3 sm:text-base"
+                                >
+                                    {t('load_more') || 'Load More'}
+                                </button>
+                            </div>
                         )}
 
                         {!hasMoreFeed && !loadingMoreFeed && (

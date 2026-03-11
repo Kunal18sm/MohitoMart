@@ -21,6 +21,7 @@ const OwnerServicesPage = () => {
     const [selectedShopId, setSelectedShopId] = useState('');
     const [deletingServiceId, setDeletingServiceId] = useState('');
     const [serviceIdToDelete, setServiceIdToDelete] = useState('');
+    const [visibleServicesCount, setVisibleServicesCount] = useState(20);
 
     const canManageItems = useMemo(
         () => ['shop_owner', 'admin'].includes(profileRole),
@@ -35,6 +36,8 @@ const OwnerServicesPage = () => {
         () => services.find((service) => service._id === serviceIdToDelete) || null,
         [services, serviceIdToDelete]
     );
+
+    const visibleServices = services.slice(0, visibleServicesCount);
 
     const fetchServicesForShop = async (shopId) => {
         if (!shopId) {
@@ -190,51 +193,64 @@ const OwnerServicesPage = () => {
                         )}
 
                         {services.length > 0 && (
-                            <div className="space-y-3">
-                                {services.map((service) => (
-                                    <div
-                                        key={service._id}
-                                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-12 overflow-hidden rounded-lg bg-white">
-                                                <AdaptiveCardImage
-                                                    source={service.images?.[0]}
-                                                    alt={service.name}
-                                                    kind="service"
-                                                    containerClassName="h-12"
-                                                    fillContainer
-                                                />
+                            <>
+                                <div className="space-y-3">
+                                    {visibleServices.map((service) => (
+                                        <div
+                                            key={service._id}
+                                            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 overflow-hidden rounded-lg bg-white">
+                                                    <AdaptiveCardImage
+                                                        source={service.images?.[0]}
+                                                        alt={service.name}
+                                                        kind="service"
+                                                        containerClassName="h-12"
+                                                        fillContainer
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-dark">{service.name}</p>
+                                                    <p className="text-sm text-gray-500">
+                                                        {formatServicePrice(service)} | {service.category}
+                                                    </p>
+                                                    <p className="text-xs font-medium text-gray-500">
+                                                        {service.viewsCount || 0} views
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-semibold text-dark">{service.name}</p>
-                                                <p className="text-sm text-gray-500">
-                                                    {formatServicePrice(service)} | {service.category}
-                                                </p>
-                                                <p className="text-xs font-medium text-gray-500">
-                                                    {service.viewsCount || 0} views
-                                                </p>
+                                            <div className="flex items-center gap-2">
+                                                <Link
+                                                    to={`/owner/services/${service._id}/edit`}
+                                                    className="rounded-lg border border-primary/30 px-3 py-1 text-sm font-semibold text-primary hover:bg-primary/10"
+                                                >
+                                                    Edit
+                                                </Link>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => requestDeleteService(service._id)}
+                                                    disabled={deletingServiceId === service._id}
+                                                    className="rounded-lg border border-red-200 px-3 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
+                                                >
+                                                    {deletingServiceId === service._id ? 'Deleting...' : 'Delete'}
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <Link
-                                                to={`/owner/services/${service._id}/edit`}
-                                                className="rounded-lg border border-primary/30 px-3 py-1 text-sm font-semibold text-primary hover:bg-primary/10"
-                                            >
-                                                Edit
-                                            </Link>
-                                            <button
-                                                type="button"
-                                                onClick={() => requestDeleteService(service._id)}
-                                                disabled={deletingServiceId === service._id}
-                                                className="rounded-lg border border-red-200 px-3 py-1 text-sm font-semibold text-red-600 hover:bg-red-50"
-                                            >
-                                                {deletingServiceId === service._id ? 'Deleting...' : 'Delete'}
-                                            </button>
-                                        </div>
+                                    ))}
+                                </div>
+                                {visibleServices.length < services.length && (
+                                    <div className="mt-8 flex justify-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => setVisibleServicesCount((prev) => prev + 20)}
+                                            className="rounded-full border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
+                                        >
+                                            Load more services
+                                        </button>
                                     </div>
-                                ))}
-                            </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

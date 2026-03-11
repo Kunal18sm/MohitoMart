@@ -256,7 +256,7 @@ const CategoryPage = () => {
                 </p>
             </div>
 
-            <div className="sticky top-[76px] z-30 -mx-4 px-4 py-3 bg-app-bg/80 backdrop-blur-md mb-8">
+            <div className="-mx-4 mb-8 px-4 py-3">
                 <form
                     onSubmit={applyFilters}
                     className="grid w-full gap-2 rounded-xl border border-glass-border glass-panel p-3 shadow-sm sm:max-w-3xl md:grid-cols-3"

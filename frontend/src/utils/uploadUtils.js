@@ -1,4 +1,5 @@
 import api from '../services/api';
+import imageCompression from 'browser-image-compression';
 
 const DEFAULT_MAX_SIZE_MB = 5;
 const DEFAULT_UPLOAD_CONCURRENCY = 3;
@@ -55,7 +56,20 @@ export const uploadImages = async (
 
     const uploadSingleFile = async (index) => {
         const file = selected[index];
-        const image = await fileToBase64(file);
+
+        let fileToUpload = file;
+        try {
+            const options = {
+                maxSizeMB: 1,
+                maxWidthOrHeight: 1280,
+                useWebWorker: true,
+            };
+            fileToUpload = await imageCompression(file, options);
+        } catch (error) {
+            console.warn('Image compression failed, falling back to original file', error);
+        }
+
+        const image = await fileToBase64(fileToUpload);
         const { data } = await api.post('/uploads/image', { image, folder });
         urls[index] = data.url;
         uploadedCount += 1;

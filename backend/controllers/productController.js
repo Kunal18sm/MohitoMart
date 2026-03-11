@@ -3,6 +3,7 @@ import Product from '../models/Product.js';
 import Shop from '../models/Shop.js';
 import ProductView from '../models/ProductView.js';
 import User from '../models/User.js';
+import Cart from '../models/Cart.js';
 import { SHOP_CATEGORIES, normalizeCategory } from '../constants/shopCategories.js';
 import { destroyCloudinaryImages } from '../utils/cloudinaryCleanup.js';
 import { buildLocationFieldClause } from '../utils/locationNormalizer.js';
@@ -428,6 +429,14 @@ export const deleteProduct = async (req, res, next) => {
             ProductView.deleteMany({ product: product._id }),
             Product.deleteOne({ _id: product._id }),
         ]);
+
+        // Background Cart Cleanup (Non-blocking)
+        Cart.updateMany(
+            { 'cartItems.product': product._id },
+            { $pull: { cartItems: { product: product._id } } }
+        ).catch((err) => {
+            console.error('Failed to cleanup carts after product deletion:', err);
+        });
 
         await destroyCloudinaryImages(productImages);
 
