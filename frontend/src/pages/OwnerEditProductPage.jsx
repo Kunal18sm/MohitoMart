@@ -191,7 +191,7 @@ const OwnerEditProductPage = () => {
                 <form onSubmit={updateProduct} className="grid gap-4 md:grid-cols-2">
                     <div>
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Product Name
+                            Product Name <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
@@ -206,7 +206,7 @@ const OwnerEditProductPage = () => {
 
                     <div>
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Price (Rs)
+                            Price (Rs) <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="number"
@@ -254,7 +254,7 @@ const OwnerEditProductPage = () => {
                         </label>
                         <textarea
                             rows="3"
-                            placeholder="Description (optional)"
+                            placeholder="Description"
                             value={form.description}
                             onChange={(event) =>
                                 setForm((previous) => ({ ...previous, description: event.target.value }))
@@ -265,7 +265,7 @@ const OwnerEditProductPage = () => {
 
                     <div className="md:col-span-2">
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Replace Images (optional, 1 to 5)
+                            Replace Images (1 to 5)
                         </label>
                         <input
                             type="file"

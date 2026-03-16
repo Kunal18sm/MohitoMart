@@ -341,7 +341,7 @@ const AdminDashboardPage = () => {
                         />
                         <input
                             type="password"
-                            placeholder="New password (optional)"
+                            placeholder="New password"
                             value={profileForm.password}
                             onChange={(event) =>
                                 setProfileForm((previous) => ({ ...previous, password: event.target.value }))

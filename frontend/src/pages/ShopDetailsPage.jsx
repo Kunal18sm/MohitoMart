@@ -492,7 +492,7 @@ const ShopDetailsPage = () => {
                         </div>
                         <div>
                             <label className="mb-1 block text-sm font-semibold text-gray-700">
-                                Experience (required)
+                                Experience <span className="text-red-500">*</span>
                             </label>
                             <textarea
                                 value={comment}

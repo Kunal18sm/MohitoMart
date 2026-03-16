@@ -229,7 +229,7 @@ const OwnerAddServicePage = () => {
                     {shops.length > 1 && (
                         <div className="md:col-span-2">
                             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
-                                Shop
+                                Shop <span className="text-red-500">*</span>
                             </label>
                             <select
                                 value={form.shopId}
@@ -249,7 +249,7 @@ const OwnerAddServicePage = () => {
 
                     <div className={shops.length > 1 ? '' : 'md:col-span-2'}>
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
-                            Service Name
+                            Service Name <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
@@ -264,7 +264,7 @@ const OwnerAddServicePage = () => {
 
                     <div>
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
-                            Price Type
+                            Price Type <span className="text-red-500">*</span>
                         </label>
                         <select
                             value={form.pricingType}
@@ -287,7 +287,7 @@ const OwnerAddServicePage = () => {
                     {form.pricingType === 'fixed' ? (
                         <div className="md:col-span-2">
                             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
-                                Price (Rs)
+                                Price (Rs) <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="number"
@@ -304,7 +304,7 @@ const OwnerAddServicePage = () => {
                         <>
                             <div>
                                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
-                                    Price Min (Rs)
+                                    Price Min (Rs) <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="number"
@@ -320,7 +320,7 @@ const OwnerAddServicePage = () => {
 
                             <div>
                                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
-                                    Price Max (Rs)
+                                    Price Max (Rs) <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="number"
@@ -347,13 +347,13 @@ const OwnerAddServicePage = () => {
                                 setForm((previous) => ({ ...previous, description: event.target.value }))
                             }
                             className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
-                            placeholder="Service details (optional)"
+                            placeholder="Service details"
                         />
                     </div>
 
                     <div className="md:col-span-2">
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
-                            Service Images (1 to 5)
+                            Service Images (1 to 5) <span className="text-red-500">*</span>
                         </label>
                         <label
                             htmlFor="owner-service-images"

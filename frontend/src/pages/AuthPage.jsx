@@ -4,7 +4,6 @@ import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
-import { detectDeviceLocation } from '../utils/deviceLocation';
 import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
 import SuggestionInput from '../components/SuggestionInput';
 
@@ -48,7 +47,6 @@ const AuthPage = () => {
     const { showError, showSuccess } = useFlash();
     const [mode, setMode] = useState('login');
     const [loading, setLoading] = useState(false);
-    const [detectingLocation, setDetectingLocation] = useState(false);
     const [error, setError] = useState('');
     const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
 
@@ -148,47 +146,6 @@ const AuthPage = () => {
         }
 
         window.dispatchEvent(new Event('storage'));
-    };
-
-    const persistGuestLocation = ({ city, area, latitude, longitude }) => {
-        localStorage.setItem('user_city', city);
-        localStorage.setItem('user_area', area);
-        localStorage.setItem('user_lat', String(latitude));
-        localStorage.setItem('user_lon', String(longitude));
-        localStorage.setItem(
-            'selectedLocation',
-            JSON.stringify({
-                city,
-                area,
-            })
-        );
-        window.dispatchEvent(new Event('storage'));
-    };
-
-    const autofillLocationFromDevice = async () => {
-        try {
-            setDetectingLocation(true);
-            const detected = await detectDeviceLocation({ timeoutMs: 9000 });
-            setRegisterData((previous) => ({
-                ...previous,
-                city: detected.city,
-                area: detected.area,
-            }));
-            persistGuestLocation(detected);
-            if (detected.isApproximate) {
-                showSuccess(
-                    `Approximate location: ${detected.area}, ${detected.city}. Please verify area.`
-                );
-            } else {
-                showSuccess(`Location detected: ${detected.area}, ${detected.city}`);
-            }
-        } catch (err) {
-            const message = extractErrorMessage(err, 'Unable to detect your location');
-            setError(message);
-            showError(message);
-        } finally {
-            setDetectingLocation(false);
-        }
     };
 
     const handleLogin = async (event) => {
@@ -424,14 +381,6 @@ const AuthPage = () => {
                     <form onSubmit={handleRegister} className="space-y-4">
                         <h1 className="text-2xl font-black text-dark sm:text-3xl">Create Account</h1>
 
-                        <button
-                            type="button"
-                            onClick={autofillLocationFromDevice}
-                            disabled={detectingLocation}
-                            className="inline-flex items-center rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-60"
-                        >
-                            {detectingLocation ? 'Detecting location...' : 'Use my current location'}
-                        </button>
                         <input
                             type="text"
                             placeholder="Full name"
@@ -443,7 +392,7 @@ const AuthPage = () => {
                         />
                         <input
                             type="text"
-                            placeholder="Username (optional)"
+                            placeholder="Username"
                             value={registerData.username}
                             onChange={(event) =>
                                 setRegisterData((prev) => ({ ...prev, username: event.target.value }))

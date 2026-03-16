@@ -181,7 +181,7 @@ const OwnerAddProductPage = () => {
                 <form onSubmit={addProduct} className="grid gap-4 md:grid-cols-2">
                     <div>
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
-                            Product Name (Optional)
+                            Product Name
                         </label>
                         <input
                             type="text"
@@ -190,13 +190,13 @@ const OwnerAddProductPage = () => {
                                 setForm((previous) => ({ ...previous, name: event.target.value }))
                             }
                             className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
-                            placeholder="e.g. Wireless Headphones (optional)"
+                            placeholder="e.g. Wireless Headphones"
                         />
                     </div>
 
                     <div>
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
-                            Price (Rs)
+                            Price (Rs) <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="number"
@@ -248,13 +248,13 @@ const OwnerAddProductPage = () => {
                                 setForm((previous) => ({ ...previous, description: event.target.value }))
                             }
                             className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-primary"
-                            placeholder="Product details (optional)"
+                            placeholder="Product details"
                         />
                     </div>
 
                     <div className="md:col-span-2">
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">
-                            Product Images (1 to 5)
+                            Product Images (1 to 5) <span className="text-red-500">*</span>
                         </label>
                         <label
                             htmlFor="owner-product-images"

@@ -195,7 +195,7 @@ const OwnerEditServicePage = () => {
                 <form onSubmit={updateService} className="grid gap-4 md:grid-cols-2">
                     <div>
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Service Name
+                            Service Name <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
@@ -210,7 +210,7 @@ const OwnerEditServicePage = () => {
 
                     <div>
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Price Min (Rs)
+                            Price Min (Rs) <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="number"
@@ -226,7 +226,7 @@ const OwnerEditServicePage = () => {
 
                     <div>
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Price Max (Rs)
+                            Price Max (Rs) <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="number"
@@ -246,7 +246,7 @@ const OwnerEditServicePage = () => {
                         </label>
                         <textarea
                             rows="3"
-                            placeholder="Description (optional)"
+                            placeholder="Description"
                             value={form.description}
                             onChange={(event) =>
                                 setForm((previous) => ({ ...previous, description: event.target.value }))
@@ -257,7 +257,7 @@ const OwnerEditServicePage = () => {
 
                     <div className="md:col-span-2">
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            Replace Images (optional, 1 to 5)
+                            Replace Images (1 to 5)
                         </label>
                         <input
                             type="file"

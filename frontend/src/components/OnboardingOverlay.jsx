@@ -213,7 +213,9 @@ const OnboardingOverlay = () => {
 
                                 <div className="mt-2 grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="text-xs font-semibold text-gray-500 mb-1 block">{t('city') || 'City'}</label>
+                                        <label className="text-xs font-semibold text-gray-500 mb-1 block">
+                                            {t('city') || 'City'} <span className="text-red-500">*</span>
+                                        </label>
                                         <SuggestionInput
                                             inputId="onboarding-city"
                                             value={city}
@@ -225,7 +227,9 @@ const OnboardingOverlay = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-xs font-semibold text-gray-500 mb-1 block">{t('area') || 'Area'}</label>
+                                        <label className="text-xs font-semibold text-gray-500 mb-1 block">
+                                            {t('area') || 'Area'} <span className="text-red-500">*</span>
+                                        </label>
                                         <SuggestionInput
                                             inputId="onboarding-area"
                                             value={area}

@@ -7,6 +7,7 @@ import { useFlash } from '../context/FlashContext';
 import { uploadImages, validateImageFiles } from '../utils/uploadUtils';
 import { filterCategoriesWithLocalImages } from '../utils/categoryImage';
 import { useLocationSuggestions } from '../utils/locationSuggestions';
+import { detectDeviceLocation } from '../utils/deviceLocation';
 import SuggestionInput from '../components/SuggestionInput';
 
 const ProductBoxIcon = () => (
@@ -52,6 +53,7 @@ const ShopProfilePage = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [detectingLocation, setDetectingLocation] = useState(false);
     const [categories, setCategories] = useState([]);
     const [ownerRole, setOwnerRole] = useState('user');
     const [existingShop, setExistingShop] = useState(null);
@@ -193,6 +195,41 @@ const ShopProfilePage = () => {
     useEffect(() => {
         loadData();
     }, []);
+
+    const autofillLocationFromDevice = async () => {
+        if (detectingLocation) {
+            return;
+        }
+
+        try {
+            setDetectingLocation(true);
+            const detected = await detectDeviceLocation({ timeoutMs: 9000 });
+            setForm((previous) => ({
+                ...previous,
+                city: detected.city,
+                area: detected.area,
+            }));
+            if (detected.isApproximate) {
+                showSuccess(
+                    `Approximate location: ${detected.area}, ${detected.city}. Please verify area.`
+                );
+            } else {
+                showSuccess(`Location detected: ${detected.area}, ${detected.city}`);
+            }
+        } catch (error) {
+            const rawMessage = String(error?.message || '');
+            const permissionDenied =
+                error?.code === 1 ||
+                /permission\s*denied/i.test(rawMessage) ||
+                /not\s*allowed/i.test(rawMessage);
+            const message = permissionDenied
+                ? 'Location permission is blocked. Please allow it in your browser settings and try again.'
+                : extractErrorMessage(error, 'Unable to detect your location');
+            showError(message);
+        } finally {
+            setDetectingLocation(false);
+        }
+    };
 
     const handleFileSelection = (event) => {
         try {
@@ -405,7 +442,7 @@ const ShopProfilePage = () => {
                 <form onSubmit={submitShop} className="grid gap-3 md:grid-cols-2">
                     <div>
                         <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
-                            Shop Name
+                            Shop Name <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
@@ -420,7 +457,7 @@ const ShopProfilePage = () => {
 
                     <div>
                         <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
-                            Category
+                            Category <span className="text-red-500">*</span>
                         </label>
                         <select
                             value={form.category}
@@ -438,9 +475,23 @@ const ShopProfilePage = () => {
                         </select>
                     </div>
 
+                    <div className="md:col-span-2 flex items-center justify-between gap-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                            Shop location
+                        </p>
+                        <button
+                            type="button"
+                            onClick={autofillLocationFromDevice}
+                            disabled={detectingLocation}
+                            className="inline-flex items-center rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/10 disabled:opacity-60"
+                        >
+                            {detectingLocation ? 'Detecting location...' : 'Use my current location'}
+                        </button>
+                    </div>
+
                     <div>
                         <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
-                            City
+                            City <span className="text-red-500">*</span>
                         </label>
                         <SuggestionInput
                             value={form.city}
@@ -455,7 +506,7 @@ const ShopProfilePage = () => {
 
                     <div>
                         <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
-                            Area
+                            Area <span className="text-red-500">*</span>
                         </label>
                         <SuggestionInput
                             value={form.area}
@@ -470,7 +521,7 @@ const ShopProfilePage = () => {
 
                     <div>
                         <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
-                            Address (Optional)
+                            Address
                         </label>
                         <input
                             type="text"
@@ -485,7 +536,7 @@ const ShopProfilePage = () => {
 
                     <div>
                         <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
-                            Mobile (Optional)
+                            Mobile
                         </label>
                         <input
                             type="text"
@@ -500,7 +551,7 @@ const ShopProfilePage = () => {
 
                     <div className="md:col-span-2">
                         <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
-                            Google Map URL (Optional)
+                            Google Map URL
                         </label>
                         <input
                             type="text"
@@ -515,7 +566,7 @@ const ShopProfilePage = () => {
 
                     <div className="md:col-span-2">
                         <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
-                            Description (Optional)
+                            Description
                         </label>
                         <textarea
                             rows="3"
@@ -530,7 +581,7 @@ const ShopProfilePage = () => {
 
                     <div className="md:col-span-2">
                         <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-dark">
-                            Shop Images (1 to 5)
+                            Shop Images (1 to 5) <span className="text-red-500">*</span>
                         </label>
                         <label
                             htmlFor="shop-profile-images"
