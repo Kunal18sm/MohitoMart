@@ -536,7 +536,7 @@ const AuthPage = () => {
                                     type="button"
                                     onClick={() => completeGoogleAuth('user')}
                                     disabled={loading}
-                                    className="w-3/4 overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:border-primary hover:shadow-sm disabled:opacity-50"
+                                    className="w-3/5 overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:border-primary hover:shadow-sm disabled:opacity-50"
                                 >
                                     <div className="aspect-square w-full bg-gray-50 p-2">
                                         <img
@@ -555,7 +555,7 @@ const AuthPage = () => {
                                     type="button"
                                     onClick={() => completeGoogleAuth('shop_owner')}
                                     disabled={loading}
-                                    className="w-3/4 overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:border-primary hover:shadow-sm disabled:opacity-50"
+                                    className="w-3/5 overflow-hidden rounded-xl border border-gray-200 bg-white text-left transition hover:border-primary hover:shadow-sm disabled:opacity-50"
                                 >
                                     <div className="aspect-square w-full bg-gray-50 p-2">
                                         <img
