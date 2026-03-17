@@ -161,13 +161,6 @@ const ProductDetailsPage = () => {
 
     return (
         <div className="container mx-auto px-4 py-8 md:py-10">
-            <p className="mb-4 text-sm text-gray-500">
-                <Link to="/" className="hover:underline">
-                    Home
-                </Link>{' '}
-                / Product
-            </p>
-
             <div className="grid gap-8 lg:grid-cols-2">
                 <div>
                     <div className="mb-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">

@@ -62,8 +62,6 @@ const ShopDetailsPage = () => {
 
     const [activeImage, setActiveImage] = useState('');
     const [shopData, setShopData] = useState(null);
-    const [visibleProductsCount, setVisibleProductsCount] = useState(20);
-    const [visibleServicesCount, setVisibleServicesCount] = useState(20);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [rating, setRating] = useState(5);
@@ -217,17 +215,10 @@ const ShopDetailsPage = () => {
     }
 
     const { shop, products = [], services = [], ratings = [] } = shopData;
-    const visibleProducts = products.slice(0, visibleProductsCount);
-    const visibleServices = services.slice(0, visibleServicesCount);
+    const visibleProducts = products.slice(0, 4);
+    const visibleServices = services.slice(0, 4);
     return (
         <div className="container mx-auto px-4 py-8 md:py-10">
-            <p className="mb-4 text-sm text-gray-500">
-                <Link to="/" className="hover:underline">
-                    Home
-                </Link>{' '}
-                / Shop
-            </p>
-
             {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">{error}</p>}
 
             <section className="mb-12 grid gap-8 lg:grid-cols-2 lg:items-start">
@@ -368,7 +359,18 @@ const ShopDetailsPage = () => {
             </section>
 
             <section className="mb-12">
-                <h2 className="mb-4 text-3xl font-black text-dark">Shop Products</h2>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-3xl font-black text-dark">Shop Products</h2>
+                    {products.length > 4 && (
+                        <Link
+                            to={`/shop/${shop._id}/products`}
+                            state={{ shopName: shop.name }}
+                            className="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                            View all products
+                        </Link>
+                    )}
+                </div>
                 {products.length === 0 && (
                     <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
                         This shop has not added any products yet.
@@ -381,23 +383,23 @@ const ShopDetailsPage = () => {
                                 <ProductCard key={product._id} product={{ ...product, shop }} />
                             ))}
                         </div>
-                        {visibleProducts.length < products.length && (
-                            <div className="mt-8 flex justify-center">
-                                <button
-                                    type="button"
-                                    onClick={() => setVisibleProductsCount((prev) => prev + 20)}
-                                    className="rounded-full border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
-                                >
-                                    Load more products
-                                </button>
-                            </div>
-                        )}
                     </>
                 )}
             </section>
 
             <section className="mb-12">
-                <h2 className="mb-4 text-3xl font-black text-dark">Shop Services</h2>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-3xl font-black text-dark">Shop Services</h2>
+                    {services.length > 4 && (
+                        <Link
+                            to={`/shop/${shop._id}/services`}
+                            state={{ shopName: shop.name }}
+                            className="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                            View all services
+                        </Link>
+                    )}
+                </div>
                 {services.length === 0 && (
                     <p className="rounded-xl border border-dashed border-gray-300 p-5 text-gray-500">
                         This shop has not added any services yet.
@@ -409,7 +411,7 @@ const ShopDetailsPage = () => {
                             {visibleServices.map((service) => (
                                 <article
                                     key={service._id}
-                                    className="rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.08)]"
+                                    className="rounded-2xl border border-gray-100 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
                                 >
                                     <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
                                         {(service.images || []).map((image, index) => (
@@ -426,20 +428,20 @@ const ShopDetailsPage = () => {
                                                         widths: [480, 720, 960],
                                                         sizes: '(max-width: 768px) 100vw, 50vw',
                                                     }}
-                                                    containerClassName="h-44 bg-white sm:h-52"
+                                                    containerClassName="h-32 bg-white sm:h-40"
                                                     fillContainer
                                                 />
                                             </div>
                                         ))}
                                     </div>
-                                    <div className="mt-3 flex items-start justify-between gap-3">
+                                    <div className="mt-2 flex items-start justify-between gap-3">
                                         <div>
-                                            <h3 className="text-xl font-black text-dark">{service.name}</h3>
-                                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">
+                                            <h3 className="text-lg font-black text-dark">{service.name}</h3>
+                                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
                                                 {service.category}
                                             </p>
                                         </div>
-                                        <p className="text-lg font-black text-primary">{formatServicePrice(service)}</p>
+                                        <p className="text-base font-black text-primary">{formatServicePrice(service)}</p>
                                     </div>
                                     <p className="mt-2 text-sm text-gray-600">
                                         {service.description || 'Service details not added yet.'}
@@ -447,17 +449,6 @@ const ShopDetailsPage = () => {
                                 </article>
                             ))}
                         </div>
-                        {visibleServices.length < services.length && (
-                            <div className="mt-8 flex justify-center">
-                                <button
-                                    type="button"
-                                    onClick={() => setVisibleServicesCount((prev) => prev + 20)}
-                                    className="rounded-full border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition"
-                                >
-                                    Load more services
-                                </button>
-                            </div>
-                        )}
                     </>
                 )}
             </section>
@@ -467,7 +458,7 @@ const ShopDetailsPage = () => {
                     <h2 className="mb-4 text-2xl font-black text-dark">Rate This Shop</h2>
                     <form onSubmit={handleRatingSubmit} className="space-y-4">
                         <div
-                            className="rounded-2xl border border-gray-200 bg-light p-4"
+                            className="rounded-2xl border border-gray-200 bg-light p-3"
                             onMouseLeave={() => setHoverRating(0)}
                         >
                             <p className="mb-2 text-sm font-semibold text-gray-700">Tap stars to rate</p>
@@ -475,7 +466,7 @@ const ShopDetailsPage = () => {
                                 value={rating}
                                 activeValue={hoverRating}
                                 interactive
-                                sizeClassName="h-8 w-8"
+                                sizeClassName="h-6 w-6"
                                 onChange={(starValue, previewOnly = false) => {
                                     if (previewOnly) {
                                         setHoverRating(starValue);

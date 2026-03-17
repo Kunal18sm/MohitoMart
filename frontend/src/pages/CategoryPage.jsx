@@ -32,14 +32,6 @@ const mergeUniqueEntries = (existingEntries = [], incomingEntries = []) => {
     return mergedEntries;
 };
 
-const resolveServiceSort = (sortValue) => {
-    const normalized = String(sortValue || 'latest').trim().toLowerCase();
-    if (['latest', 'oldest', 'price_asc', 'price_desc'].includes(normalized)) {
-        return normalized;
-    }
-    return 'latest';
-};
-
 const CategoryPage = () => {
     const { id } = useParams();
     const { t } = useTranslation();
@@ -58,23 +50,19 @@ const CategoryPage = () => {
     );
 
     const [keywordInput, setKeywordInput] = useState('');
-    const [sortByInput, setSortByInput] = useState('latest');
+    const [sortByInput, setSortByInput] = useState('random');
     const [appliedKeyword, setAppliedKeyword] = useState('');
-    const [appliedSortBy, setAppliedSortBy] = useState('latest');
+    const [appliedSortBy, setAppliedSortBy] = useState('random');
     const [products, setProducts] = useState([]);
-    const [services, setServices] = useState([]);
+    const [randomServices, setRandomServices] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(true);
-    const [loadingServices, setLoadingServices] = useState(true);
+    const [loadingRandomServices, setLoadingRandomServices] = useState(false);
     const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
-    const [loadingMoreServices, setLoadingMoreServices] = useState(false);
     const [productError, setProductError] = useState('');
-    const [serviceError, setServiceError] = useState('');
     const [productCurrentPage, setProductCurrentPage] = useState(1);
-    const [serviceCurrentPage, setServiceCurrentPage] = useState(1);
     const [hasMoreProducts, setHasMoreProducts] = useState(false);
-    const [hasMoreServices, setHasMoreServices] = useState(false);
     const productRequestIdRef = useRef(0);
-    const serviceRequestIdRef = useRef(0);
+    const productExcludeIdsRef = useRef([]);
 
     const categoryName = decodeURIComponent(id || '');
     const areasQuery = useMemo(
@@ -86,6 +74,7 @@ const CategoryPage = () => {
         async (targetPage = 1, { reset = false } = {}) => {
             const requestId = productRequestIdRef.current + 1;
             productRequestIdRef.current = requestId;
+            const isRandomSort = appliedSortBy === 'random';
 
             try {
                 if (reset) {
@@ -95,30 +84,66 @@ const CategoryPage = () => {
                     setLoadingMoreProducts(true);
                 }
                 setProductError('');
-                const { data } = await api.get('/products', {
-                    params: {
-                        category: categoryName,
-                        keyword: appliedKeyword || undefined,
-                        sort: appliedSortBy,
-                        city: areaFilterState.city || undefined,
-                        areas: areasQuery,
-                        page: targetPage,
-                        limit: PAGE_SIZE,
-                    },
-                });
+
+                const productParams = {
+                    category: categoryName,
+                    keyword: appliedKeyword || undefined,
+                    city: areaFilterState.city || undefined,
+                    areas: areasQuery,
+                    limit: PAGE_SIZE,
+                };
+
+                let data = null;
+
+                if (isRandomSort) {
+                    const excludeIds = reset
+                        ? []
+                        : productExcludeIdsRef.current.slice(-200);
+
+                    const response = await api.get('/products/random', {
+                        params: {
+                            ...productParams,
+                            excludeIds: excludeIds.length ? excludeIds.join(',') : undefined,
+                        },
+                        cache: false,
+                    });
+                    data = response.data;
+                } else {
+                    const response = await api.get('/products', {
+                        params: {
+                            ...productParams,
+                            sort: appliedSortBy,
+                            page: targetPage,
+                        },
+                    });
+                    data = response.data;
+                }
 
                 if (requestId !== productRequestIdRef.current) {
                     return;
                 }
 
                 const nextProducts = Array.isArray(data.products) ? data.products : [];
-                const totalPages = Number(data.pages || 1);
 
                 setProducts((previous) =>
                     reset ? nextProducts : mergeUniqueEntries(previous, nextProducts)
                 );
                 setProductCurrentPage(targetPage);
-                setHasMoreProducts(targetPage < totalPages);
+
+                if (isRandomSort) {
+                    const nextExcludeIds = reset ? [] : [...productExcludeIdsRef.current];
+                    nextProducts.forEach((product) => {
+                        const productId = String(product?._id || '');
+                        if (productId && !nextExcludeIds.includes(productId)) {
+                            nextExcludeIds.push(productId);
+                        }
+                    });
+                    productExcludeIdsRef.current = nextExcludeIds;
+                    setHasMoreProducts(nextProducts.length === PAGE_SIZE);
+                } else {
+                    const totalPages = Number(data.pages || 1);
+                    setHasMoreProducts(targetPage < totalPages);
+                }
             } catch (error) {
                 if (requestId !== productRequestIdRef.current) {
                     return;
@@ -126,6 +151,7 @@ const CategoryPage = () => {
 
                 if (reset) {
                     setProducts([]);
+                    productExcludeIdsRef.current = [];
                 }
                 setProductError(
                     error.response?.data?.message ||
@@ -145,74 +171,28 @@ const CategoryPage = () => {
         [appliedKeyword, appliedSortBy, areaFilterState.city, areasQuery, categoryName, t]
     );
 
-    const fetchCategoryServices = useCallback(
-        async (targetPage = 1, { reset = false } = {}) => {
-            const requestId = serviceRequestIdRef.current + 1;
-            serviceRequestIdRef.current = requestId;
-
-            try {
-                if (reset) {
-                    setLoadingServices(true);
-                    setLoadingMoreServices(false);
-                } else {
-                    setLoadingMoreServices(true);
-                }
-
-                setServiceError('');
-                const { data } = await api.get('/services', {
-                    params: {
-                        category: categoryName,
-                        keyword: appliedKeyword || undefined,
-                        sort: resolveServiceSort(appliedSortBy),
-                        city: areaFilterState.city || undefined,
-                        areas: areasQuery,
-                        page: targetPage,
-                        limit: PAGE_SIZE,
-                    },
-                });
-
-                if (requestId !== serviceRequestIdRef.current) {
-                    return;
-                }
-
-                const nextServices = Array.isArray(data.services) ? data.services : [];
-                const totalPages = Number(data.pages || 1);
-
-                setServices((previous) =>
-                    reset ? nextServices : mergeUniqueEntries(previous, nextServices)
-                );
-                setServiceCurrentPage(targetPage);
-                setHasMoreServices(targetPage < totalPages);
-            } catch (error) {
-                if (requestId !== serviceRequestIdRef.current) {
-                    return;
-                }
-
-                if (reset) {
-                    setServices([]);
-                }
-
-                setServiceError(
-                    error.response?.data?.message ||
-                        t('unable_load_services') ||
-                        'Unable to load services'
-                );
-            } finally {
-                if (requestId === serviceRequestIdRef.current) {
-                    if (reset) {
-                        setLoadingServices(false);
-                    } else {
-                        setLoadingMoreServices(false);
-                    }
-                }
-            }
-        },
-        [appliedKeyword, appliedSortBy, areaFilterState.city, areasQuery, categoryName, t]
-    );
+    const fetchCategoryServices = useCallback(async () => {
+        try {
+            setLoadingRandomServices(true);
+            const { data } = await api.get('/services/random', {
+                params: {
+                    category: categoryName,
+                    city: areaFilterState.city || undefined,
+                    areas: areasQuery,
+                    limit: 20,
+                },
+            });
+            setRandomServices(Array.isArray(data.services) ? data.services : []);
+        } catch (error) {
+            setRandomServices([]);
+        } finally {
+            setLoadingRandomServices(false);
+        }
+    }, [areaFilterState.city, areasQuery, categoryName]);
 
     useEffect(() => {
         fetchCategoryProducts(1, { reset: true });
-        fetchCategoryServices(1, { reset: true });
+        fetchCategoryServices();
     }, [categoryName, areaFilterState.city, areasQuery, appliedKeyword, appliedSortBy]);
 
     const applyFilters = (event) => {
@@ -227,14 +207,6 @@ const CategoryPage = () => {
         }
 
         fetchCategoryProducts(productCurrentPage + 1);
-    };
-
-    const loadMoreServices = () => {
-        if (!hasMoreServices || loadingMoreServices) {
-            return;
-        }
-
-        fetchCategoryServices(serviceCurrentPage + 1);
     };
 
     return (
@@ -274,6 +246,7 @@ const CategoryPage = () => {
                         aria-label={t('product_sort_order') || 'Sort products'}
                         className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
                     >
+                        <option value="random">{t('random') || 'Random'}</option>
                         <option value="latest">{t('latest') || 'Latest'}</option>
                         <option value="oldest">{t('oldest') || 'Oldest'}</option>
                         <option value="price_asc">{t('price_low_to_high') || 'Price low to high'}</option>
@@ -293,6 +266,83 @@ const CategoryPage = () => {
                         : t('area_filter_sync_home') || 'Area filter is synced with the Home page area feed selection.'}
                 </p>
             </div>
+
+            {!loadingRandomServices && randomServices.length > 0 && (
+                <section className="mb-10">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-2xl font-black text-dark">Services in this category</h2>
+                            <p className="text-sm text-gray-500">
+                                Random picks from shops offering services.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+                        {randomServices.map((service) => (
+                            <Link
+                                key={service._id}
+                                to={`/service/${service._id}`}
+                                className="group min-w-[65%] shrink-0 snap-start overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md sm:min-w-[40%] md:min-w-[240px] lg:min-w-[220px]"
+                            >
+                                <AdaptiveCardImage
+                                    source={service.images?.[0]}
+                                    alt={service.name}
+                                    kind="service"
+                                    responsiveOptions={{
+                                        width: 360,
+                                        widths: [180, 240, 300, 360],
+                                        sizes: '(max-width: 640px) 70vw, 240px',
+                                    }}
+                                    containerClassName="h-24 bg-white/40 sm:h-28"
+                                    fillContainer
+                                    fitMode="cover"
+                                    className="rounded-t-2xl"
+                                />
+                                <div className="p-3">
+                                    <h3 className="line-clamp-1 text-sm font-black text-dark">
+                                        {service.name}
+                                    </h3>
+                                    <p className="text-xs text-gray-500">
+                                        {service.shop?.name || (t('shop') || 'Shop')}
+                                    </p>
+                                    <p className="mt-1 text-sm font-black text-primary">
+                                        {formatServicePrice(service)}
+                                    </p>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {loadingRandomServices && (
+                <section className="mb-10">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-2xl font-black text-dark">Services in this category</h2>
+                            <p className="text-sm text-gray-500">
+                                Random picks from shops offering services.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex gap-3 overflow-x-auto pb-2">
+                        {[...Array(4)].map((_, index) => (
+                            <div
+                                key={`category-service-skeleton-${index}`}
+                                className="min-w-[65%] shrink-0 rounded-2xl border border-gray-200 bg-white/80 sm:min-w-[40%] md:min-w-[240px]"
+                            >
+                                <div className="h-24 animate-pulse bg-gray-200/80 sm:h-28" />
+                                <div className="p-3">
+                                    <div className="h-3 w-24 animate-pulse rounded-full bg-gray-200/80" />
+                                    <div className="mt-2 h-3 w-16 animate-pulse rounded-full bg-gray-200/70" />
+                                    <div className="mt-3 h-4 w-20 animate-pulse rounded-full bg-gray-200/80" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
 
             <section className="mb-10">
                 <div className="mb-4">
@@ -355,112 +405,6 @@ const CategoryPage = () => {
                 )}
             </section>
 
-            <section>
-                <div className="mb-4">
-                    <h2 className="text-2xl font-black text-dark">Services</h2>
-                    <p className="text-sm text-gray-500">Services from shops in this category.</p>
-                </div>
-
-                {serviceError && (
-                    <p className="mb-5 rounded-lg bg-red-50 p-3 text-sm text-red-600">{serviceError}</p>
-                )}
-
-                {loadingServices && (
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                        {[...Array(6)].map((_, index) => (
-                            <div
-                                key={`service-skeleton-${index}`}
-                                className="h-72 animate-pulse rounded-2xl border border-gray-200 bg-white/80"
-                            />
-                        ))}
-                    </div>
-                )}
-
-                {!loadingServices && services.length === 0 && (
-                    <p className="rounded-xl border border-dashed border-gray-300 p-6 text-gray-500">
-                        {t('no_services_for_filter') || 'No service is available for this filter.'}
-                    </p>
-                )}
-
-                {!loadingServices && services.length > 0 && (
-                    <>
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                            {services.map((service) => (
-                                <Link
-                                    key={service._id}
-                                    to={`/service/${service._id}`}
-                                    className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                                >
-                                    <AdaptiveCardImage
-                                        source={service.images?.[0]}
-                                        alt={service.name}
-                                        kind="service"
-                                        responsiveOptions={{
-                                            width: 640,
-                                            widths: [240, 360, 480, 640],
-                                            sizes:
-                                                '(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw',
-                                        }}
-                                        containerClassName="h-44 bg-white/40"
-                                        fillContainer
-                                        fitMode="cover"
-                                        className="rounded-t-2xl"
-                                    />
-                                    <div className="flex flex-1 flex-col space-y-2.5 p-4">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <h3 className="line-clamp-1 text-lg font-black text-dark">{service.name}</h3>
-                                            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                                                {service.category}
-                                            </span>
-                                        </div>
-
-                                        <p className="text-base font-black text-primary">{formatServicePrice(service)}</p>
-
-                                        <p className="line-clamp-2 text-sm text-gray-600">
-                                            {service.description || (t('service_details_not_added') || 'Service details not added yet.')}
-                                        </p>
-
-                                        <div className="mt-auto rounded-xl bg-light p-3 text-sm text-gray-600">
-                                            <p className="line-clamp-1 font-semibold text-dark">
-                                                {service.shop?.name || (t('shop') || 'Shop')}
-                                            </p>
-                                            <p className="line-clamp-1 text-xs">
-                                                {service.shop?.location?.area && service.shop?.location?.city
-                                                    ? `${service.shop.location.area}, ${service.shop.location.city}`
-                                                    : t('location_not_available') || 'Location not available'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-
-                        {loadingMoreServices && (
-                            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                                {[...Array(3)].map((_, index) => (
-                                    <div
-                                        key={`service-loading-${index}`}
-                                        className="h-72 animate-pulse rounded-2xl border border-gray-200 bg-white/80"
-                                    />
-                                ))}
-                            </div>
-                        )}
-
-                        {hasMoreServices && (
-                            <div className="mt-6 flex justify-center">
-                                <button
-                                    type="button"
-                                    onClick={loadMoreServices}
-                                    disabled={loadingMoreServices}
-                                    className="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-                                >
-                                    {loadingMoreServices ? (t('loading') || 'Loading...') : (t('load_more_services') || 'Load more services')}
-                                </button>
-                            </div>
-                        )}
-                    </>
-                )}
-            </section>
         </div>
     );
 };

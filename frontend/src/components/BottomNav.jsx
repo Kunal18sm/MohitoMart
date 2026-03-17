@@ -28,6 +28,13 @@ const WishlistIcon = () => (
     </svg>
 );
 
+const FollowedFeedIcon = () => (
+    <svg className={iconClassName} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7h9M4 12h13M4 17h11" />
+        <circle cx="18" cy="7" r="2" strokeWidth={1.8} />
+    </svg>
+);
+
 const ProfileIcon = () => (
     <svg className={iconClassName} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0" />
@@ -97,7 +104,7 @@ const BottomNav = () => {
             { path: '/', label: t('home'), Icon: HomeIcon },
             { path: '/categories', label: t('categories'), Icon: CategoryIcon },
             { path: '/shops/all', label: t('shops'), Icon: ShopIcon },
-            { path: '/cart', label: t('wishlist'), Icon: WishlistIcon },
+            { path: '/followed-feed', label: t('followed'), Icon: FollowedFeedIcon },
             { path: '/profile', label: t('profile'), Icon: ProfileIcon },
         ];
     }, [isAdmin, isShopOwner, t]);

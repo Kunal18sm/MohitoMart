@@ -551,6 +551,10 @@ export const getRandomProducts = async (req, res, next) => {
             match.category = normalizedCategory;
         }
 
+        if (req.query.keyword) {
+            match.name = { $regex: escapeRegex(req.query.keyword), $options: 'i' };
+        }
+
         const locationClauses = [];
         const cityClause = buildLocationFieldClause('location.city', req.query.city);
         const areaClause = buildLocationFieldClause('location.area', req.query.areas, req.query.area);

@@ -11,10 +11,13 @@ import { applyAccessibilityEnhancements } from './utils/accessibility';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage'));
 const CartPage = lazy(() => import('./pages/CartPage'));
+const FollowedFeedPage = lazy(() => import('./pages/FollowedFeedPage'));
 const ProductDetailsPage = lazy(() => import('./pages/ProductDetailsPage'));
 const ServiceDetailsPage = lazy(() => import('./pages/ServiceDetailsPage'));
 const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
 const ShopDetailsPage = lazy(() => import('./pages/ShopDetailsPage'));
+const ShopProductsPage = lazy(() => import('./pages/ShopProductsPage'));
+const ShopServicesPage = lazy(() => import('./pages/ShopServicesPage'));
 const AuthPage = lazy(() => import('./pages/AuthPage'));
 const ShopProfilePage = lazy(() => import('./pages/ShopProfilePage'));
 const OwnerProductsPage = lazy(() => import('./pages/OwnerProductsPage'));
@@ -369,9 +372,19 @@ function App() {
                                 }
                             />
                             <Route
+                                path="/followed-feed"
+                                element={
+                                    <RouteGuard requireAuth>
+                                        <FollowedFeedPage />
+                                    </RouteGuard>
+                                }
+                            />
+                            <Route
                                 path="/shop/:id"
                                 element={<ShopDetailsPage />}
                             />
+                            <Route path="/shop/:id/products" element={<ShopProductsPage />} />
+                            <Route path="/shop/:id/services" element={<ShopServicesPage />} />
                             <Route path="/product/:id" element={<ProductDetailsPage />} />
                             <Route path="/service/:id" element={<ServiceDetailsPage />} />
                             <Route

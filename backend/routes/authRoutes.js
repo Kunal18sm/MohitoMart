@@ -8,7 +8,7 @@ const router = express.Router();
 router.post('/register', authRateLimit({ windowMs: 15 * 60 * 1000, max: 12 }), registerUser);
 router.post('/login', authRateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), loginUser);
 router.post('/logout', logoutUser);
-router.post('/google', googleAuth);
+router.post('/google', authRateLimit({ windowMs: 15 * 60 * 1000, max: 10, keyPrefix: 'auth-google' }), googleAuth);
 router.put('/onboarding', protect, completeOnboarding);
 router.get('/session', protect, getSessionUser);
 

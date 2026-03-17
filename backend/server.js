@@ -14,7 +14,7 @@ import shopRoutes from './routes/shopRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import bannerRoutes from './routes/bannerRoutes.js';
-import { ensureCsrfCookie, securityHeaders, verifyCsrfToken } from './middleware/securityMiddleware.js';
+import { ensureCsrfCookie, requestRateLimit, securityHeaders, verifyCsrfToken } from './middleware/securityMiddleware.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 // Load env variables
@@ -34,6 +34,32 @@ app.use(ensureCsrfCookie);
 app.use(verifyCsrfToken);
 app.use(express.json({ limit: '20mb' })); // Body parser
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
+const createSafeLimiter = (options) => requestRateLimit(options);
+
+const shopsRateLimit = createSafeLimiter({
+    windowMs: 10 * 60 * 1000,
+    max: 120,
+    keyPrefix: 'shops',
+});
+
+const productsRateLimit = createSafeLimiter({
+    windowMs: 10 * 60 * 1000,
+    max: 120,
+    keyPrefix: 'products',
+});
+
+const servicesRateLimit = createSafeLimiter({
+    windowMs: 10 * 60 * 1000,
+    max: 120,
+    keyPrefix: 'services',
+});
+
+const uploadsRateLimit = createSafeLimiter({
+    windowMs: 10 * 60 * 1000,
+    max: 30,
+    keyPrefix: 'uploads',
+});
 
 const normalizeOrigin = (value) => String(value || '').trim().replace(/\/+$/, '');
 
@@ -76,11 +102,11 @@ if (enableRequestLogs) {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/shops', shopRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/services', serviceRoutes);
+app.use('/api/shops', shopsRateLimit, shopRoutes);
+app.use('/api/products', productsRateLimit, productRoutes);
+app.use('/api/services', servicesRateLimit, serviceRoutes);
 app.use('/api/cart', cartRoutes);
-app.use('/api/uploads', uploadRoutes);
+app.use('/api/uploads', uploadsRateLimit, uploadRoutes);
 app.use('/api/banners', bannerRoutes);
 
 // Basic Route for testing

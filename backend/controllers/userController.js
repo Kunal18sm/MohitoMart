@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Shop from '../models/Shop.js';
 import Product from '../models/Product.js';
@@ -21,6 +22,29 @@ const mapProductsAsFollowed = (products) =>
             },
         };
     });
+
+const parseObjectIdList = (value) => {
+    const rawValues = Array.isArray(value)
+        ? value
+        : String(value || '')
+            .split(',')
+            .map((entry) => entry.trim())
+            .filter(Boolean);
+
+    const seenIds = new Set();
+
+    return rawValues
+        .filter((entry) => mongoose.Types.ObjectId.isValid(entry))
+        .filter((entry) => {
+            if (seenIds.has(entry)) {
+                return false;
+            }
+
+            seenIds.add(entry);
+            return true;
+        })
+        .map((entry) => new mongoose.Types.ObjectId(entry));
+};
 
 // @desc    Get user profile
 // @route   GET /api/users/profile
@@ -170,13 +194,14 @@ export const getFollowedFeed = async (req, res, next) => {
 // @access  Private
 export const getFollowedFeedRandom = async (req, res, next) => {
     try {
-        const limit = Math.min(Math.max(Number(req.query.limit || 10), 1), 25);
+        const limit = Math.min(Math.max(Number(req.query.limit || 10), 1), 40);
         const user = await User.findById(req.user._id).select('followedShops').lean();
 
         if (!user.followedShops.length) {
             return res.status(200).json({ products: [] });
         }
 
+        const excludedProductIds = parseObjectIdList(req.query.excludeIds);
         let targetShopIds = [...user.followedShops];
         const locationClauses = [];
         const cityClause = buildLocationFieldClause('location.city', req.query.city);
@@ -206,8 +231,13 @@ export const getFollowedFeedRandom = async (req, res, next) => {
             }
         }
 
+        const productMatch = { shop: { $in: targetShopIds } };
+        if (excludedProductIds.length) {
+            productMatch._id = { $nin: excludedProductIds };
+        }
+
         let products = await Product.aggregate([
-            { $match: { shop: { $in: targetShopIds } } },
+            { $match: productMatch },
             { $sample: { size: limit } },
         ]);
 

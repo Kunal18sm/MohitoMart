@@ -19,44 +19,69 @@ const getClientIp = (req) => {
     return req.ip || req.connection?.remoteAddress || 'unknown';
 };
 
-const cleanupExpiredBuckets = (now, windowMs) => {
+const cleanupExpiredBuckets = (now) => {
     for (const [key, bucket] of rateLimitBuckets.entries()) {
-        if (now - bucket.windowStart > windowMs) {
+        const bucketWindowMs = Number(bucket.windowMs || DEFAULT_RATE_LIMIT_WINDOW_MS);
+        if (now - bucket.windowStart > bucketWindowMs) {
             rateLimitBuckets.delete(key);
         }
     }
 };
 
-export const authRateLimit = (options = {}) => {
-    const windowMs = Number(options.windowMs || DEFAULT_RATE_LIMIT_WINDOW_MS);
-    const max = Number(options.max || DEFAULT_RATE_LIMIT_MAX);
+const resolveRateLimitValue = (value, fallback) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+export const requestRateLimit = (options = {}) => {
+    const windowMs = resolveRateLimitValue(options.windowMs, DEFAULT_RATE_LIMIT_WINDOW_MS);
+    const max = resolveRateLimitValue(options.max, DEFAULT_RATE_LIMIT_MAX);
+    const message =
+        typeof options.message === 'string' && options.message.trim().length > 0
+            ? options.message.trim()
+            : 'Too many requests. Please try again later.';
+    const keyPrefix = typeof options.keyPrefix === 'string' ? options.keyPrefix.trim() : '';
+    const keyGenerator = typeof options.keyGenerator === 'function' ? options.keyGenerator : null;
 
     return (req, res, next) => {
         const now = Date.now();
-        cleanupExpiredBuckets(now, windowMs);
+        cleanupExpiredBuckets(now);
 
         const clientIp = getClientIp(req);
-        const key = `${clientIp}:${req.path}`;
+        const routeKey = keyGenerator ? keyGenerator(req) : `${req.baseUrl || ''}${req.path || ''}`;
+        const methodKey = String(req.method || 'UNKNOWN').toUpperCase();
+        const prefixSegment = keyPrefix ? `${keyPrefix}:` : '';
+        const key = `${clientIp}:${prefixSegment}${methodKey}:${routeKey}`;
         const existing = rateLimitBuckets.get(key);
+        const activeWindowMs = existing?.windowMs || windowMs;
 
-        if (!existing || now - existing.windowStart > windowMs) {
+        if (!existing || now - existing.windowStart > activeWindowMs) {
             rateLimitBuckets.set(key, {
                 count: 1,
                 windowStart: now,
+                windowMs,
             });
             return next();
         }
 
         existing.count += 1;
         if (existing.count > max) {
-            const retryAfterSeconds = Math.ceil((windowMs - (now - existing.windowStart)) / 1000);
+            const retryAfterSeconds = Math.ceil((activeWindowMs - (now - existing.windowStart)) / 1000);
             res.setHeader('Retry-After', String(Math.max(retryAfterSeconds, 1)));
             res.status(429);
-            return next(new Error('Too many requests. Please try again later.'));
+            return next(new Error(message));
         }
 
         return next();
     };
+};
+
+export const authRateLimit = (options = {}) => {
+    const { keyPrefix, ...rest } = options;
+    return requestRateLimit({
+        ...rest,
+        keyPrefix: keyPrefix || 'auth',
+    });
 };
 
 export const securityHeaders = (req, res, next) => {
