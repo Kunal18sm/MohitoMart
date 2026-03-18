@@ -25,9 +25,31 @@
   --app-bg: #f6faf9;
   --app-text: #0f172a;
   --app-muted: #64748b;
+  --app-surface-rgb: 255 255 255;
+  --app-surface-soft-rgb: 248 250 252;
+  --app-border: #dbe3ee;
+  --app-border-strong: #c3cfdd;
   --app-atmosphere:
     radial-gradient(58% 56% at 50% 42%, rgba(20, 184, 166, 0.26) 0%, rgba(20, 184, 166, 0.12) 44%, rgba(20, 184, 166, 0.03) 72%, rgba(20, 184, 166, 0) 100%),
     radial-gradient(38% 34% at 16% 14%, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0) 100%);
+}
+
+html.dark {
+  --color-primary: #2dbfae;
+  --color-primary-dark: #1f9488;
+  --color-light: #1d2323;
+  --color-glass-bg: rgba(15, 23, 30, 0.78);
+  --color-glass-border: rgba(83, 101, 113, 0.4);
+  --app-bg: #1d2323;
+  --app-text: #e7efec;
+  --app-muted: #9babb4;
+  --app-surface-rgb: 29 35 35;
+  --app-surface-soft-rgb: 36 45 45;
+  --app-border: #33414b;
+  --app-border-strong: #44535e;
+  --app-atmosphere:
+    radial-gradient(62% 58% at 52% 40%, rgba(45, 191, 174, 0.16) 0%, rgba(24, 82, 78, 0.12) 42%, rgba(29, 35, 35, 0.02) 72%, rgba(29, 35, 35, 0) 100%),
+    radial-gradient(34% 30% at 18% 16%, rgba(38, 81, 79, 0.16) 0%, rgba(29, 35, 35, 0) 100%);
 }
 
 * {
@@ -47,12 +69,143 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+html.dark body {
+  background:
+    radial-gradient(95% 95% at 0% 0%, rgba(45, 191, 174, 0.08) 0%, transparent 48%),
+    radial-gradient(90% 90% at 100% 6%, rgba(30, 63, 61, 0.16) 0%, transparent 52%),
+    radial-gradient(120% 120% at 50% 100%, rgba(20, 44, 51, 0.18) 0%, transparent 62%),
+    var(--app-bg);
+}
+
 .app-atmosphere {
   background: var(--app-atmosphere);
   filter: blur(110px);
   opacity: 0.82;
   mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 1) 52%, rgba(0, 0, 0, 0) 100%);
   will-change: transform, opacity;
+}
+
+html.dark .app-atmosphere {
+  opacity: 0.62;
+  filter: blur(122px);
+}
+
+html.dark .glass-panel {
+  background: rgba(16, 24, 31, 0.86);
+  border-color: rgba(83, 101, 113, 0.45);
+  box-shadow: 0 20px 45px rgba(3, 7, 12, 0.52);
+}
+
+html.dark .bg-light {
+  background-color: rgb(var(--app-surface-soft-rgb) / 1) !important;
+}
+
+html.dark .bg-white {
+  background-color: rgb(var(--app-surface-rgb) / 1) !important;
+}
+
+html.dark :is(
+  .bg-white\/95,
+  .bg-white\/90,
+  .bg-white\/85,
+  .bg-white\/80,
+  .bg-white\/70,
+  .bg-white\/60,
+  .bg-white\/50
+) {
+  background-color: rgb(var(--app-surface-rgb) / 0.92) !important;
+}
+
+html.dark :is(
+  .bg-gray-50,
+  .bg-gray-100
+) {
+  background-color: rgb(var(--app-surface-soft-rgb) / 1) !important;
+}
+
+html.dark :is(
+  .bg-gray-50\/70,
+  .bg-gray-100\/50,
+  .bg-gray-100\/60,
+  .bg-gray-200\/80,
+  .bg-gray-200\/90
+) {
+  background-color: rgb(var(--app-surface-soft-rgb) / 0.85) !important;
+}
+
+html.dark :is(
+  .bg-gray-200,
+  .bg-slate-100
+) {
+  background-color: rgb(var(--app-surface-soft-rgb) / 0.92) !important;
+}
+
+html.dark :is(
+  .text-dark,
+  .text-black
+) {
+  color: var(--app-text) !important;
+}
+
+html.dark :is(
+  .text-gray-400,
+  .text-gray-500,
+  .text-gray-600,
+  .text-slate-400,
+  .text-slate-500,
+  .text-slate-600
+) {
+  color: var(--app-muted) !important;
+}
+
+html.dark :is(
+  .text-gray-700,
+  .text-gray-800,
+  .text-slate-700,
+  .text-slate-800
+) {
+  color: #c8d6dd !important;
+}
+
+html.dark .text-primary-dark {
+  color: #67d9cc !important;
+}
+
+html.dark :is(
+  .border-gray-100,
+  .border-gray-200,
+  .border-gray-300,
+  .border-slate-200,
+  .border-slate-300,
+  .border-slate-300\/70,
+  .border-white\/70,
+  .border-white\/80,
+  .border-dark\/20,
+  .border-dark\/30
+) {
+  border-color: var(--app-border) !important;
+}
+
+html.dark :is(
+  .hover\:bg-white:hover,
+  .hover\:bg-gray-50:hover,
+  .hover\:bg-slate-50:hover
+) {
+  background-color: rgb(var(--app-surface-soft-rgb) / 1) !important;
+}
+
+html.dark :is(input, textarea, select) {
+  color: var(--app-text);
+  border-color: var(--app-border);
+  background-color: rgb(var(--app-surface-soft-rgb) / 0.92);
+}
+
+html.dark :is(input::placeholder, textarea::placeholder) {
+  color: var(--app-muted);
+}
+
+html.dark :is(input:disabled, textarea:disabled, select:disabled) {
+  background-color: rgb(var(--app-surface-soft-rgb) / 0.65);
 }
 
 h1,

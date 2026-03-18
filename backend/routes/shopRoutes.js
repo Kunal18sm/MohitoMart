@@ -10,6 +10,8 @@ import {
     deleteShop,
     rateShop,
     getOwnedShops,
+    getShopApprovalRequests,
+    reviewShopApprovalRequest,
 } from '../controllers/shopController.js';
 import { protect, optionalAuth, admin } from '../middleware/authMiddleware.js';
 
@@ -19,6 +21,8 @@ router.route('/categories').get(getShopCategories);
 router.route('/locations').get(getShopLocations);
 router.route('/reverse-geocode').get(reverseGeocodeCoordinates);
 router.route('/me/owned').get(protect, getOwnedShops);
+router.route('/requests').get(protect, admin, getShopApprovalRequests);
+router.route('/requests/:id').patch(protect, admin, reviewShopApprovalRequest);
 router.route('/').get(optionalAuth, getShops).post(protect, createShop);
 router.route('/:id')
     .get(optionalAuth, getShopById)

@@ -92,28 +92,84 @@ const toAggregateMatch = (filters) => {
     const match = { ...filters };
     if (typeof match.shop === 'string' && mongoose.Types.ObjectId.isValid(match.shop)) {
         match.shop = new mongoose.Types.ObjectId(match.shop);
+    } else if (Array.isArray(match.shop?.$in)) {
+        match.shop = {
+            $in: match.shop.$in.map((entry) =>
+                mongoose.Types.ObjectId.isValid(entry)
+                    ? new mongoose.Types.ObjectId(entry)
+                    : entry
+            ),
+        };
     }
     return match;
 };
 
+const APPROVED_SHOP_STATUS = 'approved';
+const PENDING_SERVICES_PER_SHOP = 3;
+const PUBLIC_SHOP_VISIBILITY_CLAUSE = {
+    $or: [
+        { approvalStatus: APPROVED_SHOP_STATUS },
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: null },
+    ],
+};
+const isAdminRequest = (req) => req.user?.role === 'admin';
+const isShopPubliclyVisible = (shop) => {
+    const normalizedStatus = String(shop?.approvalStatus || '').trim().toLowerCase();
+    return !normalizedStatus || normalizedStatus === APPROVED_SHOP_STATUS;
+};
+
+const normalizeShopIds = (shopIds = []) =>
+    shopIds
+        .map((entry) => entry?.toString?.() || String(entry || '').trim())
+        .filter(Boolean);
+
 const mergeShopFilter = (existingShopFilter, nearbyShopIds) => {
-    const nearbyIds = nearbyShopIds.map((id) => id.toString());
+    const nearbyIds = normalizeShopIds(nearbyShopIds);
 
     if (!existingShopFilter) {
-        return { $in: nearbyShopIds };
+        return { $in: nearbyIds };
     }
 
-    if (typeof existingShopFilter === 'string') {
-        return nearbyIds.includes(existingShopFilter) ? existingShopFilter : null;
+    const normalizedExisting = existingShopFilter?.toString?.() || String(existingShopFilter || '');
+    if (
+        typeof existingShopFilter === 'string' ||
+        mongoose.Types.ObjectId.isValid(normalizedExisting)
+    ) {
+        return nearbyIds.includes(normalizedExisting) ? normalizedExisting : null;
     }
 
     if (Array.isArray(existingShopFilter.$in)) {
-        const currentIds = existingShopFilter.$in.map((id) => id.toString());
+        const currentIds = normalizeShopIds(existingShopFilter.$in);
         const mergedIds = nearbyIds.filter((id) => currentIds.includes(id));
         return mergedIds.length ? { $in: mergedIds } : null;
     }
 
     return existingShopFilter;
+};
+
+const resolveApprovedShopFilter = async (existingShopFilter) => {
+    const approvalFilters = {};
+    const approvalClauses = [PUBLIC_SHOP_VISIBILITY_CLAUSE];
+
+    const normalizedExisting = existingShopFilter?.toString?.() || String(existingShopFilter || '');
+    if (
+        typeof existingShopFilter === 'string' ||
+        mongoose.Types.ObjectId.isValid(normalizedExisting)
+    ) {
+        approvalClauses.push({ _id: normalizedExisting });
+    } else if (Array.isArray(existingShopFilter?.$in)) {
+        approvalClauses.push({ _id: { $in: normalizeShopIds(existingShopFilter.$in) } });
+    }
+
+    if (approvalClauses.length === 1) {
+        Object.assign(approvalFilters, approvalClauses[0]);
+    } else {
+        approvalFilters.$and = approvalClauses;
+    }
+
+    const approvedShopIds = await Shop.find(approvalFilters).distinct('_id');
+    return mergeShopFilter(existingShopFilter, approvedShopIds);
 };
 
 const resolveServiceSort = (sortValue) => {
@@ -199,6 +255,17 @@ export const getServices = async (req, res, next) => {
             filters.shop = mergedShopFilter;
         }
 
+        const approvedShopFilter = await resolveApprovedShopFilter(filters.shop);
+        if (!approvedShopFilter) {
+            return res.status(200).json({
+                services: [],
+                page,
+                pages: 0,
+                total: 0,
+            });
+        }
+        filters.shop = approvedShopFilter;
+
         if (req.query.minPrice !== undefined) {
             const minPrice = parseNonNegativeNumber(req.query.minPrice, 'minPrice');
             filters.priceMax = { $gte: minPrice };
@@ -272,7 +339,10 @@ export const getRandomServices = async (req, res, next) => {
                 shopFilters.$and = locationClauses;
             }
 
-            const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            let nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            if (!nearbyShopIds.length && cityClause && areaClause) {
+                nearbyShopIds = await Shop.find(cityClause).distinct('_id');
+            }
             if (!nearbyShopIds.length) {
                 return res.status(200).json({ services: [] });
             }
@@ -280,8 +350,15 @@ export const getRandomServices = async (req, res, next) => {
             match.shop = { $in: nearbyShopIds };
         }
 
+        const approvedShopFilter = await resolveApprovedShopFilter(match.shop);
+        if (!approvedShopFilter) {
+            return res.status(200).json({ services: [] });
+        }
+        match.shop = approvedShopFilter;
+
+        const aggregateMatch = toAggregateMatch(match);
         let services = await Service.aggregate([
-            { $match: match },
+            { $match: aggregateMatch },
             { $sample: { size: limit } },
         ]);
 
@@ -305,10 +382,22 @@ export const getServiceById = async (req, res, next) => {
             .select(
                 'name pricingType price priceMin priceMax images category description viewsCount shop createdAt'
             )
-            .populate('shop', 'name category location rating numRatings mapUrl images mobile description')
+            .populate(
+                'shop',
+                'name category location rating numRatings mapUrl images mobile description approvalStatus owner'
+            )
             .lean();
 
-        if (!service) {
+        if (!service || !service.shop) {
+            res.status(404);
+            throw new Error('Service not found');
+        }
+
+        const requesterId = req.user?._id?.toString?.() || '';
+        const shopOwnerId = service.shop.owner?.toString?.() || '';
+        const canAccessUnapprovedService =
+            isAdminRequest(req) || (requesterId && shopOwnerId && requesterId === shopOwnerId);
+        if (!isShopPubliclyVisible(service.shop) && !canAccessUnapprovedService) {
             res.status(404);
             throw new Error('Service not found');
         }
@@ -334,7 +423,7 @@ export const createService = async (req, res, next) => {
             throw new Error('name and shopId are required');
         }
 
-        const shop = await Shop.findById(shopId).select('_id owner category').lean();
+        const shop = await Shop.findById(shopId).select('_id owner category approvalStatus').lean();
         if (!shop) {
             res.status(404);
             throw new Error('Shop not found');
@@ -344,6 +433,24 @@ export const createService = async (req, res, next) => {
         if (!isOwner && req.user.role !== 'admin') {
             res.status(403);
             throw new Error('Not authorized to add services to this shop');
+        }
+
+        const normalizedShopApprovalStatus = String(shop.approvalStatus || APPROVED_SHOP_STATUS)
+            .trim()
+            .toLowerCase();
+        if (normalizedShopApprovalStatus === 'rejected' && req.user.role !== 'admin') {
+            res.status(403);
+            throw new Error('Shop request was rejected. Please create a new shop profile request');
+        }
+
+        if (normalizedShopApprovalStatus === 'pending' && req.user.role !== 'admin') {
+            const existingServicesCount = await Service.countDocuments({ shop: shop._id });
+            if (existingServicesCount >= PENDING_SERVICES_PER_SHOP) {
+                res.status(400);
+                throw new Error(
+                    `Pending shops can add up to ${PENDING_SERVICES_PER_SHOP} services until admin approval`
+                );
+            }
         }
 
         const normalizedImages = normalizeImages(images);

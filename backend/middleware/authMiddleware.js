@@ -57,9 +57,14 @@ const optionalAuth = async (req, res, next) => {
 
     try {
         const decoded = decodeToken(token);
-        req.user = {
-            _id: decoded.userId,
-        };
+        const user = await User.findById(decoded.userId).select('_id name role');
+        req.user = user
+            ? {
+                _id: user._id,
+                name: user.name,
+                role: user.role,
+            }
+            : null;
     } catch (error) {
         req.user = null;
     }

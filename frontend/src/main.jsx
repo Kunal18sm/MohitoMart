@@ -7,6 +7,9 @@ import './index.css';
 import './i18n';
 import App from './App.jsx';
 import { FlashProvider } from './context/FlashContext.jsx';
+import { initializeTheme } from './utils/theme.js';
+
+initializeTheme();
 
 const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 

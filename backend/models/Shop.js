@@ -93,6 +93,20 @@ const shopSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        approvalStatus: {
+            type: String,
+            enum: ['pending', 'approved', 'rejected'],
+            default: 'pending',
+            lowercase: true,
+            trim: true,
+        },
+        approvedAt: {
+            type: Date,
+        },
+        approvedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+        },
         rating: {
             type: Number,
             default: 0,
@@ -110,6 +124,7 @@ const shopSchema = new mongoose.Schema(
 shopSchema.index({ 'location.city': 1, 'location.area': 1, category: 1 });
 shopSchema.index({ category: 1, createdAt: -1 });
 shopSchema.index({ owner: 1, createdAt: -1 });
+shopSchema.index({ approvalStatus: 1, createdAt: -1 });
 
 const Shop = mongoose.model('Shop', shopSchema);
 export default Shop;

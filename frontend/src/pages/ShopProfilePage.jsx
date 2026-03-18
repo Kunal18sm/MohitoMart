@@ -81,6 +81,9 @@ const ShopProfilePage = () => {
         () => ['shop_owner', 'admin'].includes(ownerRole),
         [ownerRole]
     );
+    const shopApprovalStatus = String(existingShop?.approvalStatus || '').toLowerCase();
+    const isShopApproved = shopApprovalStatus === 'approved';
+    const canOpenManagement = Boolean(existingShop);
 
     const shopStats = useMemo(() => {
         return {
@@ -293,11 +296,16 @@ const ShopProfilePage = () => {
                 });
                 showSuccess('Shop profile updated');
             } else {
-                await api.post('/shops', {
+                const { data } = await api.post('/shops', {
                     ...payload,
                     images: imageUrls,
                 });
-                showSuccess('Shop profile created');
+                const createdShopStatus = String(data?.approvalStatus || 'pending').toLowerCase();
+                showSuccess(
+                    createdShopStatus === 'approved'
+                        ? 'Shop profile created'
+                        : 'Shop profile submitted. Waiting for admin approval'
+                );
             }
 
             setSelectedFiles([]);
@@ -332,26 +340,58 @@ const ShopProfilePage = () => {
         <div className="container mx-auto max-w-6xl px-4 py-5 md:py-6">
             <section className="rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-sm sm:p-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    
-
                     <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
                         <Link
-                            to="/owner/products"
-                            className="rounded-lg bg-dark px-3 py-2 text-center text-xs font-semibold text-white transition-colors hover:bg-primary"
+                            to={canOpenManagement ? '/owner/products' : '#'}
+                            onClick={(event) => {
+                                if (!canOpenManagement) {
+                                    event.preventDefault();
+                                    showError(
+                                        existingShop
+                                            ? 'Unable to open products right now'
+                                            : 'Create shop profile first'
+                                    );
+                                }
+                            }}
+                            className={`rounded-lg px-3 py-2 text-center text-xs font-semibold transition-colors ${canOpenManagement
+                                ? 'bg-dark text-white hover:bg-primary'
+                                : 'cursor-not-allowed border border-gray-200 bg-gray-100 text-gray-500'
+                                }`}
                         >
                             Manage Products
                         </Link>
                         <Link
-                            to="/owner/services"
-                            className="rounded-lg bg-dark px-3 py-2 text-center text-xs font-semibold text-white transition-colors hover:bg-primary"
+                            to={canOpenManagement ? '/owner/services' : '#'}
+                            onClick={(event) => {
+                                if (!canOpenManagement) {
+                                    event.preventDefault();
+                                    showError(
+                                        existingShop
+                                            ? 'Unable to open services right now'
+                                            : 'Create shop profile first'
+                                    );
+                                }
+                            }}
+                            className={`rounded-lg px-3 py-2 text-center text-xs font-semibold transition-colors ${canOpenManagement
+                                ? 'bg-dark text-white hover:bg-primary'
+                                : 'cursor-not-allowed border border-gray-200 bg-gray-100 text-gray-500'
+                                }`}
                         >
                             Manage Services
                         </Link>
-                        
                     </div>
                 </div>
 
             </section>
+
+            {existingShop && !isShopApproved && (
+                <section className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-xs font-semibold text-amber-800">
+                        Shop status: {shopApprovalStatus || 'pending'} | Admin approval pending.
+                        You can save up to 10 products and 3 services for now, and they stay hidden until approval.
+                    </p>
+                </section>
+            )}
 
             {existingShop && (
                 <section className="mt-3 space-y-3">

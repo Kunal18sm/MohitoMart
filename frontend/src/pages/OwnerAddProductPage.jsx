@@ -29,6 +29,7 @@ const OwnerAddProductPage = () => {
         [profileRole]
     );
     const primaryShop = useMemo(() => shops?.[0] || null, [shops]);
+    const isPrimaryShopPending = String(primaryShop?.approvalStatus || '').toLowerCase() === 'pending';
     const canUseHiddenPrice = Boolean(primaryShop?.allowPriceHide);
 
     useEffect(
@@ -178,6 +179,11 @@ const OwnerAddProductPage = () => {
             </div>
 
             <div className="rounded-3xl border border-gray-100 bg-white p-5 sm:p-6">
+                {isPrimaryShopPending && (
+                    <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                        Shop approval pending: you can save up to 10 products now. They will stay hidden until admin approval.
+                    </p>
+                )}
                 <form onSubmit={addProduct} className="grid gap-4 md:grid-cols-2">
                     <div>
                         <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-dark">

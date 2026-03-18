@@ -36,6 +36,11 @@ const AdminDashboardPage = () => {
     const [productSearch, setProductSearch] = useState('');
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deletingProductId, setDeletingProductId] = useState('');
+    const [showShopRequests, setShowShopRequests] = useState(false);
+    const [loadingShopRequests, setLoadingShopRequests] = useState(false);
+    const [shopRequests, setShopRequests] = useState([]);
+    const [shopRequestsTotal, setShopRequestsTotal] = useState(0);
+    const [reviewingRequestId, setReviewingRequestId] = useState('');
     const { cityOptions, getAreaOptionsByCity } = useLocationSuggestions();
 
     useEffect(
@@ -67,6 +72,31 @@ const AdminDashboardPage = () => {
         [getAreaOptionsByCity, profileForm.city]
     );
 
+    const loadPendingShopRequests = async () => {
+        try {
+            setLoadingShopRequests(true);
+            const { data } = await api.get('/shops/requests', {
+                params: {
+                    status: 'pending',
+                    page: 1,
+                    limit: 50,
+                },
+            });
+            setShopRequests(Array.isArray(data.requests) ? data.requests : []);
+            setShopRequestsTotal(Number(data.total || 0));
+        } catch (error) {
+            showError(extractErrorMessage(error, 'Unable to load shop requests'));
+        } finally {
+            setLoadingShopRequests(false);
+        }
+    };
+
+    const refreshRecentShops = async () => {
+        const { data } = await api.get('/shops', { params: { page: 1, limit: 5 } });
+        setShops(Array.isArray(data.shops) ? data.shops : []);
+        setTotalShops(Number(data.total || 0));
+    };
+
     const loadAdminDashboard = async () => {
         if (!localStorage.getItem('authToken')) {
             navigate('/auth');
@@ -92,16 +122,19 @@ const AdminDashboardPage = () => {
                 password: '',
             });
 
-            const [shopsRes, productsRes, bannerRes] = await Promise.all([
+            const [shopsRes, productsRes, bannerRes, requestsRes] = await Promise.all([
                 api.get('/shops', { params: { page: 1, limit: 5 } }),
                 api.get('/products', { params: { page: 1, limit: 10 } }),
                 api.get('/banners/home').catch(() => ({ data: { images: [] } })),
+                api.get('/shops/requests', { params: { status: 'pending', page: 1, limit: 50 } }),
             ]);
 
             setShops(Array.isArray(shopsRes.data.shops) ? shopsRes.data.shops : []);
             setProducts(Array.isArray(productsRes.data.products) ? productsRes.data.products : []);
             setTotalShops(Number(shopsRes.data.total || 0));
             setTotalProducts(Number(productsRes.data.total || 0));
+            setShopRequests(Array.isArray(requestsRes.data.requests) ? requestsRes.data.requests : []);
+            setShopRequestsTotal(Number(requestsRes.data.total || 0));
             const loadedBannerImages = Array.isArray(bannerRes.data.images) ? bannerRes.data.images : [];
             setBannerImages(loadedBannerImages);
             writeCachedHomeBannerImages(loadedBannerImages);
@@ -179,6 +212,25 @@ const AdminDashboardPage = () => {
             showError(extractErrorMessage(error, 'Unable to delete product'));
         } finally {
             setDeletingProductId('');
+        }
+    };
+
+    const reviewShopRequest = async (requestId, action) => {
+        if (!requestId) {
+            return;
+        }
+
+        try {
+            setReviewingRequestId(requestId);
+            await api.patch(`/shops/requests/${requestId}`, { action });
+            setShopRequests((previous) => previous.filter((request) => request._id !== requestId));
+            setShopRequestsTotal((previous) => Math.max(0, previous - 1));
+            await refreshRecentShops();
+            showSuccess(action === 'approve' ? 'Shop request approved' : 'Shop request rejected');
+        } catch (error) {
+            showError(extractErrorMessage(error, 'Unable to review shop request'));
+        } finally {
+            setReviewingRequestId('');
         }
     };
 
@@ -292,6 +344,24 @@ const AdminDashboardPage = () => {
                     </button>
                     <button
                         type="button"
+                        onClick={() => {
+                            setShowShopRequests((previous) => {
+                                const nextState = !previous;
+                                if (nextState) {
+                                    loadPendingShopRequests();
+                                }
+                                return nextState;
+                            });
+                        }}
+                        className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${showShopRequests
+                            ? 'border border-primary/40 bg-primary/10 text-primary'
+                            : 'border border-gray-200 text-gray-700 hover:bg-gray-50'
+                            }`}
+                    >
+                        {showShopRequests ? 'Hide Shop Requests' : `Shop Requests (${shopRequestsTotal})`}
+                    </button>
+                    <button
+                        type="button"
                         onClick={handleLogout}
                         className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
                     >
@@ -374,6 +444,101 @@ const AdminDashboardPage = () => {
                 </article>
             </section>
 
+            {showShopRequests && (
+                <section className="mb-8 rounded-3xl border border-gray-100 bg-white p-5 sm:p-6">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <h2 className="text-2xl font-black text-dark">
+                            New Shop Signup Requests ({shopRequestsTotal})
+                        </h2>
+                        <button
+                            type="button"
+                            onClick={loadPendingShopRequests}
+                            disabled={loadingShopRequests}
+                            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                        >
+                            {loadingShopRequests ? 'Refreshing...' : 'Refresh Requests'}
+                        </button>
+                    </div>
+
+                    {loadingShopRequests && (
+                        <p className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500">
+                            Loading pending requests...
+                        </p>
+                    )}
+
+                    {!loadingShopRequests && shopRequests.length === 0 && (
+                        <p className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500">
+                            No pending shop signup requests.
+                        </p>
+                    )}
+
+                    {!loadingShopRequests && shopRequests.length > 0 && (
+                        <div className="space-y-3">
+                            {shopRequests.map((request) => (
+                                <article
+                                    key={request._id}
+                                    className="rounded-2xl border border-gray-200 bg-white p-3 sm:p-4"
+                                >
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-20 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                                                <AdaptiveCardImage
+                                                    source={request.images?.[0]}
+                                                    alt={request.name}
+                                                    kind="shop"
+                                                    responsiveOptions={{
+                                                        width: 160,
+                                                        widths: [80, 120, 160],
+                                                        sizes: '80px',
+                                                    }}
+                                                    containerClassName="h-16"
+                                                    fillContainer
+                                                />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-dark">{request.name}</p>
+                                                <p className="text-xs text-gray-500">
+                                                    {request.category} | {request.location?.area},{' '}
+                                                    {request.location?.city}
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    Owner: {request.owner?.name || '-'} ({request.owner?.email || '-'})
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    Applied:{' '}
+                                                    {request.createdAt
+                                                        ? new Date(request.createdAt).toLocaleString()
+                                                        : '-'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => reviewShopRequest(request._id, 'approve')}
+                                                disabled={reviewingRequestId === request._id}
+                                                className="rounded-lg border border-green-200 bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-60"
+                                            >
+                                                {reviewingRequestId === request._id ? 'Working...' : 'Accept'}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => reviewShopRequest(request._id, 'reject')}
+                                                disabled={reviewingRequestId === request._id}
+                                                className="rounded-lg border border-red-200 bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                                            >
+                                                {reviewingRequestId === request._id ? 'Working...' : 'Reject'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                    )}
+                </section>
+            )}
+
             <section className="mb-8 rounded-3xl border border-gray-100 bg-white p-5 sm:p-6">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <h2 className="text-2xl font-black text-dark">Home Banner Manager</h2>
@@ -448,6 +613,9 @@ const AdminDashboardPage = () => {
                                 <div className="p-2.5">
                                     <p className="line-clamp-1 text-sm font-bold text-dark">{shop.name}</p>
                                     <p className="line-clamp-1 text-xs text-gray-500">{shop.category}</p>
+                                    <p className="line-clamp-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                        Status: {shop.approvalStatus || 'approved'}
+                                    </p>
                                 </div>
                             </Link>
                         ))}

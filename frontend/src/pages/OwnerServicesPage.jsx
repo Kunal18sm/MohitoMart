@@ -171,6 +171,11 @@ const OwnerServicesPage = () => {
             {shops.length > 0 && (
                 <div className="space-y-6">
                     <div className="rounded-3xl border border-gray-100 bg-white p-5 sm:p-6">
+                        {String(selectedShop?.approvalStatus || '').toLowerCase() === 'pending' && (
+                            <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                                Shop approval pending: you can save up to 3 services. They will remain hidden until admin approval.
+                            </p>
+                        )}
                         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <h2 className="text-2xl font-black text-dark">Service List</h2>

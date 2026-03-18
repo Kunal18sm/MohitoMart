@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
-const LOCATION_CACHE_STORAGE_KEY = 'mm_location_suggestions_cache_v1';
+const LOCATION_CACHE_STORAGE_KEY = 'mm_location_suggestions_cache_v2';
 
 const readPersistedLocationCache = () => {
     if (typeof window === 'undefined') {
@@ -191,7 +191,7 @@ export const useLocationSuggestions = ({ enabled = true } = {}) => {
             if (!cityKey) {
                 return globalAreaOptions;
             }
-            return areaByCityMap.get(cityKey) || [];
+            return areaByCityMap.get(cityKey) || globalAreaOptions;
         },
         [areaByCityMap, globalAreaOptions]
     );

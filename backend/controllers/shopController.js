@@ -71,6 +71,36 @@ const getFollowedShopIdsForUser = async (userId) => {
     return new Set(user?.followedShops?.map((shopId) => shopId.toString()) || []);
 };
 
+const SHOP_APPROVAL_STATUSES = ['pending', 'approved', 'rejected'];
+const APPROVED_SHOP_STATUS = 'approved';
+const PUBLIC_SHOP_VISIBILITY_CLAUSE = {
+    $or: [
+        { approvalStatus: APPROVED_SHOP_STATUS },
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: null },
+    ],
+};
+
+const isAdminRequest = (req) => req.user?.role === 'admin';
+const isShopPubliclyVisible = (shop) => {
+    const normalizedStatus = String(shop?.approvalStatus || '').trim().toLowerCase();
+    return !normalizedStatus || normalizedStatus === APPROVED_SHOP_STATUS;
+};
+
+const resolveApprovalStatusFilter = (req, rawValue) => {
+    const normalizedValue = String(rawValue || '').trim().toLowerCase();
+
+    if (!isAdminRequest(req)) {
+        return PUBLIC_SHOP_VISIBILITY_CLAUSE;
+    }
+
+    if (!normalizedValue) {
+        return null;
+    }
+
+    return SHOP_APPROVAL_STATUSES.includes(normalizedValue) ? normalizedValue : null;
+};
+
 const LOCATION_SUGGESTION_CACHE_TTL_MS = 5 * 60 * 1000;
 const locationSuggestionCache = new Map();
 const REVERSE_GEOCODE_CACHE_TTL_MS = 30 * 60 * 1000;
@@ -263,6 +293,52 @@ const recalculateShopRating = async (shopId) => {
     );
 };
 
+const removeShopWithDependencies = async (shop) => {
+    const shopImages = normalizeImages(shop.images);
+    const [products, services] = await Promise.all([
+        Product.find({ shop: shop._id }).select('_id images').lean(),
+        Service.find({ shop: shop._id }).select('_id images').lean(),
+    ]);
+
+    const productIds = products.map((product) => product._id);
+    const productImages = products.flatMap((product) => product.images || []);
+    const serviceImages = services.flatMap((service) => service.images || []);
+
+    const deleteJobs = [
+        Product.deleteMany({ shop: shop._id }),
+        Service.deleteMany({ shop: shop._id }),
+        ShopRating.deleteMany({ shop: shop._id }),
+        User.updateMany({ followedShops: shop._id }, { $pull: { followedShops: shop._id } }),
+        Shop.deleteOne({ _id: shop._id }),
+    ];
+
+    if (productIds.length) {
+        deleteJobs.push(ProductView.deleteMany({ product: { $in: productIds } }));
+    }
+
+    await Promise.all(deleteJobs);
+
+    if (productIds.length) {
+        Cart.updateMany(
+            { 'cartItems.product': { $in: productIds } },
+            { $pull: { cartItems: { product: { $in: productIds } } } }
+        ).catch((error) => {
+            console.error('Failed to cleanup carts after shop deletion:', error);
+        });
+    }
+
+    const allImages = [...shopImages, ...productImages, ...serviceImages];
+    const uniqueImages = [...new Set(allImages.filter(Boolean))];
+    await destroyCloudinaryImages(uniqueImages);
+
+    clearLocationSuggestionCache();
+
+    return {
+        deletedProducts: productIds.length,
+        deletedServices: services.length,
+    };
+};
+
 const resolveShopSort = (sortValue) => {
     const normalized = String(sortValue || 'latest').trim().toLowerCase();
     const sortMap = {
@@ -283,6 +359,9 @@ const resolveShopSort = (sortValue) => {
 export const getShopCategories = async (req, res, next) => {
     try {
         const categoryUsage = await Shop.aggregate([
+            {
+                $match: PUBLIC_SHOP_VISIBILITY_CLAUSE,
+            },
             {
                 $group: {
                     _id: '$category',
@@ -468,12 +547,31 @@ export const reverseGeocodeCoordinates = async (req, res, next) => {
 export const getShops = async (req, res, next) => {
     try {
         const { city, area, areas, category, keyword, sort } = req.query;
+        const approvalStatusQuery = String(req.query.approvalStatus || '').trim().toLowerCase();
         const page = Math.max(Number(req.query.page || 1), 1);
         const limit = Math.min(Math.max(Number(req.query.limit || 12), 1), 50);
         const skip = (page - 1) * limit;
 
         const filters = {};
         const locationClauses = [];
+
+        const approvalStatusFilter = resolveApprovalStatusFilter(req, approvalStatusQuery);
+        if (approvalStatusQuery && !approvalStatusFilter) {
+            res.status(400);
+            throw new Error(
+                `approvalStatus must be one of: ${SHOP_APPROVAL_STATUSES.join(', ')}`
+            );
+        }
+
+        if (approvalStatusFilter) {
+            if (typeof approvalStatusFilter === 'string') {
+                filters.approvalStatus = approvalStatusFilter;
+            } else if (filters.$and) {
+                filters.$and.push(approvalStatusFilter);
+            } else {
+                filters.$and = [approvalStatusFilter];
+            }
+        }
 
         const cityClause = buildLocationFieldClause('location.city', city);
         if (cityClause) {
@@ -488,7 +586,11 @@ export const getShops = async (req, res, next) => {
         if (locationClauses.length === 1) {
             Object.assign(filters, locationClauses[0]);
         } else if (locationClauses.length > 1) {
-            filters.$and = locationClauses;
+            if (Array.isArray(filters.$and)) {
+                filters.$and = [...filters.$and, ...locationClauses];
+            } else {
+                filters.$and = locationClauses;
+            }
         }
 
         if (category) {
@@ -510,7 +612,7 @@ export const getShops = async (req, res, next) => {
             Shop.countDocuments(filters),
             Shop.find(filters)
                 .select(
-                    'owner name category location images mobile mapUrl description allowPriceHide rating numRatings createdAt'
+                    'owner name category location images mobile mapUrl description allowPriceHide approvalStatus approvedAt approvedBy rating numRatings createdAt'
                 )
                 .populate('owner', 'name')
                 .sort(sortClause)
@@ -539,11 +641,21 @@ export const getShopById = async (req, res, next) => {
     try {
         const shop = await Shop.findById(req.params.id)
             .select(
-                'owner name category location images mobile mapUrl description allowPriceHide rating numRatings createdAt'
+                'owner name category location images mobile mapUrl description allowPriceHide approvalStatus approvedAt approvedBy rating numRatings createdAt'
             )
             .populate('owner', 'name')
             .lean();
         if (!shop) {
+            res.status(404);
+            throw new Error('Shop not found');
+        }
+
+        const ownerId = shop.owner?._id?.toString?.() || shop.owner?.toString?.() || '';
+        const requesterId = req.user?._id?.toString?.() || '';
+        const canAccessUnapprovedShop =
+            isAdminRequest(req) || (ownerId && requesterId && ownerId === requesterId);
+
+        if (!isShopPubliclyVisible(shop) && !canAccessUnapprovedShop) {
             res.status(404);
             throw new Error('Shop not found');
         }
@@ -636,6 +748,9 @@ export const createShop = async (req, res, next) => {
             mobile: mobile || '',
             mapUrl: mapUrl || '',
             description: description || '',
+            approvalStatus: 'pending',
+            approvedAt: null,
+            approvedBy: null,
         });
         clearLocationSuggestionCache();
 
@@ -730,6 +845,95 @@ export const updateShop = async (req, res, next) => {
     }
 };
 
+// @desc    List shop profile approval requests
+// @route   GET /api/shops/requests
+// @access  Private (admin)
+export const getShopApprovalRequests = async (req, res, next) => {
+    try {
+        const statusQuery = String(req.query.status || 'pending').trim().toLowerCase();
+        const page = Math.max(Number(req.query.page || 1), 1);
+        const limit = Math.min(Math.max(Number(req.query.limit || 20), 1), 100);
+        const skip = (page - 1) * limit;
+
+        if (!SHOP_APPROVAL_STATUSES.includes(statusQuery)) {
+            res.status(400);
+            throw new Error(`status must be one of: ${SHOP_APPROVAL_STATUSES.join(', ')}`);
+        }
+
+        const filters = {
+            approvalStatus: statusQuery,
+        };
+
+        const [total, requests] = await Promise.all([
+            Shop.countDocuments(filters),
+            Shop.find(filters)
+                .select(
+                    'owner name category location images mobile mapUrl description approvalStatus approvedAt approvedBy createdAt'
+                )
+                .populate('owner', 'name email')
+                .populate('approvedBy', 'name email')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+        ]);
+
+        res.status(200).json({
+            requests,
+            page,
+            pages: Math.ceil(total / limit),
+            total,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Review a pending shop profile request
+// @route   PATCH /api/shops/requests/:id
+// @access  Private (admin)
+export const reviewShopApprovalRequest = async (req, res, next) => {
+    try {
+        const action = String(req.body.action || '').trim().toLowerCase();
+        if (!['approve', 'reject'].includes(action)) {
+            res.status(400);
+            throw new Error('action must be either approve or reject');
+        }
+
+        const shop = await Shop.findById(req.params.id);
+        if (!shop) {
+            res.status(404);
+            throw new Error('Shop request not found');
+        }
+
+        if (shop.approvalStatus !== 'pending') {
+            res.status(400);
+            throw new Error('Only pending shop requests can be reviewed');
+        }
+
+        if (action === 'approve') {
+            shop.approvalStatus = 'approved';
+            shop.approvedAt = new Date();
+            shop.approvedBy = req.user._id;
+            const updatedShop = await shop.save();
+            clearLocationSuggestionCache();
+
+            return res.status(200).json({
+                message: 'Shop request approved',
+                shop: updatedShop,
+            });
+        }
+
+        const cleanupResult = await removeShopWithDependencies(shop);
+        return res.status(200).json({
+            message: 'Shop request rejected and profile removed',
+            ...cleanupResult,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 // @desc    Delete a shop (admin only) + cleanup products/services
 // @route   DELETE /api/shops/:id
 // @access  Private (admin)
@@ -746,47 +950,11 @@ export const deleteShop = async (req, res, next) => {
             throw new Error('Shop not found');
         }
 
-        const shopImages = normalizeImages(shop.images);
-        const [products, services] = await Promise.all([
-            Product.find({ shop: shop._id }).select('_id images').lean(),
-            Service.find({ shop: shop._id }).select('_id images').lean(),
-        ]);
-
-        const productIds = products.map((product) => product._id);
-        const productImages = products.flatMap((product) => product.images || []);
-        const serviceImages = services.flatMap((service) => service.images || []);
-
-        const deleteJobs = [
-            Product.deleteMany({ shop: shop._id }),
-            Service.deleteMany({ shop: shop._id }),
-            ShopRating.deleteMany({ shop: shop._id }),
-            User.updateMany({ followedShops: shop._id }, { $pull: { followedShops: shop._id } }),
-            Shop.deleteOne({ _id: shop._id }),
-        ];
-
-        if (productIds.length) {
-            deleteJobs.push(ProductView.deleteMany({ product: { $in: productIds } }));
-        }
-
-        await Promise.all(deleteJobs);
-
-        if (productIds.length) {
-            Cart.updateMany(
-                { 'cartItems.product': { $in: productIds } },
-                { $pull: { cartItems: { product: { $in: productIds } } } }
-            ).catch((err) => {
-                console.error('Failed to cleanup carts after shop deletion:', err);
-            });
-        }
-
-        const allImages = [...shopImages, ...productImages, ...serviceImages];
-        const uniqueImages = [...new Set(allImages.filter(Boolean))];
-        await destroyCloudinaryImages(uniqueImages);
+        const cleanupResult = await removeShopWithDependencies(shop);
 
         res.status(200).json({
             message: 'Shop removed',
-            deletedProducts: productIds.length,
-            deletedServices: services.length,
+            ...cleanupResult,
         });
     } catch (error) {
         next(error);
@@ -802,6 +970,13 @@ export const rateShop = async (req, res, next) => {
         const shop = await Shop.findById(req.params.id);
 
         if (!shop) {
+            res.status(404);
+            throw new Error('Shop not found');
+        }
+
+        const requesterId = req.user?._id?.toString?.() || '';
+        const isOwner = requesterId && requesterId === shop.owner?.toString?.();
+        if (!isShopPubliclyVisible(shop) && !isOwner && !isAdminRequest(req)) {
             res.status(404);
             throw new Error('Shop not found');
         }

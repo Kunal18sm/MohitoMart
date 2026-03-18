@@ -51,6 +51,7 @@ const enforceImageRange = (images) => {
     }
 };
 const MAX_PRODUCTS_PER_SHOP = 50;
+const PENDING_PRODUCTS_PER_SHOP = 10;
 
 const getFollowedShopIdsForUser = async (userId) => {
     if (!userId) {
@@ -112,6 +113,14 @@ const toAggregateMatch = (filters) => {
     const match = { ...filters };
     if (typeof match.shop === 'string' && mongoose.Types.ObjectId.isValid(match.shop)) {
         match.shop = new mongoose.Types.ObjectId(match.shop);
+    } else if (Array.isArray(match.shop?.$in)) {
+        match.shop = {
+            $in: match.shop.$in.map((entry) =>
+                mongoose.Types.ObjectId.isValid(entry)
+                    ? new mongoose.Types.ObjectId(entry)
+                    : entry
+            ),
+        };
     }
     return match;
 };
@@ -128,6 +137,81 @@ const resolveProductSort = (sortValue) => {
     };
 
     return sortMap[normalized] || sortMap.latest;
+};
+
+const APPROVED_SHOP_STATUS = 'approved';
+const PUBLIC_SHOP_VISIBILITY_CLAUSE = {
+    $or: [
+        { approvalStatus: APPROVED_SHOP_STATUS },
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: null },
+    ],
+};
+const isAdminRequest = (req) => req.user?.role === 'admin';
+const isShopPubliclyVisible = (shop) => {
+    const normalizedStatus = String(shop?.approvalStatus || '').trim().toLowerCase();
+    return !normalizedStatus || normalizedStatus === APPROVED_SHOP_STATUS;
+};
+
+const normalizeShopIds = (shopIds = []) =>
+    shopIds
+        .map((entry) => entry?.toString?.() || String(entry || '').trim())
+        .filter(Boolean);
+
+const mergeShopFilter = (existingShopFilter, allowedShopIds) => {
+    const allowedIds = normalizeShopIds(allowedShopIds);
+    if (!allowedIds.length) {
+        return null;
+    }
+
+    if (!existingShopFilter) {
+        return { $in: allowedIds };
+    }
+
+    const normalizedExisting = existingShopFilter?.toString?.() || String(existingShopFilter || '');
+    if (
+        typeof existingShopFilter === 'string' ||
+        mongoose.Types.ObjectId.isValid(normalizedExisting)
+    ) {
+        return allowedIds.includes(normalizedExisting) ? normalizedExisting : null;
+    }
+
+    if (Array.isArray(existingShopFilter.$in)) {
+        const currentIds = normalizeShopIds(existingShopFilter.$in);
+        const mergedIds = allowedIds.filter((id) => currentIds.includes(id));
+        return mergedIds.length ? { $in: mergedIds } : null;
+    }
+
+    return existingShopFilter;
+};
+
+const resolveVisibleShopFilter = async (req, existingShopFilter) => {
+    if (isAdminRequest(req)) {
+        return existingShopFilter || null;
+    }
+
+    const approvalFilters = {};
+    const approvalClauses = [PUBLIC_SHOP_VISIBILITY_CLAUSE];
+
+    const normalizedExisting = existingShopFilter?.toString?.() || String(existingShopFilter || '');
+    if (
+        typeof existingShopFilter === 'string' ||
+        mongoose.Types.ObjectId.isValid(normalizedExisting)
+    ) {
+        approvalClauses.push({ _id: normalizedExisting });
+    } else if (Array.isArray(existingShopFilter?.$in)) {
+        const requestedIds = normalizeShopIds(existingShopFilter.$in);
+        approvalClauses.push({ _id: { $in: requestedIds } });
+    }
+
+    if (approvalClauses.length === 1) {
+        Object.assign(approvalFilters, approvalClauses[0]);
+    } else {
+        approvalFilters.$and = approvalClauses;
+    }
+
+    const approvedShopIds = await Shop.find(approvalFilters).distinct('_id');
+    return mergeShopFilter(existingShopFilter, approvedShopIds);
 };
 
 // @desc    Fetch all products with pagination and filters
@@ -179,7 +263,8 @@ export const getProducts = async (req, res, next) => {
             }
 
             const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
-            if (!nearbyShopIds.length) {
+            const mergedShopFilter = mergeShopFilter(filters.shop, nearbyShopIds);
+            if (!mergedShopFilter) {
                 return res.status(200).json({
                     products: [],
                     page,
@@ -187,7 +272,21 @@ export const getProducts = async (req, res, next) => {
                     total: 0,
                 });
             }
-            filters.shop = { $in: nearbyShopIds };
+            filters.shop = mergedShopFilter;
+        }
+
+        const visibleShopFilter = await resolveVisibleShopFilter(req, filters.shop);
+        if (!isAdminRequest(req)) {
+            if (!visibleShopFilter) {
+                return res.status(200).json({
+                    products: [],
+                    page,
+                    pages: 0,
+                    total: 0,
+                });
+            }
+
+            filters.shop = visibleShopFilter;
         }
 
         const sortClause = resolveProductSort(req.query.sort);
@@ -224,11 +323,20 @@ export const getProductById = async (req, res, next) => {
             .select('name price hideOriginalPrice images category description viewsCount shop createdAt')
             .populate(
             'shop',
-            'name category location rating numRatings mapUrl images mobile description allowPriceHide'
+            'name category location rating numRatings mapUrl images mobile description allowPriceHide approvalStatus owner'
             )
             .lean();
 
-        if (!product) {
+        if (!product || !product.shop) {
+            res.status(404);
+            throw new Error('Product not found');
+        }
+
+        const requesterId = req.user?._id?.toString?.() || '';
+        const shopOwnerId = product.shop.owner?.toString?.() || '';
+        const canAccessUnapprovedProduct =
+            isAdminRequest(req) || (requesterId && shopOwnerId && requesterId === shopOwnerId);
+        if (!isShopPubliclyVisible(product.shop) && !canAccessUnapprovedProduct) {
             res.status(404);
             throw new Error('Product not found');
         }
@@ -282,22 +390,40 @@ export const createProduct = async (req, res, next) => {
             throw new Error('price must be a valid number');
         }
 
-        const shop = await Shop.findById(shopId).select('_id owner category allowPriceHide').lean();
+        const shop = await Shop.findById(shopId)
+            .select('_id owner category allowPriceHide approvalStatus')
+            .lean();
         if (!shop) {
             res.status(404);
             throw new Error('Shop not found');
-        }
-
-        const existingProductsCount = await Product.countDocuments({ shop: shop._id });
-        if (existingProductsCount >= MAX_PRODUCTS_PER_SHOP) {
-            res.status(400);
-            throw new Error(`A shop can list up to ${MAX_PRODUCTS_PER_SHOP} products only`);
         }
 
         const isOwner = shop.owner.toString() === String(req.user._id);
         if (!isOwner && req.user.role !== 'admin') {
             res.status(403);
             throw new Error('Not authorized to add products to this shop');
+        }
+
+        const normalizedShopApprovalStatus = String(shop.approvalStatus || APPROVED_SHOP_STATUS)
+            .trim()
+            .toLowerCase();
+        if (normalizedShopApprovalStatus === 'rejected' && req.user.role !== 'admin') {
+            res.status(403);
+            throw new Error('Shop request was rejected. Please create a new shop profile request');
+        }
+
+        const maxAllowedProducts =
+            normalizedShopApprovalStatus === 'pending' && req.user.role !== 'admin'
+                ? PENDING_PRODUCTS_PER_SHOP
+                : MAX_PRODUCTS_PER_SHOP;
+        const existingProductsCount = await Product.countDocuments({ shop: shop._id });
+        if (existingProductsCount >= maxAllowedProducts) {
+            res.status(400);
+            throw new Error(
+                normalizedShopApprovalStatus === 'pending' && req.user.role !== 'admin'
+                    ? `Pending shops can add up to ${PENDING_PRODUCTS_PER_SHOP} products until admin approval`
+                    : `A shop can list up to ${MAX_PRODUCTS_PER_SHOP} products only`
+            );
         }
 
         const normalizedImages = normalizeImages(images);
@@ -575,7 +701,10 @@ export const getRandomProducts = async (req, res, next) => {
                 shopFilters.$and = locationClauses;
             }
 
-            const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            let nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            if (!nearbyShopIds.length && cityClause && areaClause) {
+                nearbyShopIds = await Shop.find(cityClause).distinct('_id');
+            }
             if (!nearbyShopIds.length) {
                 return res.status(200).json({ products: [] });
             }
@@ -583,12 +712,22 @@ export const getRandomProducts = async (req, res, next) => {
             match.shop = { $in: nearbyShopIds };
         }
 
+        const visibleShopFilter = await resolveVisibleShopFilter(req, match.shop);
+        if (!isAdminRequest(req)) {
+            if (!visibleShopFilter) {
+                return res.status(200).json({ products: [] });
+            }
+            match.shop = visibleShopFilter;
+        }
+
         if (excludedProductIds.length) {
             match._id = { $nin: excludedProductIds };
         }
 
+        const aggregateMatch = toAggregateMatch(match);
+
         const onePerShop = await Product.aggregate([
-            { $match: match },
+            { $match: aggregateMatch },
             { $addFields: { _rand: { $rand: {} } } },
             { $sort: { shop: 1, _rand: 1 } },
             { $group: { _id: '$shop', product: { $first: '$$ROOT' } } },
@@ -603,7 +742,7 @@ export const getRandomProducts = async (req, res, next) => {
             const extraProducts = await Product.aggregate([
                 {
                     $match: {
-                        ...match,
+                        ...aggregateMatch,
                         _id: { $nin: existingIds },
                     },
                 },
@@ -661,12 +800,23 @@ export const getLatestProducts = async (req, res, next) => {
                 shopFilters.$and = locationClauses;
             }
 
-            const nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            let nearbyShopIds = await Shop.find(shopFilters).distinct('_id');
+            if (!nearbyShopIds.length && cityClause && areaClause) {
+                nearbyShopIds = await Shop.find(cityClause).distinct('_id');
+            }
             if (!nearbyShopIds.length) {
                 return res.status(200).json({ products: [] });
             }
 
             filters.shop = { $in: nearbyShopIds };
+        }
+
+        const visibleShopFilter = await resolveVisibleShopFilter(req, filters.shop);
+        if (!isAdminRequest(req)) {
+            if (!visibleShopFilter) {
+                return res.status(200).json({ products: [] });
+            }
+            filters.shop = visibleShopFilter;
         }
 
         const [products, followedShopIds] = await Promise.all([
@@ -750,6 +900,14 @@ export const getRecentlyViewedProducts = async (req, res, next) => {
             }
 
             filters.shop = { $in: nearbyShopIds };
+        }
+
+        const visibleShopFilter = await resolveVisibleShopFilter(req, filters.shop);
+        if (!isAdminRequest(req)) {
+            if (!visibleShopFilter) {
+                return res.status(200).json({ products: [] });
+            }
+            filters.shop = visibleShopFilter;
         }
 
         const [products, followedShopIds] = await Promise.all([

@@ -4,6 +4,15 @@ import Shop from '../models/Shop.js';
 import Product from '../models/Product.js';
 import { buildLocationFieldClause, normalizeLocationLabel } from '../utils/locationNormalizer.js';
 
+const APPROVED_SHOP_STATUS = 'approved';
+const PUBLIC_SHOP_VISIBILITY_CLAUSE = {
+    $or: [
+        { approvalStatus: APPROVED_SHOP_STATUS },
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: null },
+    ],
+};
+
 const mapProductsAsFollowed = (products) =>
     products.map((product) => {
         const rawProduct = typeof product?.toObject === 'function' ? product.toObject() : product;
@@ -51,10 +60,13 @@ const parseObjectIdList = (value) => {
 // @access  Private
 export const getUserProfile = async (req, res, next) => {
     try {
-        const user = await User.findById(req.user._id).populate(
-            'followedShops',
-            'name category location images rating numRatings'
-        ).lean();
+        const user = await User.findById(req.user._id)
+            .populate({
+                path: 'followedShops',
+                select: 'name category location images rating numRatings',
+                match: PUBLIC_SHOP_VISIBILITY_CLAUSE,
+            })
+            .lean();
 
         if (user) {
             res.json({
@@ -123,10 +135,13 @@ export const updateUserProfile = async (req, res, next) => {
 // @access  Private
 export const followShop = async (req, res, next) => {
     try {
-        const shop = await Shop.exists({ _id: req.params.shopId });
+        const shop = await Shop.exists({
+            _id: req.params.shopId,
+            ...PUBLIC_SHOP_VISIBILITY_CLAUSE,
+        });
         if (!shop) {
             res.status(404);
-            throw new Error('Shop not found');
+            throw new Error('Shop not found or not approved yet');
         }
 
         const updateResult = await User.updateOne(
@@ -176,7 +191,16 @@ export const getFollowedFeed = async (req, res, next) => {
             return res.status(200).json({ products: [] });
         }
 
-        const products = await Product.find({ shop: { $in: user.followedShops } })
+        const approvedFollowedShopIds = await Shop.find({
+            _id: { $in: user.followedShops },
+            ...PUBLIC_SHOP_VISIBILITY_CLAUSE,
+        }).distinct('_id');
+
+        if (!approvedFollowedShopIds.length) {
+            return res.status(200).json({ products: [] });
+        }
+
+        const products = await Product.find({ shop: { $in: approvedFollowedShopIds } })
             .select('shop name images category description price hideOriginalPrice viewsCount createdAt')
             .populate('shop', 'name category location images rating numRatings allowPriceHide')
             .sort({ createdAt: -1 })
@@ -202,7 +226,15 @@ export const getFollowedFeedRandom = async (req, res, next) => {
         }
 
         const excludedProductIds = parseObjectIdList(req.query.excludeIds);
-        let targetShopIds = [...user.followedShops];
+        let targetShopIds = await Shop.find({
+            _id: { $in: user.followedShops },
+            ...PUBLIC_SHOP_VISIBILITY_CLAUSE,
+        }).distinct('_id');
+
+        if (!targetShopIds.length) {
+            return res.status(200).json({ products: [] });
+        }
+
         const locationClauses = [];
         const cityClause = buildLocationFieldClause('location.city', req.query.city);
         const areaClause = buildLocationFieldClause('location.area', req.query.areas, req.query.area);
@@ -217,6 +249,7 @@ export const getFollowedFeedRandom = async (req, res, next) => {
         if (locationClauses.length) {
             const shopFilters = {
                 _id: { $in: targetShopIds },
+                ...PUBLIC_SHOP_VISIBILITY_CLAUSE,
             };
 
             if (locationClauses.length === 1) {
