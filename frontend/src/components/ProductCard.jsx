@@ -14,11 +14,19 @@ const ProductCard = ({
         ? '(max-width: 640px) 52vw, (max-width: 1024px) 35vw, 220px'
         : '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 220px';
     const compactImageClass = desktopTall ? 'h-24 sm:h-28 lg:h-32' : 'h-24 sm:h-28';
+    const compactHomeImageClass = desktopTall ? 'h-28 sm:h-32 lg:h-36' : 'h-28 sm:h-32';
     const regularImageClass = desktopTall
         ? 'h-[104px] sm:h-32 md:h-36 lg:h-40'
         : 'h-[104px] sm:h-32 md:h-36';
+    const regularHomeImageClass = desktopTall
+        ? 'h-32 sm:h-36 md:h-40 lg:h-44'
+        : 'h-32 sm:h-36 md:h-40';
     const useFixedFrame = fixedFrame || homeSized;
-    const imageFrameClass = useFixedFrame ? (compact ? compactImageClass : regularImageClass) : '';
+    const imageFrameClass = useFixedFrame
+        ? (compact
+            ? (homeSized ? compactHomeImageClass : compactImageClass)
+            : (homeSized ? regularHomeImageClass : regularImageClass))
+        : '';
 
     const hasDiscount = product.originalPrice && product.originalPrice > product.price;
     const discountPercent = hasDiscount

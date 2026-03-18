@@ -96,7 +96,7 @@ const BottomNav = () => {
                 { path: '/admin', label: t('dashboard'), Icon: DashboardIcon },
                 { path: '/cart', label: t('wishlist'), Icon: WishlistIcon },
                 { path: '/services/all', label: t('services'), Icon: ServicesIcon },
-                { path: '/profile', label: t('profile'), Icon: ProfileIcon },
+                { path: '/shops/all', label: t('all_shops') || t('shops'), Icon: ShopIcon },
             ];
         }
 

@@ -881,7 +881,7 @@ const HomePage = () => {
                                         widths: [160, 220, 280, 320],
                                         sizes: '(max-width: 640px) 50vw, 220px',
                                     }}
-                                    containerClassName="h-20 bg-white/40 sm:h-24"
+                                    containerClassName="h-28 bg-white/40 sm:h-32"
                                     fillContainer
                                     fitMode="cover"
                                     className="rounded-t-2xl"

@@ -1,9 +1,11 @@
 import mongoose from 'mongoose';
 import Shop from '../models/Shop.js';
 import Product from '../models/Product.js';
+import ProductView from '../models/ProductView.js';
 import Service from '../models/Service.js';
 import ShopRating from '../models/ShopRating.js';
 import User from '../models/User.js';
+import Cart from '../models/Cart.js';
 import { SHOP_CATEGORIES, normalizeCategory } from '../constants/shopCategories.js';
 import { destroyCloudinaryImages } from '../utils/cloudinaryCleanup.js';
 import {
@@ -723,6 +725,69 @@ export const updateShop = async (req, res, next) => {
         }
 
         res.status(200).json(updatedShop);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Delete a shop (admin only) + cleanup products/services
+// @route   DELETE /api/shops/:id
+// @access  Private (admin)
+export const deleteShop = async (req, res, next) => {
+    try {
+        if (req.user.role !== 'admin') {
+            res.status(403);
+            throw new Error('Only admins can delete shops');
+        }
+
+        const shop = await Shop.findById(req.params.id);
+        if (!shop) {
+            res.status(404);
+            throw new Error('Shop not found');
+        }
+
+        const shopImages = normalizeImages(shop.images);
+        const [products, services] = await Promise.all([
+            Product.find({ shop: shop._id }).select('_id images').lean(),
+            Service.find({ shop: shop._id }).select('_id images').lean(),
+        ]);
+
+        const productIds = products.map((product) => product._id);
+        const productImages = products.flatMap((product) => product.images || []);
+        const serviceImages = services.flatMap((service) => service.images || []);
+
+        const deleteJobs = [
+            Product.deleteMany({ shop: shop._id }),
+            Service.deleteMany({ shop: shop._id }),
+            ShopRating.deleteMany({ shop: shop._id }),
+            User.updateMany({ followedShops: shop._id }, { $pull: { followedShops: shop._id } }),
+            Shop.deleteOne({ _id: shop._id }),
+        ];
+
+        if (productIds.length) {
+            deleteJobs.push(ProductView.deleteMany({ product: { $in: productIds } }));
+        }
+
+        await Promise.all(deleteJobs);
+
+        if (productIds.length) {
+            Cart.updateMany(
+                { 'cartItems.product': { $in: productIds } },
+                { $pull: { cartItems: { product: { $in: productIds } } } }
+            ).catch((err) => {
+                console.error('Failed to cleanup carts after shop deletion:', err);
+            });
+        }
+
+        const allImages = [...shopImages, ...productImages, ...serviceImages];
+        const uniqueImages = [...new Set(allImages.filter(Boolean))];
+        await destroyCloudinaryImages(uniqueImages);
+
+        res.status(200).json({
+            message: 'Shop removed',
+            deletedProducts: productIds.length,
+            deletedServices: services.length,
+        });
     } catch (error) {
         next(error);
     }

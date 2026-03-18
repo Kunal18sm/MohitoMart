@@ -4,6 +4,7 @@ import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
 import { formatServicePrice } from '../utils/servicePrice';
+import { getPlaceholderImage } from '../utils/imageFallbacks';
 
 const ServiceDetailsPage = () => {
     const { id } = useParams();
@@ -11,6 +12,7 @@ const ServiceDetailsPage = () => {
     const [mainImage, setMainImage] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [shopGalleryIndex, setShopGalleryIndex] = useState(0);
 
     const fetchService = async () => {
         try {
@@ -19,6 +21,7 @@ const ServiceDetailsPage = () => {
             const { data } = await api.get(`/services/${id}`);
             setService(data);
             setMainImage(data.images?.[0] || '');
+            setShopGalleryIndex(0);
         } catch (err) {
             setService(null);
             setError(err.response?.data?.message || 'Unable to fetch service details');
@@ -46,6 +49,19 @@ const ServiceDetailsPage = () => {
             </div>
         );
     }
+
+    const shopImages =
+        service?.shop?.images?.length > 0
+            ? service.shop.images
+            : [getPlaceholderImage('shop')];
+    const hasMultipleShopImages = shopImages.length > 1;
+    const showPreviousShopImage = () => {
+        setShopGalleryIndex((previous) => Math.max(previous - 1, 0));
+    };
+
+    const showNextShopImage = () => {
+        setShopGalleryIndex((previous) => Math.min(previous + 1, shopImages.length - 1));
+    };
 
     return (
         <div className="container mx-auto px-4 py-8 md:py-10">
@@ -134,13 +150,6 @@ const ServiceDetailsPage = () => {
 
                     {service.shop?._id && (
                         <div className="mt-8 flex flex-wrap gap-4">
-                            <button
-                                type="button"
-                                className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:shadow-primary/30"
-                            >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                Book Service Now
-                            </button>
                             <Link
                                 to={`/shop/${service.shop._id}`}
                                 className="inline-flex items-center justify-center rounded-xl bg-dark px-6 py-3 text-sm font-bold text-white shadow-lg transition-colors hover:bg-gray-800 hover:shadow-gray-800/30"
@@ -151,6 +160,115 @@ const ServiceDetailsPage = () => {
                     )}
                 </div>
             </div>
+
+            {service.shop && (
+                <section className="mt-6 rounded-2xl border border-gray-100 bg-white p-4 shadow-[0_14px_36px_rgba(15,23,42,0.08)] sm:p-5">
+                    <div className="mb-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
+                            This service is offered by
+                        </p>
+                        <h2 className="mt-1 text-xl font-black text-dark sm:text-2xl">
+                            {service.shop?.name || 'Shop'}
+                        </h2>
+                    </div>
+
+                    <div className="relative">
+                        <div className="overflow-hidden rounded-2xl border border-gray-200">
+                            <div
+                                className="flex transition-transform duration-500 ease-out"
+                                style={{ transform: `translateX(-${shopGalleryIndex * 100}%)` }}
+                            >
+                                {shopImages.map((image, index) => (
+                                    <div key={`${image}-${index}`} className="min-w-full">
+                                        {service.shop?._id ? (
+                                            <Link to={`/shop/${service.shop._id}`} className="block">
+                                                <AdaptiveCardImage
+                                                    source={image}
+                                                    alt={service.shop.name}
+                                                    kind="shop"
+                                                    responsiveOptions={{
+                                                        width: 1280,
+                                                        widths: [480, 768, 960, 1280],
+                                                        sizes: '(max-width: 1024px) 100vw, 50vw',
+                                                    }}
+                                                    containerClassName="h-52 bg-white sm:h-60 md:h-64"
+                                                    fillContainer
+                                                />
+                                            </Link>
+                                        ) : (
+                                            <AdaptiveCardImage
+                                                source={image}
+                                                alt={service.shop.name}
+                                                kind="shop"
+                                                responsiveOptions={{
+                                                    width: 1280,
+                                                    widths: [480, 768, 960, 1280],
+                                                    sizes: '(max-width: 1024px) 100vw, 50vw',
+                                                }}
+                                                containerClassName="h-52 bg-white sm:h-60 md:h-64"
+                                                fillContainer
+                                            />
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {hasMultipleShopImages && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={showPreviousShopImage}
+                                    disabled={shopGalleryIndex === 0}
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-sm font-black text-dark shadow disabled:cursor-not-allowed disabled:opacity-40"
+                                    aria-label="Show previous shop image"
+                                >
+                                    {'<'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={showNextShopImage}
+                                    disabled={shopGalleryIndex >= shopImages.length - 1}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90 px-3 py-2 text-sm font-black text-dark shadow disabled:cursor-not-allowed disabled:opacity-40"
+                                    aria-label="Show next shop image"
+                                >
+                                    {'>'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+
+                    {shopImages.length > 1 && (
+                        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                            {shopImages.map((image, index) => (
+                                <button
+                                    key={`${image}-thumb-${index}`}
+                                    type="button"
+                                    onClick={() => setShopGalleryIndex(index)}
+                                    aria-label={`Show shop gallery image ${index + 1}`}
+                                    className={`overflow-hidden rounded-lg border ${
+                                        shopGalleryIndex === index ? 'border-primary' : 'border-gray-200'
+                                    }`}
+                                >
+                                    <AdaptiveCardImage
+                                        source={image}
+                                        alt={`${service.shop.name}-preview-${index + 1}`}
+                                        kind="shop"
+                                        responsiveOptions={{
+                                            width: 240,
+                                            widths: [96, 160, 240],
+                                            sizes: '96px',
+                                            quality: 'auto:eco',
+                                        }}
+                                        containerClassName="h-14 w-20 bg-white sm:h-16 sm:w-24"
+                                        fillContainer
+                                    />
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </section>
+            )}
         </div>
     );
 };

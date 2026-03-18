@@ -28,7 +28,7 @@ const mergeUniqueShops = (existingShops = [], incomingShops = []) => {
 
 const AllShopsPage = () => {
     const { t } = useTranslation();
-    const { showError } = useFlash();
+    const { showError, showSuccess } = useFlash();
     const storedLocation = useMemo(
         () => JSON.parse(localStorage.getItem('selectedLocation') || '{}'),
         []
@@ -37,17 +37,22 @@ const AllShopsPage = () => {
         () => getAreaFilterState(storedLocation),
         [storedLocation]
     );
+    const [isAdmin, setIsAdmin] = useState(false);
+    const effectiveAreaFilterState = useMemo(
+        () => (isAdmin ? { city: '', areas: [] } : areaFilterState),
+        [areaFilterState, isAdmin]
+    );
     const areaSummary = useMemo(
-        () => formatAreaSummary(areaFilterState.areas),
-        [areaFilterState.areas]
+        () => formatAreaSummary(effectiveAreaFilterState.areas),
+        [effectiveAreaFilterState.areas]
     );
     const locationBadgeLabel = useMemo(() => {
-        if (!areaFilterState.city || !areaFilterState.areas.length) {
+        if (!effectiveAreaFilterState.city || !effectiveAreaFilterState.areas.length) {
             return t('all_locations') || 'All locations';
         }
 
-        return `${areaSummary}, ${areaFilterState.city}`;
-    }, [areaFilterState.areas.length, areaFilterState.city, areaSummary, t]);
+        return `${areaSummary}, ${effectiveAreaFilterState.city}`;
+    }, [areaSummary, effectiveAreaFilterState.areas.length, effectiveAreaFilterState.city, t]);
 
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [keyword, setKeyword] = useState('');
@@ -58,6 +63,8 @@ const AllShopsPage = () => {
     const [loadingMore, setLoadingMore] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
+    const [shopToDelete, setShopToDelete] = useState(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
     const requestIdRef = useRef(0);
 
     const fetchShopsPage = useCallback(
@@ -74,8 +81,8 @@ const AllShopsPage = () => {
                 }
 
                 const params = {
-                    city: areaFilterState.city || undefined,
-                    areas: buildAreaQueryParam(areaFilterState.areas),
+                    city: effectiveAreaFilterState.city || undefined,
+                    areas: buildAreaQueryParam(effectiveAreaFilterState.areas),
                     category: selectedCategory !== 'all' ? selectedCategory : undefined,
                     keyword: keyword.trim() || undefined,
                     sort: sortBy,
@@ -116,8 +123,8 @@ const AllShopsPage = () => {
             }
         },
         [
-            areaFilterState.areas,
-            areaFilterState.city,
+            effectiveAreaFilterState.areas,
+            effectiveAreaFilterState.city,
             keyword,
             selectedCategory,
             showError,
@@ -138,6 +145,31 @@ const AllShopsPage = () => {
     useEffect(() => {
         fetchCategories();
         fetchShopsPage(1, { reset: true });
+    }, [fetchShopsPage, fetchCategories]);
+
+    useEffect(() => {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+            setIsAdmin(false);
+            return;
+        }
+
+        let active = true;
+        api.get('/users/profile')
+            .then(({ data }) => {
+                if (active) {
+                    setIsAdmin(data.role === 'admin');
+                }
+            })
+            .catch(() => {
+                if (active) {
+                    setIsAdmin(false);
+                }
+            });
+
+        return () => {
+            active = false;
+        };
     }, []);
 
     const applyLocation = (event) => {
@@ -151,6 +183,35 @@ const AllShopsPage = () => {
         }
 
         fetchShopsPage(currentPage + 1);
+    };
+
+    const requestDeleteShop = (shop) => {
+        setShopToDelete(shop);
+    };
+
+    const cancelDeleteShop = () => {
+        if (deleteLoading) {
+            return;
+        }
+        setShopToDelete(null);
+    };
+
+    const confirmDeleteShop = async () => {
+        if (!shopToDelete || deleteLoading) {
+            return;
+        }
+
+        try {
+            setDeleteLoading(true);
+            await api.delete(`/shops/${shopToDelete._id}`);
+            setShops((previous) => previous.filter((entry) => entry._id !== shopToDelete._id));
+            showSuccess('Shop deleted successfully');
+            setShopToDelete(null);
+        } catch (error) {
+            showError(extractErrorMessage(error, 'Unable to delete shop'));
+        } finally {
+            setDeleteLoading(false);
+        }
     };
 
     return (
@@ -217,9 +278,11 @@ const AllShopsPage = () => {
                     {t('apply') || 'Apply'}
                 </button>
             </form>
-            <p className="mb-4 text-[11px] text-gray-500">
-                {t('area_filter_sync_home') || 'Area filter is synced with the Home page area feed selection.'}
-            </p>
+            {!isAdmin && (
+                <p className="mb-4 text-[11px] text-gray-500">
+                    {t('area_filter_sync_home') || 'Area filter is synced with the Home page area feed selection.'}
+                </p>
+            )}
 
             {loading && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -244,7 +307,7 @@ const AllShopsPage = () => {
                 <>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                         {shops.map((shop) => (
-                            <div key={shop._id}>
+                            <div key={shop._id} className="relative">
                                 <Link
                                     to={`/shop/${shop._id}`}
                                     className="group block h-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
@@ -272,6 +335,19 @@ const AllShopsPage = () => {
                                         </p>
                                     </div>
                                 </Link>
+                                {isAdmin && (
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            requestDeleteShop(shop);
+                                        }}
+                                        className="absolute right-2 top-2 rounded-full bg-red-600/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-red-700"
+                                    >
+                                        Delete
+                                    </button>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -289,6 +365,36 @@ const AllShopsPage = () => {
                         </div>
                     )}
                 </>
+            )}
+
+            {shopToDelete && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4">
+                    <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-5 shadow-xl">
+                        <h3 className="text-lg font-black text-dark">Delete shop?</h3>
+                        <p className="mt-2 text-sm text-gray-600">
+                            This will remove{' '}
+                            <span className="font-semibold text-dark">{shopToDelete.name}</span> and all its products.
+                        </p>
+                        <div className="mt-5 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={cancelDeleteShop}
+                                disabled={deleteLoading}
+                                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmDeleteShop}
+                                disabled={deleteLoading}
+                                className="rounded-lg border border-red-200 bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                            >
+                                {deleteLoading ? 'Deleting...' : 'Yes, Delete'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
