@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import Seo from '../components/Seo';
 import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
 import { formatServicePrice } from '../utils/servicePrice';
+import { truncateMetaDescription } from '../utils/seo';
 
 const PAGE_SIZE = 20;
 
@@ -119,6 +121,16 @@ const ShopServicesPage = () => {
 
     return (
         <div className="container mx-auto px-4 py-8 md:py-10">
+            <Seo
+                title={headerTitle}
+                description={truncateMetaDescription(
+                    shopName
+                        ? `Browse all services listed by ${shopName} on Mohito Mart.`
+                        : 'Browse all services listed by this shop on Mohito Mart.'
+                )}
+                path={`/shop/${id}/services`}
+                type="website"
+            />
             <div className="mb-4">
                 <p className="mb-2 text-sm text-gray-500">
                     <Link to="/" className="hover:underline">

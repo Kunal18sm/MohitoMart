@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import Seo from '../components/Seo';
 import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import ProductCard from '../components/ProductCard';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
 import { formatServicePrice } from '../utils/servicePrice';
+import { toAbsoluteUrl, truncateMetaDescription } from '../utils/seo';
 
 const StarRating = ({
     value = 0,
@@ -201,6 +203,12 @@ const ShopDetailsPage = () => {
     if (loading) {
         return (
             <div className="container mx-auto px-4 py-10">
+                <Seo
+                    title="Shop Details"
+                    description="See shop profile, products, services, ratings, and contact details."
+                    path={`/shop/${id}`}
+                    type="business.business"
+                />
                 <Skeleton />
             </div>
         );
@@ -209,16 +217,72 @@ const ShopDetailsPage = () => {
     if (!shopData) {
         return (
             <div className="container mx-auto px-4 py-10">
+                <Seo
+                    title="Shop Not Found"
+                    description="The requested shop could not be found on Mohito Mart."
+                    path={`/shop/${id}`}
+                    noindex
+                    robots="noindex,nofollow"
+                    type="business.business"
+                />
                 <p className="rounded-xl bg-red-50 p-4 text-sm text-red-600">{error || 'Shop not found'}</p>
             </div>
         );
     }
 
     const { shop, products = [], services = [], ratings = [] } = shopData;
+    const shopTitle = `${shop.name} | Mohito Mart`;
+    const shopDescription = truncateMetaDescription(
+        shop.description || `${shop.name} shop profile with products and services on Mohito Mart.`
+    );
+    const shopImage = shop.images?.[0] || '/placeholders/shop.svg';
+    const normalizedShopRating = Number(shop.rating);
+    const normalizedShopRatingsCount = Number(shop.numRatings);
+    const shopStructuredData = {
+        '@context': 'https://schema.org',
+        '@type': 'LocalBusiness',
+        name: shop.name,
+        description: shopDescription,
+        url: toAbsoluteUrl(`/shop/${shop._id || id}`),
+        image: (shop.images || [])
+            .filter(Boolean)
+            .map((image) => toAbsoluteUrl(image)),
+        telephone: shop.mobile || undefined,
+        address:
+            shop.location?.address || shop.location?.area || shop.location?.city
+                ? {
+                    '@type': 'PostalAddress',
+                    streetAddress: shop.location?.address || undefined,
+                    addressLocality: shop.location?.area || undefined,
+                    addressRegion: shop.location?.city || undefined,
+                    addressCountry: 'IN',
+                }
+                : undefined,
+        aggregateRating:
+            Number.isFinite(normalizedShopRating) &&
+            normalizedShopRating > 0 &&
+            Number.isFinite(normalizedShopRatingsCount) &&
+            normalizedShopRatingsCount > 0
+                ? {
+                    '@type': 'AggregateRating',
+                    ratingValue: Number(normalizedShopRating.toFixed(1)),
+                    reviewCount: Math.round(normalizedShopRatingsCount),
+                }
+                : undefined,
+        sameAs: shop.mapUrl ? [shop.mapUrl] : undefined,
+    };
     const visibleProducts = products.slice(0, 4);
     const visibleServices = services.slice(0, 4);
     return (
         <div className="container mx-auto px-4 py-8 md:py-10">
+            <Seo
+                title={shopTitle}
+                description={shopDescription}
+                path={`/shop/${shop._id || id}`}
+                image={shopImage}
+                type="business.business"
+                structuredData={shopStructuredData}
+            />
             {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">{error}</p>}
 
             <section className="mb-12 grid gap-8 lg:grid-cols-2 lg:items-start">

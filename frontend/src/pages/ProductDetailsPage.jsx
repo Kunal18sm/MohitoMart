@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import Seo from '../components/Seo';
 import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
 import { extractErrorMessage } from '../utils/errorUtils';
 import { useFlash } from '../context/FlashContext';
 import { formatProductPrice } from '../utils/productPrice';
+import { toAbsoluteUrl, truncateMetaDescription } from '../utils/seo';
 import {
     getPlaceholderImage,
 } from '../utils/imageFallbacks';
@@ -146,6 +148,12 @@ const ProductDetailsPage = () => {
     if (loading) {
         return (
             <div className="container mx-auto px-4 py-10">
+                <Seo
+                    title="Product Details"
+                    description="View product details, pricing, and shop information on Mohito Mart."
+                    path={`/product/${id}`}
+                    type="product"
+                />
                 <Skeleton />
             </div>
         );
@@ -154,13 +162,64 @@ const ProductDetailsPage = () => {
     if (!product) {
         return (
             <div className="container mx-auto px-4 py-10">
+                <Seo
+                    title="Product Not Found"
+                    description="The requested product could not be found on Mohito Mart."
+                    path={`/product/${id}`}
+                    noindex
+                    robots="noindex,nofollow"
+                    type="product"
+                />
                 <p className="rounded-xl bg-red-50 p-4 text-sm text-red-600">{error || 'Product not found'}</p>
             </div>
         );
     }
 
+    const productTitle = `${product.name} | ${product.shop?.name || 'Mohito Mart'}`;
+    const productDescription = truncateMetaDescription(
+        product.description ||
+            `${product.name} in ${product.category || 'products'} available on Mohito Mart.`
+    );
+    const productImage = product.images?.[0] || '/placeholders/product.svg';
+    const normalizedPrice = Number(product.price);
+    const hasValidPrice = Number.isFinite(normalizedPrice);
+    const productStructuredData = {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: product.name,
+        description: productDescription,
+        image: (product.images || [])
+            .filter(Boolean)
+            .map((image) => toAbsoluteUrl(image)),
+        category: product.category || undefined,
+        url: toAbsoluteUrl(`/product/${product._id || id}`),
+        brand: product.shop?.name
+            ? {
+                '@type': 'Brand',
+                name: product.shop.name,
+            }
+            : undefined,
+        offers: hasValidPrice
+            ? {
+                '@type': 'Offer',
+                priceCurrency: 'INR',
+                price: normalizedPrice,
+                availability: 'https://schema.org/InStock',
+                url: toAbsoluteUrl(`/product/${product._id || id}`),
+            }
+            : undefined,
+    };
+
     return (
         <div className="container mx-auto px-4 py-8 md:py-10">
+            <Seo
+                title={productTitle}
+                description={productDescription}
+                path={`/product/${product._id || id}`}
+                image={productImage}
+                type="product"
+                structuredData={productStructuredData}
+            />
             <div className="grid gap-8 lg:grid-cols-2">
                 <div>
                     <div className="mb-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">
@@ -191,7 +250,7 @@ const ProductDetailsPage = () => {
                             >
                                 <AdaptiveCardImage
                                     source={image}
-                                    alt={`thumbnail-${index + 1}`}
+                                    alt={`Thumbnail ${index + 1} of ${product.name}`}
                                     kind="product"
                                     responsiveOptions={{
                                         width: 240,

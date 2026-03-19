@@ -576,6 +576,7 @@ const HomePage = () => {
 
     return (
         <div className="pb-12">
+            <h1 className="sr-only">Mohito Mart - Local Shops Marketplace</h1>
             <section className="container mx-auto px-4 py-4 md:py-8">
                 <div className="relative mx-auto w-full max-w-full overflow-hidden rounded-[2rem] border border-white/70 bg-white/80 shadow-[0_20px_50px_rgba(15,23,42,0.1)] backdrop-blur md:max-w-[760px]">
                     {bannerImages.length > 0 ? (
@@ -603,7 +604,7 @@ const HomePage = () => {
                                                     sizes={bannerProps.sizes}
                                                     width={bannerProps.width}
                                                     height={bannerProps.height}
-                                                    alt={`banner-${index + 1}`}
+                                                    alt={`Featured local shops banner ${index + 1}`}
                                                     loading={index === 0 ? 'eager' : 'lazy'}
                                                     decoding="async"
                                                     fetchPriority={index === 0 ? 'high' : 'auto'}

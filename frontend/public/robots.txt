@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+Disallow: /auth
+Disallow: /cart
+Disallow: /followed-feed
+Disallow: /profile
+Disallow: /owner/
+Disallow: /admin
+
+Sitemap: https://mohitomart.com/sitemap.xml

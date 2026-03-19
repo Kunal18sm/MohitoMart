@@ -5,8 +5,10 @@ import FlashBanner from './components/FlashBanner';
 import Footer from './components/Footer';
 import GlobalSavingOverlay from './components/GlobalSavingOverlay';
 import BottomNav from './components/BottomNav';
+import Seo from './components/Seo';
 import RouteGuard from './components/RouteGuard';
 import { applyAccessibilityEnhancements } from './utils/accessibility';
+import { humanizeSegment, toAbsoluteUrl } from './utils/seo';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage'));
@@ -176,6 +178,212 @@ const isPublicRoutePath = (pathname = '/') =>
 const shouldMountOnboardingOverlay = () =>
     localStorage.getItem('onboarding_complete') !== 'true';
 
+const PRIVATE_ROUTE_PATTERNS = [
+    /^\/auth$/,
+    /^\/cart$/,
+    /^\/followed-feed$/,
+    /^\/profile$/,
+    /^\/owner(\/|$)/,
+    /^\/admin(\/|$)/,
+];
+
+const normalizePathname = (pathname = '/') => {
+    const normalized = String(pathname || '/')
+        .split('#')[0]
+        .split('?')[0]
+        .trim()
+        .replace(/\/{2,}/g, '/');
+
+    if (!normalized) {
+        return '/';
+    }
+
+    if (normalized !== '/' && normalized.endsWith('/')) {
+        return normalized.slice(0, -1);
+    }
+
+    return normalized;
+};
+
+const toTitleCase = (value = '') =>
+    humanizeSegment(value)
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+        .trim();
+
+const isPrivateRoutePath = (pathname = '/') =>
+    PRIVATE_ROUTE_PATTERNS.some((pattern) => pattern.test(normalizePathname(pathname)));
+
+const buildRouteSeo = (pathname = '/') => {
+    const normalizedPath = normalizePathname(pathname);
+    const siteRootUrl = toAbsoluteUrl('/');
+
+    if (normalizedPath === '/') {
+        return {
+            title: 'Mohito Mart - Local Shops Marketplace',
+            description:
+                'Find nearby shops, products, and services in your area on Mohito Mart.',
+            path: '/',
+            type: 'website',
+            structuredData: [
+                {
+                    '@context': 'https://schema.org',
+                    '@type': 'Organization',
+                    name: 'Mohito Mart',
+                    url: siteRootUrl,
+                    logo: toAbsoluteUrl('/logo/mohito-512-optimized.png'),
+                },
+                {
+                    '@context': 'https://schema.org',
+                    '@type': 'WebSite',
+                    name: 'Mohito Mart',
+                    url: siteRootUrl,
+                },
+            ],
+        };
+    }
+
+    if (normalizedPath === '/categories') {
+        return {
+            title: 'All Categories',
+            description:
+                'Explore all product and service categories available on Mohito Mart.',
+            path: normalizedPath,
+            type: 'website',
+        };
+    }
+
+    if (/^\/category\/[^/]+$/i.test(normalizedPath)) {
+        const categorySegment = normalizedPath.split('/')[2] || '';
+        const categoryLabel = toTitleCase(categorySegment) || 'Category';
+        return {
+            title: `${categoryLabel} Near You`,
+            description: `Browse ${categoryLabel} products and services from nearby local shops.`,
+            path: normalizedPath,
+            type: 'website',
+        };
+    }
+
+    if (/^\/shop\/[^/]+\/products$/i.test(normalizedPath)) {
+        return {
+            title: 'Shop Products',
+            description: 'Browse all products listed by this shop on Mohito Mart.',
+            path: normalizedPath,
+            type: 'website',
+        };
+    }
+
+    if (/^\/shop\/[^/]+\/services$/i.test(normalizedPath)) {
+        return {
+            title: 'Shop Services',
+            description: 'Browse all services listed by this shop on Mohito Mart.',
+            path: normalizedPath,
+            type: 'website',
+        };
+    }
+
+    if (/^\/shop\/[^/]+$/i.test(normalizedPath)) {
+        return {
+            title: 'Shop Details',
+            description: 'See shop profile, products, services, ratings, and contact details.',
+            path: normalizedPath,
+            type: 'business.business',
+        };
+    }
+
+    if (/^\/product\/[^/]+$/i.test(normalizedPath)) {
+        return {
+            title: 'Product Details',
+            description: 'View product details, pricing, and shop information on Mohito Mart.',
+            path: normalizedPath,
+            type: 'product',
+        };
+    }
+
+    if (/^\/service\/[^/]+$/i.test(normalizedPath)) {
+        return {
+            title: 'Service Details',
+            description: 'View service details, pricing, and provider information on Mohito Mart.',
+            path: normalizedPath,
+            type: 'website',
+        };
+    }
+
+    if (normalizedPath === '/shops/all') {
+        return {
+            title: 'All Listed Shops',
+            description: 'Discover all listed shops available in your selected area and city.',
+            path: normalizedPath,
+            type: 'website',
+        };
+    }
+
+    if (normalizedPath === '/services/all') {
+        return {
+            title: 'All Services',
+            description: 'Explore all available services from nearby shops on Mohito Mart.',
+            path: normalizedPath,
+            type: 'website',
+        };
+    }
+
+    if (normalizedPath === '/about-us') {
+        return {
+            title: 'About Us',
+            description: 'Learn about Mohito Mart and our mission for local shopping discovery.',
+            path: normalizedPath,
+            type: 'website',
+        };
+    }
+
+    if (normalizedPath === '/contact-us') {
+        return {
+            title: 'Contact Us',
+            description: 'Contact Mohito Mart support and get help with your account or listing.',
+            path: normalizedPath,
+            type: 'website',
+        };
+    }
+
+    if (normalizedPath === '/privacy-policy') {
+        return {
+            title: 'Privacy Policy',
+            description: 'Read how Mohito Mart handles and protects your personal data.',
+            path: normalizedPath,
+            type: 'website',
+        };
+    }
+
+    if (normalizedPath === '/terms-and-conditions') {
+        return {
+            title: 'Terms and Conditions',
+            description: 'Read the terms and conditions for using Mohito Mart.',
+            path: normalizedPath,
+            type: 'website',
+        };
+    }
+
+    if (isPrivateRoutePath(normalizedPath)) {
+        return {
+            title: 'Account',
+            description: 'Private Mohito Mart account area.',
+            path: normalizedPath,
+            type: 'website',
+            noindex: true,
+            robots: 'noindex,nofollow',
+        };
+    }
+
+    return {
+        title: 'Mohito Mart',
+        description:
+            'Mohito Mart helps nearby shoppers discover local shops, products, and services.',
+        path: normalizedPath,
+        type: 'website',
+        noindex: true,
+        robots: 'noindex,nofollow',
+    };
+};
+
 function App() {
     const [sessionBootstrapped, setSessionBootstrapped] = useState(
         () => !Boolean(localStorage.getItem('authToken'))
@@ -189,6 +397,7 @@ function App() {
     const showFooter = location.pathname === '/' || location.pathname === '/profile';
     const isPublicRoute = useMemo(() => isPublicRoutePath(location.pathname), [location.pathname]);
     const canRenderRoutes = isPublicRoute || sessionBootstrapped;
+    const routeSeo = useMemo(() => buildRouteSeo(location.pathname), [location.pathname]);
     const pageFallbackVariant =
         location.pathname === '/' ? 'home' : location.pathname === '/profile' ? 'profile' : 'default';
 
@@ -366,6 +575,15 @@ function App() {
 
     return (
         <div className="relative flex min-h-screen flex-col overflow-x-clip bg-light pb-[70px] pt-[76px] md:pb-0">
+            <Seo
+                title={routeSeo.title}
+                description={routeSeo.description}
+                path={routeSeo.path}
+                type={routeSeo.type}
+                robots={routeSeo.robots}
+                noindex={routeSeo.noindex}
+                structuredData={routeSeo.structuredData}
+            />
             <div
                 aria-hidden="true"
                 className="app-atmosphere pointer-events-none fixed left-1/2 top-[-280px] z-0 h-[560px] w-[1180px] -translate-x-1/2 rounded-full"

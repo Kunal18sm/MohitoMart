@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import Seo from '../components/Seo';
 import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import Skeleton from '../components/Skeleton';
 import api from '../services/api';
 import { formatServicePrice } from '../utils/servicePrice';
 import { getPlaceholderImage } from '../utils/imageFallbacks';
+import { toAbsoluteUrl, truncateMetaDescription } from '../utils/seo';
 
 const ServiceDetailsPage = () => {
     const { id } = useParams();
@@ -37,6 +39,12 @@ const ServiceDetailsPage = () => {
     if (loading) {
         return (
             <div className="container mx-auto px-4 py-10">
+                <Seo
+                    title="Service Details"
+                    description="View service details, pricing, and provider information on Mohito Mart."
+                    path={`/service/${id}`}
+                    type="website"
+                />
                 <Skeleton />
             </div>
         );
@@ -45,10 +53,63 @@ const ServiceDetailsPage = () => {
     if (!service) {
         return (
             <div className="container mx-auto px-4 py-10">
+                <Seo
+                    title="Service Not Found"
+                    description="The requested service could not be found on Mohito Mart."
+                    path={`/service/${id}`}
+                    noindex
+                    robots="noindex,nofollow"
+                    type="website"
+                />
                 <p className="rounded-xl bg-red-50 p-4 text-sm text-red-600">{error || 'Service not found'}</p>
             </div>
         );
     }
+
+    const serviceTitle = `${service.name} | ${service.shop?.name || 'Mohito Mart'}`;
+    const serviceDescription = truncateMetaDescription(
+        service.description ||
+            `${service.name} service by ${service.shop?.name || 'a nearby shop'} on Mohito Mart.`
+    );
+    const serviceImage = service.images?.[0] || '/placeholders/service.svg';
+    const normalizedServicePrice = Number(service.price);
+    const hasValidServicePrice = Number.isFinite(normalizedServicePrice);
+    const serviceStructuredData = {
+        '@context': 'https://schema.org',
+        '@type': 'Service',
+        name: service.name,
+        description: serviceDescription,
+        serviceType: service.category || undefined,
+        image: (service.images || [])
+            .filter(Boolean)
+            .map((image) => toAbsoluteUrl(image)),
+        provider: service.shop?.name
+            ? {
+                '@type': 'LocalBusiness',
+                name: service.shop.name,
+                url: service.shop?._id ? toAbsoluteUrl(`/shop/${service.shop._id}`) : undefined,
+            }
+            : undefined,
+        areaServed:
+            service.shop?.location?.city || service.shop?.location?.area
+                ? {
+                    '@type': 'Place',
+                    name: [service.shop?.location?.area, service.shop?.location?.city]
+                        .filter(Boolean)
+                        .join(', '),
+                }
+                : undefined,
+        offers: hasValidServicePrice
+            ? {
+                '@type': 'Offer',
+                priceCurrency: 'INR',
+                price: normalizedServicePrice,
+                availability: 'https://schema.org/InStock',
+                url: toAbsoluteUrl(`/service/${service._id || id}`),
+            }
+            : undefined,
+        url: toAbsoluteUrl(`/service/${service._id || id}`),
+    };
 
     const shopImages =
         service?.shop?.images?.length > 0
@@ -65,6 +126,14 @@ const ServiceDetailsPage = () => {
 
     return (
         <div className="container mx-auto px-4 py-8 md:py-10">
+            <Seo
+                title={serviceTitle}
+                description={serviceDescription}
+                path={`/service/${service._id || id}`}
+                image={serviceImage}
+                type="website"
+                structuredData={serviceStructuredData}
+            />
             <div className="grid gap-8 lg:grid-cols-2">
                 <div>
                     <div className="mb-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">
@@ -95,7 +164,7 @@ const ServiceDetailsPage = () => {
                                 >
                                     <AdaptiveCardImage
                                         source={image}
-                                        alt={`service-${index + 1}`}
+                                        alt={`Thumbnail ${index + 1} of ${service.name}`}
                                         kind="service"
                                         responsiveOptions={{
                                             width: 240,

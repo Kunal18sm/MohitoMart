@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import Seo from '../components/Seo';
 import ProductCard from '../components/ProductCard';
 import Skeleton from '../components/Skeleton';
 import AdaptiveCardImage from '../components/AdaptiveCardImage';
 import api from '../services/api';
 import { formatServicePrice } from '../utils/servicePrice';
+import { truncateMetaDescription } from '../utils/seo';
 import {
     buildAreaQueryParam,
     formatAreaSummary,
@@ -65,6 +67,10 @@ const CategoryPage = () => {
     const productExcludeIdsRef = useRef([]);
 
     const categoryName = decodeURIComponent(id || '');
+    const categoryLabel = useMemo(
+        () => categoryName.replace(/\b\w/g, (char) => char.toUpperCase()),
+        [categoryName]
+    );
     const areasQuery = useMemo(
         () => buildAreaQueryParam(areaFilterState.areas),
         [areaFilterState.areas]
@@ -211,6 +217,14 @@ const CategoryPage = () => {
 
     return (
         <div className="container mx-auto px-4 py-8 md:py-10">
+            <Seo
+                title={`${categoryLabel} Near You`}
+                description={truncateMetaDescription(
+                    `Browse ${categoryLabel} products and services from local shops on Mohito Mart.`
+                )}
+                path={`/category/${encodeURIComponent(id || '')}`}
+                type="website"
+            />
             <div className="mb-4">
                 <p className="mb-2 text-sm text-gray-500">
                     <Link to="/" className="hover:underline">
@@ -219,7 +233,7 @@ const CategoryPage = () => {
                     / {t('category') || 'Category'}
                 </p>
                 <h1 className="text-3xl font-black text-dark sm:text-4xl">
-                    {categoryName.replace(/\b\w/g, (char) => char.toUpperCase())}
+                    {categoryLabel}
                 </h1>
                 <p className="text-gray-500">
                     {areaFilterState.city && areaFilterState.areas.length
