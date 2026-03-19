@@ -171,6 +171,10 @@ html.dark .text-primary-dark {
   color: #67d9cc !important;
 }
 
+html.dark .install-app-cta {
+  color: #0f172a !important;
+}
+
 html.dark :is(
   .border-gray-100,
   .border-gray-200,

@@ -73,9 +73,9 @@ const AllCategoriesPage = () => {
                         <div key={category} className="h-full">
                             <Link
                                 to={`/category/${encodeURIComponent(category.toLowerCase())}`}
-                                className="block h-full rounded-[18px] border border-slate-300/50 bg-gradient-to-b from-white to-slate-50 p-1.5 transition hover:-translate-y-0.5 hover:shadow-sm"
+                                className="glass-panel block h-full rounded-[18px] p-1.5 transition hover:-translate-y-0.5 hover:shadow-sm"
                             >
-                                <div className="mx-auto mb-2 h-24 w-full overflow-hidden rounded-xl border border-gray-200 bg-white">
+                                <div className="mx-auto mb-2 h-24 w-full overflow-hidden rounded-xl border border-gray-200 bg-light">
                                     <img
                                         src={getCategoryLocalImage(category)}
                                         alt={category}

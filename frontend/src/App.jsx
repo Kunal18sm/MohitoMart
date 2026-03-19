@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import FlashBanner from './components/FlashBanner';
@@ -39,6 +39,7 @@ const InstallAppPrompt = lazy(() => import('./components/InstallAppPrompt'));
 const OnboardingOverlay = lazy(() => import('./components/OnboardingOverlay'));
 const CSRF_STORAGE_KEY = 'mm_csrf_token';
 const READABLE_SESSION_COOKIE_KEY = 'mm_csrf';
+const GA_MEASUREMENT_ID = 'G-JT69YMLED0';
 const PUBLIC_ROUTE_PATTERNS = [
     /^\/$/,
     /^\/category\/[^/]+$/,
@@ -183,6 +184,7 @@ function App() {
     const [onboardingOverlayEnabled, setOnboardingOverlayEnabled] = useState(() =>
         shouldMountOnboardingOverlay()
     );
+    const lastTrackedPathRef = useRef('');
     const location = useLocation();
     const showFooter = location.pathname === '/' || location.pathname === '/profile';
     const isPublicRoute = useMemo(() => isPublicRoutePath(location.pathname), [location.pathname]);
@@ -336,6 +338,31 @@ function App() {
             }
         };
     }, [location.pathname, sessionBootstrapped]);
+
+    useEffect(() => {
+        const currentPath = `${location.pathname}${location.search}${location.hash}`;
+        if (lastTrackedPathRef.current === currentPath) {
+            return;
+        }
+
+        lastTrackedPathRef.current = currentPath;
+
+        if (typeof window.gtag !== 'function') {
+            return;
+        }
+
+        const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        if (isLocalhost) {
+            return;
+        }
+
+        window.gtag('event', 'page_view', {
+            send_to: GA_MEASUREMENT_ID,
+            page_path: currentPath,
+            page_location: window.location.href,
+            page_title: document.title,
+        });
+    }, [location.pathname, location.search, location.hash]);
 
     return (
         <div className="relative flex min-h-screen flex-col overflow-x-clip bg-light pb-[70px] pt-[76px] md:pb-0">

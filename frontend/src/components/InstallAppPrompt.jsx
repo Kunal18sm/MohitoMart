@@ -41,7 +41,7 @@ const InstallAppPrompt = () => {
                         type="button"
                         onClick={promptInstall}
                         disabled={isInstalling}
-                        className="rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-70"
+                        className="install-app-cta rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-70"
                     >
                         {isInstalling ? 'Installing...' : 'Install App'}
                     </button>
